@@ -1,0 +1,347 @@
+// .opencode/tools/dm-send.js — primitive DM tool for agent-board (DM-only v2).
+// Filename becomes the tool name: dm-send.
+// Loaded by opencode alongside built-in tools. Zero extra deps.
+//
+// Usage from the agent (just a tool call, whenever you want):
+//   dm-send({ from: "alice", to: "bob", body: "the parser accepts ISO dates only" })
+//   dm-send({ from: "lead", to: "alice,bob,carol", subject: "brief: cards", body: "..." })
+//
+// Fanning out work ("assign N agents"): there is no task object — the DM *is*
+// the task. `to` accepts a comma list (one copy each, shared batch id); each
+// agent owns its scope and DMs a summary back. Thread answers with `replyTo`.
+//
+// What it does:
+//   1. resolves the board (board arg, AGENTBOARD_DIR env, else walk-up from
+//      worktree/directory/cwd to the project .agentboard)
+//   2. writes .agentboard/dm/<to>/<msg-id>.json per recipient (atomic
+//      write-then-rename, unique id each, shared batch id on fan-out)
+//   3. upserts .agentboard/agents/<from>.json with { lastSeen, sessionId }
+//      so the watcher plugin can route pushes back to the right session.
+//   4. stamps the sender's git rev (when inside a checkout) so recipients
+//      can tell whether cited file:line numbers are stale.
+//   5. returns "sent <id> -> <to> [board <path>]" for the calling agent.
+//
+// Delivery ("inserted into context") is done by ../plugins/dm-watch.js, which
+// polls dm/ and injects via client.session.promptAsync. This tool never blocks
+// waiting for a reply — fire and forget, like Slack.
+
+import { tool } from "@opencode-ai/plugin";
+import fs from "node:fs";
+import path from "node:path";
+import crypto from "node:crypto";
+import { execFileSync } from "node:child_process";
+
+function findBoardUpward(start) {
+  let dir = path.resolve(start);
+  for (;;) {
+    try {
+      if (fs.statSync(path.join(dir, ".agentboard")).isDirectory()) return path.join(dir, ".agentboard");
+    } catch {}
+    const parent = path.dirname(dir);
+    if (parent === dir) return null;
+    dir = parent;
+  }
+}
+
+// Try every base the harness gives us (worktree, directory, cwd): harnesses
+// sometimes run agents with a cwd below (or beside) the project, or with an
+// empty worktree. First walk-up hit wins; otherwise fall back to
+// <primary>/.agentboard so the caller gets the drive-root guard instead of a
+// silent stray board.
+function boardRoot(candidates, override) {
+  if (override) return { root: path.resolve(String(override)), tried: [path.resolve(String(override))] };
+  if (process.env.AGENTBOARD_DIR) return { root: path.resolve(process.env.AGENTBOARD_DIR), tried: [path.resolve(process.env.AGENTBOARD_DIR)] };
+  const tried = [];
+  for (const base of candidates) {
+    if (!base) continue;
+    let dir;
+    try {
+      dir = path.resolve(String(base));
+    } catch {
+      continue;
+    }
+    tried.push(dir);
+    const hit = findBoardUpward(dir);
+    if (hit) return { root: hit, tried };
+  }
+  const primary = path.resolve(String(candidates[0] || process.cwd()));
+  return { root: path.join(primary, ".agentboard"), tried };
+}
+
+function clean(name, what) {
+  if (!name) throw new Error("missing " + what);
+  const c = String(name).trim().toLowerCase().replace(/[^a-z0-9_.-]/g, "-").slice(0, 40);
+  if (!c) throw new Error("invalid " + what);
+  return c;
+}
+
+const MAX_RECIPIENTS = 10000;
+const BROADCAST_AFTER = 20;
+
+function mintToken() {
+  return `abt-${crypto.randomBytes(18).toString("hex")}`;
+}
+
+function readAgent(root, name) {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(root, "agents", name + ".json"), "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+function resolveToken(args) {
+  if (args.token !== undefined && args.token !== null && String(args.token) !== "") return String(args.token);
+  const env = process.env.AGENTBOARD_TOKEN;
+  return env === undefined || env === "" ? undefined : env;
+}
+
+// First send as a new name mints its record + token (first-claim-wins).
+function ensureSender(root, agent, token) {
+  const rec = readAgent(root, agent);
+  if (!rec) {
+    const fresh = mintToken();
+    const now = new Date().toISOString();
+    writeJsonAtomic(path.join(root, "agents", agent + ".json"), { name: agent, firstSeen: now, lastSeen: now, token: fresh });
+    return { created: true, token: fresh };
+  }
+  if (!rec.token) {
+    const fresh = mintToken();
+    rec.token = fresh;
+    rec.lastSeen = new Date().toISOString();
+    writeJsonAtomic(path.join(root, "agents", agent + ".json"), rec);
+    return { created: true, token: fresh };
+  }
+  if (token !== rec.token) throw new Error(`bad token for "${agent}" (pass token or set AGENTBOARD_TOKEN)`);
+  return { created: false };
+}
+
+function parseRecipients(raw) {
+  if (raw === undefined || raw === null || String(raw).trim() === "") {
+    throw new Error("missing to (recipient); or comma-separate for broadcast: alice,bob,carol; or @all for everyone");
+  }
+  const out = [];
+  for (const part of String(raw).split(",")) {
+    if (part.trim() === "") continue;
+    if (part.trim().toLowerCase() === "@all") return ["@all"];
+    const c = clean(part, "to");
+    if (!out.includes(c)) out.push(c);
+  }
+  if (out.length === 0) throw new Error("missing to (recipient)");
+  if (out.length > MAX_RECIPIENTS) throw new Error(`too many recipients (max ${MAX_RECIPIENTS}, got ${out.length})`);
+  return out;
+}
+
+function expandGroups(root, raw) {
+  const out = [];
+  if (raw === undefined || raw === null || String(raw).trim() === "") return out;
+  for (const part of String(raw).split(",")) {
+    if (part.trim() === "") continue;
+    const g = String(part).trim().toLowerCase().replace(/[^a-z0-9_.-]/g, "-").slice(0, 40);
+    if (!g || g === "@all") throw new Error(`invalid group name "${part}"`);
+    let doc = null;
+    try {
+      doc = JSON.parse(fs.readFileSync(path.join(root, "groups", g + ".json"), "utf8"));
+    } catch {}
+    if (!doc || !Array.isArray(doc.members)) throw new Error(`unknown group "${g}" (create it: group create ${g} --add a,b,c)`);
+    for (const m of doc.members) {
+      if (m && !out.includes(m)) out.push(m);
+    }
+  }
+  return out;
+}
+
+function manifestPath(root) {
+  return path.join(root, "index", "broadcasts.json");
+}
+
+function loadManifest(root) {
+  try {
+    const m = JSON.parse(fs.readFileSync(manifestPath(root), "utf8"));
+    if (m && typeof m === "object" && !Array.isArray(m)) return m;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function recordBroadcastManifest(root, batch, to, at) {
+  try {
+    const idxDir = path.join(root, "index");
+    fs.mkdirSync(idxDir, { recursive: true });
+    const lock = path.join(idxDir, ".lock");
+    let locked = false;
+    for (let i = 0; i < 20 && !locked; i++) {
+      try {
+        fs.writeFileSync(lock, JSON.stringify({ pid: process.pid, at: Date.now() }) + "\n", { flag: "wx" });
+        locked = true;
+      } catch {
+        let stale = false;
+        try {
+          stale = Date.now() - Number(JSON.parse(fs.readFileSync(lock, "utf8")).at || 0) > 10000;
+        } catch {
+          stale = true;
+        }
+        if (stale) {
+          try { fs.rmSync(lock, { force: true }); } catch {}
+        } else {
+          const s = Date.now();
+          while (Date.now() - s < 25) {}
+        }
+      }
+    }
+    if (!locked) return;
+    try {
+      const m = loadManifest(root) || {};
+      m[batch] = { to: to.includes("@all") ? "@all" : to.slice(), at };
+      writeJsonAtomic(manifestPath(root), m);
+    } finally {
+      try { fs.rmSync(lock, { force: true }); } catch {}
+    }
+  } catch {}
+}
+
+function cleanSubject(raw) {
+  if (raw === undefined || raw === null) return undefined;
+  const s = String(raw).trim().slice(0, 120);
+  return s || undefined;
+}
+
+function cleanReply(raw) {
+  if (raw === undefined || raw === null || String(raw).trim() === "") return undefined;
+  return String(raw).trim().slice(0, 80);
+}
+
+// Best-effort git rev of the project containing the board. Never throws.
+function gitRev(root) {
+  try {
+    const out = execFileSync("git", ["rev-parse", "--short", "HEAD"], {
+      cwd: path.dirname(root),
+      stdio: ["ignore", "pipe", "ignore"],
+      timeout: 3000,
+    });
+    return String(out).trim().slice(0, 40) || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function writeJsonAtomic(p, obj) {
+  fs.mkdirSync(path.dirname(p), { recursive: true });
+  const tmp = p + "." + process.pid + "." + crypto.randomBytes(4).toString("hex") + ".tmp";
+  fs.writeFileSync(tmp, JSON.stringify(obj, null, 2) + "\n");
+  try {
+    fs.renameSync(tmp, p);
+  } catch (e) {
+    const start = Date.now();
+    while (Date.now() - start < 50) { /* brief spin for Windows AV holds */ }
+    try {
+      fs.renameSync(tmp, p);
+    } catch (e2) {
+      try { fs.rmSync(tmp, { force: true }); } catch {}
+      throw e2;
+    }
+  }
+}
+
+function newId(prefix) {
+  const t = new Date();
+  const stamp =
+    String(t.getUTCFullYear()).slice(2) +
+    String(t.getUTCMonth() + 1).padStart(2, "0") +
+    String(t.getUTCDate()).padStart(2, "0") +
+    "-" +
+    String(t.getUTCHours()).padStart(2, "0") +
+    String(t.getUTCMinutes()).padStart(2, "0") +
+    String(t.getUTCSeconds()).padStart(2, "0");
+  return `${prefix}-${stamp}-${crypto.randomBytes(4).toString("hex")}`;
+}
+
+export default tool({
+  description:
+    "Send a direct message to another AI agent via agent-board. Use whenever you want to coordinate, share a finding, or ask a peer. Fire-and-forget like Slack — the peer's session gets it injected into context. `to` accepts a comma list (broadcast: one copy each, shared batch id, up to 10000; fan-outs over 20 use one broadcast file) or @all for everyone. Args: from (your stable agent name), to (peer's agent name), body (message text), subject (optional mission line), replyTo (optional msg id you are answering), board (optional absolute board path when your session runs outside the project).",
+  args: {
+    from: tool.schema.string().describe("Your stable agent name, e.g. alice. Keep it constant for the session."),
+    to: tool.schema.string().describe("Recipient agent name, e.g. bob — comma list for broadcast up to 10000: alice,bob,carol — or @all for everyone. They receive it on inbox/listen even before registering."),
+    to_group: tool.schema.string().optional().describe("Named group(s) to fan out to, e.g. eng-team (CLI: group create eng-team --add a,b,c). Merged with to."),
+    token: tool.schema.string().optional().describe("Your agent token from the first send (or AGENTBOARD_TOKEN env). First send as a new name mints its token."),
+    body: tool.schema.string().describe("Message text, 1..8000 chars."),
+    subject: tool.schema.string().optional().describe("Optional mission line, e.g. 'brief: borderless cards'. Shown above the body."),
+    replyTo: tool.schema.string().optional().describe("Optional message id you are answering (threads the reply)."),
+    board: tool.schema.string().optional().describe("Optional absolute board path, e.g. C:/proj/.agentboard. Overrides AGENTBOARD_DIR and auto-detection."),
+  },
+  async execute(args, context) {
+    const from = clean(args.from, "from");
+    const boardArgEarly = args.board === undefined || args.board === null || String(args.board).trim() === "" ? undefined : String(args.board);
+    const worktreeEarly = context.worktree || context.directory || process.cwd();
+    const { root: rootEarly } = boardRoot([worktreeEarly, context.directory, process.cwd()], boardArgEarly);
+    const groupMembers = expandGroups(rootEarly, args.to_group);
+    const toCombined = (() => {
+      const base = args.to === undefined || args.to === null ? "" : String(args.to);
+      return groupMembers.length > 0 ? (base.trim() === "" ? groupMembers.join(",") : base + "," + groupMembers.join(",")) : base;
+    })();
+    const recipients = parseRecipients(toCombined);
+    const body = String(args.body || "").trim();
+    if (!body) return "error: empty body";
+    if (body.length > 8000) return "error: body too large (max 8000 chars)";
+    const subject = cleanSubject(args.subject);
+    const replyTo = cleanReply(args.replyTo);
+    const boardArg = args.board === undefined || args.board === null || String(args.board).trim() === "" ? undefined : String(args.board);
+    const worktree = context.worktree || context.directory || process.cwd();
+    const { root, tried } = boardRoot([worktree, context.directory, process.cwd()], boardArg);
+    if (!boardArg && !process.env.AGENTBOARD_DIR) {
+      let exists = false;
+      try {
+        exists = fs.statSync(root).isDirectory();
+      } catch {}
+      if (!exists && path.dirname(root) === path.parse(root).root) {
+        return `error: refusing to create a board at drive root ${root} — no project board found. Tried walk-up from: ${tried.join(" | ") || "(nothing)"}. Run from your project (the dir containing .agentboard/), pass board (absolute path to .agentboard), or set AGENTBOARD_DIR.`;
+      }
+    }
+    const minted = ensureSender(root, from, resolveToken(args));
+    const tokenHint = minted.created ? ` identity '${from}' claimed, token ${minted.token} (set AGENTBOARD_TOKEN=${minted.token})` : "";
+    const rev = gitRev(root);
+    const at = new Date().toISOString();
+    // upsert sender with live session routing for the watcher plugin
+    const ap = path.join(root, "agents", from + ".json");
+    let prev = null;
+    try {
+      prev = JSON.parse(fs.readFileSync(ap, "utf8"));
+    } catch {}
+    writeJsonAtomic(ap, {
+      name: from,
+      firstSeen: (prev && prev.firstSeen) || new Date().toISOString(),
+      lastSeen: new Date().toISOString(),
+      sessionId: (context && context.sessionID) || (prev && prev.sessionId) || undefined,
+      lastDir: context.worktree || context.directory || undefined,
+      token: (prev && prev.token) || minted.token,
+    });
+    const isAll = recipients.length === 1 && recipients[0] === "@all";
+    if (isAll || recipients.length > BROADCAST_AFTER) {
+      const batch = newId("batch");
+      const msg = { id: batch, from, to: recipients.slice(), body, at, batch, count: isAll ? undefined : recipients.length };
+      if (subject) msg.subject = subject;
+      if (replyTo) msg.replyTo = replyTo;
+      if (rev) msg.rev = rev;
+      writeJsonAtomic(path.join(root, "broadcast", batch + ".json"), msg);
+      const who = isAll ? "@all" : `${recipients.length} recipients`;
+      recordBroadcastManifest(root, batch, recipients.slice(), at);
+      return `sent ${isAll ? "@all" : recipients.length + " messages"} via broadcast ${batch} to ${who} [board ${root}]${tokenHint}`;
+    }
+    const batch = recipients.length > 1 ? newId("batch") : undefined;
+    const sent = [];
+    for (const to of recipients) {
+      const id = newId("msg");
+      const msg = { id, from, to, body, at };
+      if (subject) msg.subject = subject;
+      if (replyTo) msg.replyTo = replyTo;
+      if (batch) msg.batch = batch;
+      if (rev) msg.rev = rev;
+      writeJsonAtomic(path.join(root, "dm", to, id + ".json"), msg);
+      sent.push(`${id} -> ${to}`);
+    }
+    if (sent.length === 1) return "sent " + sent[0] + " [board " + root + "]" + tokenHint;
+    if (sent.length > 10) return `sent ${sent.length} messages [board ${root}] batch ${batch}: ${sent.slice(0, 10).join(", ")} + ${sent.length - 10} more${tokenHint}`;
+    return `sent ${sent.length} messages [board ${root}] batch ${batch}: ${sent.join(", ")}${tokenHint}`;
+  },
+});

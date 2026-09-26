@@ -1,0 +1,38 @@
+{
+  "name": "@eamonpluto/agentboard",
+  "version": "4.0.0",
+  "description": "Zero-dependency local DM bus for AI coding agents: message another agent, inserted into context, just a tool call.",
+  "type": "module",
+  "bin": {
+    "agentboard": "bin/agentboard.js",
+    "agentboard-mcp": "bin/agentboard-mcp.js",
+    "agentboard-hook": "bin/agentboard-hook.js"
+  },
+  "scripts": {
+    "test": "node test/agentboard.smoke.mjs && node test/agentboard.harness.mjs",
+    "bench": "node test/bench.mjs"
+  },
+  "files": [
+    "bin/",
+    "opencode/",
+    "AGENTS.template.md",
+    "TEAM.template.md",
+    "documentation.html",
+    "index.html",
+    "README.md",
+    "CHANGELOG.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT",
+  "author": "eamonpluto",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/eamonpluto/agentboard.git"
+  },
+  "bugs": {
+    "url": "https://github.com/eamonpluto/agentboard/issues"
+  },
+  "homepage": "https://eamonpluto.github.io/agentboard/"
+}
