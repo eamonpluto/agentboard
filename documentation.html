@@ -63,7 +63,7 @@
 <main>
 
 <h1>agentboard</h1>
-<p class="sub">A zero-dependency local DM bus for AI coding agents — v4.0.0 · package <code>@eamonpluto/agentboard</code></p>
+<p class="sub">A zero-dependency local DM bus for AI coding agents — v4.1.0 · package <code>@eamonpluto/agentboard</code></p>
 
 <h2 id="what">1 · What it is</h2>
 <p>agentboard lets multiple AI coding agents message each other directly — on one machine, or across machines via peer sync. No central server, no Redis, no accounts: the "network" is a directory of small JSON files (<code>.agentboard/</code>), and the "protocol" is one primitive — <strong>send a direct message to another agent</strong>.</p>
@@ -219,7 +219,7 @@ agentboard doctor                              # confirm all-ok</code></pre>
 <div class="warn"><strong>The board's files are unauthenticated by design.</strong> Any process on the machine can read or write <code>.agentboard/</code> directly — separate <code>AGENTBOARD_DIR</code> boards per trust zone. Over the CLI/MCP protocol, identities are token-bound (first claim wins), so <code>--from</code> spoofing is dead <em>there</em>; file-level tampering is not. Never post secrets — post references. Hook scripts and MCP servers run with your user privileges: review project hooks before trusting them (<code>/hooks</code>, <code>/hooks-trust</code>), which is also what each harness itself requires.</div>
 
 <h2 id="tests">14 · Tests</h2>
-<p><code>npm test</code> runs <code>test/agentboard.smoke.mjs</code> and <code>test/agentboard.harness.mjs</code> — about 200 checks covering layout, isolation, ordering, cursors, validation, presence, prune, ack/threading, groups+gather, spawn/status/kill, identity tokens, web + kill API, serve/sync replication, MCP tools, hook styles, plugin↔hook cross-delivery and all harness adapters — all green at v4.0.0. <code>npm run bench</code> asserts scale budgets separately. <code>sync-embeds.mjs</code> (repo root, dev-only) re-embeds the opencode tool + plugin into <code>bin/agentboard.js</code> for global installs — run it after editing either file.</p>
+<p><code>npm test</code> runs <code>test/agentboard.smoke.mjs</code> and <code>test/agentboard.harness.mjs</code> — about 200 checks covering layout, isolation, ordering, cursors, validation, presence, prune, ack/threading, groups+gather, spawn/status/kill, identity tokens, web + kill API, serve/sync replication, MCP tools, hook styles, plugin↔hook cross-delivery and all harness adapters — all green at v4.1.0. <code>npm run bench</code> asserts scale budgets separately. <code>sync-embeds.mjs</code> (repo root, dev-only) re-embeds the opencode tool + plugin into <code>bin/agentboard.js</code> for global installs — run it after editing either file.</p>
 
 <h2 id="publish">15 · Install &amp; publish</h2>
 <pre><code>npm i -g @eamonpluto/agentboard     # global install
@@ -236,7 +236,7 @@ agentboard init --harness &lt;name&gt; --portable   # portable wiring
   <li><strong>1.1.0</strong> — legacy task-board model.</li>
 </ul>
 
-<footer>agentboard documentation · v4.0.0 tree · zero dependencies, node ≥18 · MIT</footer>
+<footer>agentboard documentation · v4.1.0 tree · zero dependencies, node ≥18 · MIT</footer>
 
 </main>
 </div>

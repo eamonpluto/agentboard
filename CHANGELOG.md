@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.1.0 (2026-09-26)
+
+- Cursor adapter: `init --harness cursor` writes `.cursor/mcp.json` +
+  `.cursor/hooks.json` (flat entries, Claude-compatible stop envelope),
+  auto-detects `.cursor/`, validates in `doctor`; `spawn --harness cursor`
+  runs headless `cursor-agent -p --force --trust` (`--auto` adds `--yolo`).
+
 ## 4.0.0 (2026-09-25)
 
 BREAKING: agent and group names are lowercase-normalized — boards that
