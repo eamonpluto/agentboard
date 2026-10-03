@@ -1,10 +1,17 @@
 # Changelog
 
-## Unreleased
+## 6.0.0 (2026-10-03)
+
+Behavior change (same class as 5.0.0's RBAC defaults): spawned workers no
+longer inherit cloud/AI credential vars from the lead's environment
+(scrubbed by default; the lead token never inherited). Crews whose workers
+relied on inherited provider keys must now pass `--allow-env
+ANTHROPIC_,...` (or `--keep-env`) on `spawn` / `pool` / remote spawn —
+the spawn notice names what was scrubbed. Everything else is additive.
 
 - Sync capability negotiation: relays advertise `capabilities[]` in the
   manifest; mixed-version peers degrade with loud warnings (unknown areas
-  ignored, ungrok'd pushes skipped) instead of failing obscurely.
+  ignored, unsupported pushes skipped) instead of failing obscurely.
 - Ambient credential scrub for spawned workers (T3-style profile
   isolation): cloud/AI credential vars stripped from worker environments by
   default (lead tokens never inherited); `--keep-env` / `--allow-env`
