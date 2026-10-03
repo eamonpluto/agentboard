@@ -537,7 +537,7 @@ function defaultRoleForNew(d) {
 function authorizeCheck(d, agent, action, scope) {
   const role = getRole(d, agent);
   const act = String(action || "");
-  const ADMIN_ONLY = new Set(["prune", "acl-set", "role-grant", "offboard", "group-restrict", "serve-remote", "import", "snapshot-schedule", "quota-set", "hold-place", "hold-lift"]);
+  const ADMIN_ONLY = new Set(["prune", "acl-set", "role-grant", "offboard", "group-restrict", "serve-remote", "import", "snapshot-schedule", "quota-set", "hold-place", "hold-lift", "pairing"]);
   const LEAD_PLUS = new Set(["spawn", "pool", "group-manage", "channel-post", "result-record", "race-close"]);
   const WORKER_WRITES = new Set(["send", "ack", "redeliver", "lock"]);
   const EXPORT_ROLES = new Set(["admin", "auditor"]);
@@ -670,7 +670,7 @@ const VALUE_FLAGS = new Set(["--from", "--to", "--to-file", "--to-group", "--bod
 // reads the same comma/newline-separated list from a file so large fan-outs
 // don't hit Windows argv limits (~8191 chars).
 // §4.4 value-taking flags (skipped with their value by restArgs).
-for (const _f of ["--sender-type", "--fwd", "--secret", "--allow-cmd", "--workdir-root", "--budget-tokens", "--budget-minutes", "--tls-cert", "--tls-key", "--tls-ca", "--mtls-ca", "--mtls-cert", "--mtls-key", "--oidc-issuer", "--oidc-audience", "--issuer", "--client-id", "--bearer", "--oidc-token", "--expires-in", "--service", "--offboard", "--target", "--reason", "--role", "--for", "--default-role", "--freeze", "--unfreeze", "--out", "--in", "--into", "--key-env", "--key-file", "--every", "--keep", "--out-dir", "--max-bytes", "--max-agents", "--max-channels", "--tenant", "--audit-forward", "--audit-forward-key", "--standby", "--promote-on-miss", "--fence", "--relay-interval"]) VALUE_FLAGS.add(_f);
+for (const _f of ["--sender-type", "--fwd", "--secret", "--device", "--pair-token", "--pair-label", "--label", "--ttl", "--id", "--allow-env", "--allow-cmd", "--workdir-root", "--budget-tokens", "--budget-minutes", "--tls-cert", "--tls-key", "--tls-ca", "--mtls-ca", "--mtls-cert", "--mtls-key", "--oidc-issuer", "--oidc-audience", "--issuer", "--client-id", "--bearer", "--oidc-token", "--expires-in", "--service", "--offboard", "--target", "--reason", "--role", "--for", "--default-role", "--freeze", "--unfreeze", "--out", "--in", "--into", "--key-env", "--key-file", "--every", "--keep", "--out-dir", "--max-bytes", "--max-agents", "--max-channels", "--tenant", "--audit-forward", "--audit-forward-key", "--standby", "--promote-on-miss", "--fence", "--relay-interval", "--relays", "--weights", "--relay-auth", "--via", "--weight"]) VALUE_FLAGS.add(_f);
 
 // ---------------------------------------------------------------------------
 // §4.4 Security and integrity helpers (zero-dep, Windows-tolerant)
@@ -4050,6 +4050,35 @@ function deliverDMs(d, { from, recipients, body, subject, replyTo, artifact, pri
 
 // ---------------------------------------------------------------------------
 // spawn: brief N workers AND boot them as live harness processes (detached).
+// Ambient credential scrub (T3-style profile isolation): spawned workers get
+// a clean credential environment by default, so a compromised brief cannot
+// exfiltrate the lead's cloud/AI keys. --keep-env disables scrubbing;
+// --allow-env <prefix,...> keeps listed names. AGENTBOARD_TOKEN (and friends)
+// is never inherited — workers claim their own identity, and inheriting the
+// lead's token would let them impersonate the lead.
+const SCRUB_PREFIXES = ["GOOGLE_", "AWS_", "AZURE_", "ARM_", "ANTHROPIC_", "OPENAI_", "XAI_", "GROK_", "GEMINI_", "HUGGINGFACE_", "HF_", "COHERE_", "MISTRAL_", "DEEPSEEK_", "TOGETHER_", "FIREWORKS_", "PERPLEXITY_", "GITHUB_", "GH_", "GITLAB_", "NPM_", "CARGO_REGISTRY_", "DOCKER_", "KUBERNETES_", "OPENCODE_", "CODEX_"];
+const SCRUB_SUFFIXES = ["_API_KEY", "_SECRET", "_TOKEN", "_PRIVATE_KEY", "_CREDENTIALS"];
+const SCRUB_EXACT = new Set(["GOOGLE_APPLICATION_CREDENTIALS", "KUBECONFIG", "SSH_AUTH_SOCK", "AGENTBOARD_TOKEN", "AGENTBOARD_OIDC_TOKEN", "AGENTBOARD_SECRET", "AGENTBOARD_BACKUP_KEY", "AGENTBOARD_AUDIT_KEY"]);
+function scrubChildEnv(baseEnv, opts) {
+  const keepEnv = !!(opts && opts.keepEnv);
+  const allow = String((opts && opts.allowEnv) || "").split(",").map((s) => String(s).trim()).filter(Boolean);
+  if (keepEnv) return { env: { ...baseEnv }, scrubbed: [], kept: true };
+  const env = {};
+  const scrubbed = [];
+  for (const [k, v] of Object.entries(baseEnv || {})) {
+    const key = String(k);
+    let hit = SCRUB_EXACT.has(key) || SCRUB_SUFFIXES.some((s) => key.endsWith(s)) || SCRUB_PREFIXES.some((p) => key.startsWith(p));
+    if (hit && allow.some((a) => key === a || key.startsWith(a))) hit = false;
+    if (hit) scrubbed.push(key);
+    else env[key] = v;
+  }
+  return { env, scrubbed, kept: false };
+}
+
+function parseAllowEnv(raw) {
+  if (raw === undefined) return undefined;
+  return String(raw).split(",").map((s) => String(s).trim()).filter(Boolean).join(",");
+}
 // The DM is written first, so the brief waits on the board even if a child
 // fails to launch. Children inherit AGENTBOARD_DIR + AGENTBOARD_AGENT, log
 // to .agentboard/logs/<name>-<stamp>.log, and report their pid back here.
@@ -4252,7 +4281,7 @@ function cmdSpawn(args) {
   const at = new Date().toISOString();
   const logDir = path.join(d.root, "logs");
   if (!dry) fs.mkdirSync(logDir, { recursive: true });
-  const spawnOpts = { harness, cmd, model, auto, maxTurns: maxTurnsNum, allowTools, cwd, root: d.root, prompt: null };
+  const spawnOpts = { harness, cmd, model, auto, maxTurns: maxTurnsNum, allowTools, cwd, root: d.root, prompt: null, keepEnv: args.includes("--keep-env"), allowEnv: parseAllowEnv(getFlag(args, "--allow-env")) };
   if (dry) {
     // Preview only: nothing touches the board (ids below are illustrative).
     const previewBatch = recipients.length > 1 ? newId("batch") : undefined;
@@ -4314,7 +4343,11 @@ function bootWorker(d, spawnOpts, { to, id, from, subject, body, rev, logDir, bu
   fs.writeFileSync(promptPath, prompt + "\n");
   const logPath = path.join(logDir, `${to}-${stamp}.log`);
   const logFd = fs.openSync(logPath, "a");
-  const childEnv = { ...process.env, AGENTBOARD_DIR: d.root, AGENTBOARD_AGENT: to };
+  const scrub = scrubChildEnv(process.env, spawnOpts);
+  const childEnv = { ...scrub.env, AGENTBOARD_DIR: d.root, AGENTBOARD_AGENT: to };
+  if (!scrub.kept && scrub.scrubbed.length > 0) {
+    process.stderr.write(`agentboard: scrubbed ${scrub.scrubbed.length} credential var(s) from ${to}'s environment (${scrub.scrubbed.slice(0, 5).join(", ")}${scrub.scrubbed.length > 5 ? ", …" : ""}) — --keep-env to inherit, --allow-env to keep listed names\n`);
+  }
   const target = buildSpawnTarget({ ...spawnOpts, name: to, promptPath, prompt });
   let child = null;
   // claude reads the brief from stdin; everyone else takes paths/args, so
@@ -4336,7 +4369,7 @@ function bootWorker(d, spawnOpts, { to, id, from, subject, body, rev, logDir, bu
   try { if (inFd !== null) fs.closeSync(inFd); } catch {}
   if (!child || !child.pid) throw new Error("launcher returned no pid");
   child.unref();
-  touchAgent(d, to, { spawnedPid: child.pid, spawnedAt: new Date().toISOString(), spawnedBy: from, briefId: id, lastDir: cwd, budgetTokens, budgetMinutes, budgetSince: (budgetTokens !== undefined || budgetMinutes !== undefined) ? new Date().toISOString() : undefined, deadlineAt, spawnedWorktree, spawnedBranch, spawnedLifetime });
+  touchAgent(d, to, { spawnedPid: child.pid, spawnedAt: new Date().toISOString(), spawnedBy: from, briefId: id, lastDir: cwd, budgetTokens, budgetMinutes, budgetSince: (budgetTokens !== undefined || budgetMinutes !== undefined) ? new Date().toISOString() : undefined, deadlineAt, spawnedWorktree, spawnedBranch, spawnedLifetime, spawnedEnvScrubbed: scrub.kept ? 0 : scrub.scrubbed.length });
   return { pid: child.pid, logPath, promptPath };
 }
 
@@ -6208,6 +6241,20 @@ const SYNC_SUBS = ["dm", "broadcast", "delivered", "acked", "cursors", "agents",
 const SYNC_UNION = new Set(["dm", "broadcast", "delivered", "acked", "tombstones", "revoked"]); // copy-if-missing, first writer wins (revocations never resurrected)
 const SYNC_LWW = new Set(["agents", "groups", "cursors", "holds"]); // HLC LWW on (hlc,v), mtime fallback
 
+// Capability negotiation (T3-style environment flags): relays advertise what
+// they understand in the manifest so mixed-version peers degrade gracefully
+// instead of failing obscurely. Legacy relays without `capabilities` speak
+// the 4.0 baseline (dm/broadcast/delivered/acked/agents/groups/cursors).
+const RELAY_CAPS = ["hlc", "tombstones", "channels", "revoked", "holds", "tls", "mtls", "oidc", "standby", "audit-forward"];
+// Sync area -> capability required to replicate it (absent = baseline, always).
+const SUB_CAP = { tombstones: "tombstones", channels: "channels", revoked: "revoked", holds: "holds" };
+const SUB_CAP_NOTE = {
+  tombstones: "deletions stay local",
+  channels: "channel posts stay local",
+  revoked: "revocations stay local",
+  holds: "holds stay local",
+};
+
 // Read a syncable doc for HLC comparison (null when missing/unparsable).
 function readSyncDoc(d, rel) {
   try {
@@ -6242,7 +6289,7 @@ function syncWalk(d, since) {
     };
     walk(path.join(d.root, sub), "");
   }
-  return { version: BOARD_VERSION, files };
+  return { version: BOARD_VERSION, capabilities: RELAY_CAPS, files };
 }
 
 // Per-peer sync cursor (local bookkeeping, never synced): last fully
@@ -6529,7 +6576,7 @@ async function remoteSpawn(d, a, serveOpts) {
   const at = new Date().toISOString();
   const logDir = path.join(d.root, "logs");
   fs.mkdirSync(logDir, { recursive: true });
-  const spawnOpts = { harness, cmd, model, auto, maxTurns, allowTools, cwd, root: d.root, prompt: null };
+  const spawnOpts = { harness, cmd, model, auto, maxTurns, allowTools, cwd, root: d.root, prompt: null, keepEnv: a.keepEnv === true, allowEnv: parseAllowEnv(a.allowEnv) };
   const senderType = (() => {
     const t = a.senderType !== undefined ? String(a.senderType).toLowerCase() : (a.sender_type !== undefined ? String(a.sender_type).toLowerCase() : undefined);
     if (t !== undefined && !["human", "lead", "peer"].includes(t)) throw webErr(400, "senderType must be human|lead|peer");
@@ -6581,7 +6628,7 @@ let _insecureWarned = false;
 
 // Outbound client TLS state for sync/listen (set per-command from flags/env;
 // httpJson reads it — syncRound itself takes no args).
-const CLIENT_TLS = { insecure: false, certPem: null, keyPem: null, bearer: null };
+const CLIENT_TLS = { insecure: false, certPem: null, keyPem: null, bearer: null, device: null };
 
 function clientInsecureFromArgs(args) {
   if (args && args.includes("--insecure")) return true;
@@ -6767,6 +6814,46 @@ function oidcAgentName(sub) {
   return `oidc-${clean}`;
 }
 
+// Per-device relay pairing (T3-style one-time links): instead of sharing one
+// relay secret with every machine, an admin mints a single-use pairing token
+// (`relay pair`); the new device exchanges it once (POST /sync/pair) for a
+// long-lived device credential used in place of --secret. Devices revoke
+// individually (`relay revoke-device`); pairing/ + devices/ are relay-local
+// (never synced, never exported).
+function pairingPath(d, tokenHash) {
+  return path.join(d.root, "pairing", `${tokenHash.slice(0, 32)}.json`);
+}
+function devicePath(d, id) {
+  return path.join(d.root, "devices", `${String(id).replace(/[^a-z0-9_-]/gi, "").slice(0, 16)}.json`);
+}
+function newPairToken() {
+  return `abp-${crypto.randomBytes(16).toString("hex")}`;
+}
+function newDeviceCred() {
+  const id = crypto.randomBytes(4).toString("hex");
+  const secret = crypto.randomBytes(16).toString("hex");
+  return { id, secret, cred: `abd-${id}-${secret}` };
+}
+function parseDeviceCred(s) {
+  const m = /^abd-([0-9a-f]{8})-([0-9a-f]{32})$/.exec(String(s || "").trim());
+  return m ? { id: m[1], secret: m[2] } : null;
+}
+function readDevice(d, id) {
+  try {
+    const doc = readJson(devicePath(d, id));
+    if (doc && doc.id === id && doc.secretHash && doc.salt) return doc;
+    return null;
+  } catch {
+    return null;
+  }
+}
+function deviceFromReq(req, url) {
+  const h = req.headers && (req.headers["x-agentboard-device"] || req.headers["x-relay-device"]);
+  if (h !== undefined && h !== null && String(h) !== "") return parseDeviceCred(h);
+  const q = url.searchParams.get("device");
+  return q === null ? null : parseDeviceCred(q);
+}
+
 // Phase 3: HA control plane. `relay status` reads <board>/relay.json (works
 // with no server running); `relay promote` flips a standby to primary
 // (fence-checked unless --force) — a running standby notices the file
@@ -6809,7 +6896,241 @@ async function cmdRelay(args) {
     console.log(`promoted to primary at ${now} (previous role: ${s.role || "primary"}) [board ${d.root}]`);
     return;
   }
-  fail(`unknown relay subcommand "${sub || ""}" (want status|promote)`);
+  if (sub === "pair" || sub === "devices" || sub === "revoke-device") {
+    const d = requireBoard(boardDir(rest));
+    const actor = resolveAgent(rest, "agent");
+    checkToken(d, actor, resolveToken(rest));
+    authorize(d, actor, "pairing");
+    if (sub === "pair") return cmdRelayPair(d, actor, rest);
+    if (sub === "devices") {
+      let rows = [];
+      try {
+        for (const f of fs.readdirSync(path.join(d.root, "devices"))) {
+          if (!f.endsWith(".json")) continue;
+          try {
+            const doc = readJson(path.join(d.root, "devices", f));
+            if (doc && doc.id) rows.push({ id: doc.id, label: doc.label || "", createdBy: doc.createdBy || "", createdAt: doc.createdAt || "", lastSeen: doc.lastSeen || "", revoked: !!doc.revoked });
+          } catch {}
+        }
+      } catch {}
+      rows.sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
+      if (rest.includes("--json")) {
+        console.log(JSON.stringify(rows, null, 2));
+        return;
+      }
+      if (rows.length === 0) console.log(`no paired devices [board ${d.root}]`);
+      for (const r of rows) {
+        console.log(`${r.id}  ${r.revoked ? "REVOKED" : "active"}  label=${r.label || "-"}  by=${r.createdBy}  lastSeen=${r.lastSeen || "never"} [board ${d.root}]`);
+      }
+      return;
+    }
+    // revoke-device <id-or-credential>
+    const targetRaw = String(rest[0] || getFlag(rest, "--id") || "");
+    const asCred = parseDeviceCred(targetRaw);
+    const targetId = asCred ? asCred.id : sanitizeName(targetRaw, "device").replace(/-/g, "").slice(0, 8);
+    const doc = readDevice(d, targetId);
+    if (!doc) fail(`unknown device "${targetRaw}" (see relay devices)`);
+    doc.revoked = true;
+    doc.revokedAt = new Date().toISOString();
+    doc.revokedBy = actor;
+    writeJson(devicePath(d, doc.id), doc);
+    appendChainRecord(d, actor, "device-revoke", { id: doc.id, label: doc.label || "" });
+    console.log(`revoked device ${doc.id} (label=${doc.label || "-"}) [board ${d.root}]`);
+    return;
+  }
+  fail(`unknown relay subcommand "${sub || ""}" (want status|promote|pair|devices|revoke-device)`);
+}
+
+async function cmdRelayPair(d, admin, rest) {
+  const labelRaw = getFlag(rest, "--label");
+  const label = labelRaw === undefined ? "" : String(labelRaw).slice(0, 80);
+  const ttlMs = parseDuration(getFlag(rest, "--ttl") || "10m");
+  if (!(ttlMs > 0)) fail("--ttl must be a positive duration (e.g. 10m)");
+  const token = newPairToken();
+  const salt = newSalt();
+  const now = Date.now();
+  const doc = {
+    tokenHash: hashToken(token, salt), salt, label,
+    createdBy: admin, createdAt: new Date(now).toISOString(),
+    expiresAt: new Date(now + ttlMs).toISOString(),
+  };
+  fs.mkdirSync(path.join(d.root, "pairing"), { recursive: true });
+  writeJson(pairingPath(d, doc.tokenHash), doc);
+  appendChainRecord(d, admin, "pair", { label, expiresAt: doc.expiresAt });
+  console.log(`pairing token ${token} [board ${d.root}] (single-use, expires ${doc.expiresAt}; exchange: sync --with <url> --pair-token ${token})`);
+}
+
+// Weighted remote crews (T3-style load balancing): relays advertise --weight
+// (default 100) + live worker count in /healthz; `crew survey` shows the
+// fleet, `crew dispatch` splits an elastic crew across primaries by weight
+// (largest remainder). Per-relay credentials via repeatable
+// --relay-auth <url-prefix>=<cred> (abd-… → device header, else shared
+// secret); bare --secret/--device/AGENTBOARD_* apply to every relay.
+function relayAuthEntries(args) {
+  const out = [];
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === "--relay-auth" && args[i + 1] !== undefined && !String(args[i + 1]).startsWith("--")) {
+      const raw = String(args[i + 1]);
+      const eq = raw.indexOf("=");
+      if (eq > 0) out.push({ prefix: raw.slice(0, eq).replace(/\/+$/, ""), cred: raw.slice(eq + 1) });
+    }
+  }
+  return out;
+}
+function relayCredFor(url, args) {
+  const base = String(url).replace(/\/+$/, "");
+  const entries = relayAuthEntries(args).filter((e) => base.startsWith(e.prefix)).sort((a, b) => b.prefix.length - a.prefix.length);
+  if (entries.length > 0) return entries[0].cred;
+  const dflag = getFlag(args, "--device") || process.env.AGENTBOARD_DEVICE;
+  if (dflag) return String(dflag);
+  const sflag = getFlag(args, "--secret") || process.env.AGENTBOARD_SECRET;
+  if (sflag) return String(sflag);
+  return "";
+}
+function relayCredHeaders(cred) {
+  const c = String(cred || "");
+  if (!c) return {};
+  return c.startsWith("abd-") ? { "x-agentboard-device": c } : { "x-agentboard-secret": c };
+}
+async function crewSurvey(relays) {
+  const rows = [];
+  for (const raw of relays) {
+    const base = String(raw).replace(/\/+$/, "");
+    try {
+      const r = await httpJson(base, "GET", "/healthz", undefined, 10000);
+      if (r.status !== 200) throw new Error(`HTTP ${r.status}`);
+      const h = JSON.parse(r.body);
+      rows.push({ url: base, ok: true, role: h.role || "?", weight: Number(h.weight) > 0 ? Number(h.weight) : 100, workers: typeof h.workers === "number" ? h.workers : null, lagMs: h.lagMs ?? null, uptimeSec: h.uptimeSec ?? null });
+    } catch (e) {
+      rows.push({ url: base, ok: false, error: String((e && e.message) || e).slice(0, 120) });
+    }
+  }
+  return rows;
+}
+function splitByWeight(total, weights) {
+  const sum = weights.reduce((a, b) => a + b, 0);
+  const exact = weights.map((w) => (total * w) / sum);
+  const out = exact.map((x) => Math.floor(x));
+  let left = total - out.reduce((a, b) => a + b, 0);
+  const order = exact.map((x, i) => i).sort((a, b) => (exact[b] - Math.floor(exact[b])) - (exact[a] - Math.floor(exact[a])));
+  for (const i of order) {
+    if (left <= 0) break;
+    out[i]++;
+    left--;
+  }
+  return out;
+}
+async function cmdCrew(args) {
+  const sub = args[0];
+  const rest = args.slice(1);
+  const relaysRaw = getFlag(rest, "--relays") || getFlag(args, "--relays");
+  if (sub !== "survey" && sub !== "dispatch") fail(`unknown crew subcommand "${sub || ""}" (want survey|dispatch)`);
+  if (!relaysRaw) fail("crew needs --relays <url1,url2> (comma-separated relay base URLs)");
+  const relays = String(relaysRaw).split(",").map((s) => String(s).trim().replace(/\/+$/, "")).filter(Boolean);
+  if (relays.length === 0) fail("crew needs --relays <url1,url2>");
+  for (const u of relays) {
+    if (!/^https?:\/\//.test(u)) fail(`relay URL must be http(s):// (got "${u}")`);
+  }
+  setupClientTls(rest.length > 0 ? rest : args);
+  if (sub === "survey") {
+    const rows = await crewSurvey(relays);
+    if (rest.includes("--json") || args.includes("--json")) {
+      console.log(JSON.stringify(rows, null, 2));
+      return;
+    }
+    for (const r of rows) {
+      if (!r.ok) console.log(`${r.url}  UNREACHABLE  ${r.error}`);
+      else console.log(`${r.url}  role=${r.role} weight=${r.weight} workers=${r.workers ?? "?"} lagMs=${r.lagMs ?? "-"} uptimeSec=${r.uptimeSec ?? "-"}`);
+    }
+    return;
+  }
+  // dispatch: elastic crew split by weight across reachable primaries.
+  const root = boardDir(rest);
+  const d = requireBoard(root);
+  const from = resolveAgent(rest, "agent");
+  const token = resolveToken(rest);
+  checkToken(d, from, token);
+  authorize(d, from, "spawn");
+  const countRaw = getFlag(rest, "--count");
+  const count = countRaw === undefined ? 0 : Number(countRaw);
+  if (!Number.isInteger(count) || count <= 0) fail("crew dispatch needs --count N (positive integer)");
+  const prefix = String(getFlag(rest, "--prefix") || "worker");
+  const weightsRaw = getFlag(rest, "--weights");
+  let weights = relays.map(() => 100);
+  if (weightsRaw !== undefined) {
+    weights = String(weightsRaw).split(",").map((s) => Number(String(s).trim()));
+    if (weights.length !== relays.length || weights.some((w) => !(w > 0))) fail("--weights must be a positive number per --relays entry (e.g. --weights 3,1)");
+  }
+  const rows = await crewSurvey(relays);
+  const usable = [];
+  rows.forEach((r, i) => {
+    if (!r.ok) {
+      process.stderr.write(`agentboard: crew dispatch skips unreachable ${r.url} (${r.error})\n`);
+      return;
+    }
+    if (r.role !== "primary") {
+      process.stderr.write(`agentboard: crew dispatch skips non-primary ${r.url} (role=${r.role}; standby refuses boots)\n`);
+      return;
+    }
+    usable.push({ ...r, index: i });
+  });
+  if (usable.length === 0) fail("crew dispatch: no reachable primary relay (see notes above)");
+  const shares = splitByWeight(count, usable.map((u) => weights[u.index]));
+  const names = Array.from({ length: count }, (_, i) => `${prefix}-${i + 1}`);
+  const dry = rest.includes("--dry-run");
+  // Shared spawn fields for every relay (mirrors /api/spawn inputs).
+  const harness = String(getFlag(rest, "--harness") || "opencode").toLowerCase();
+  const body = getFlag(rest, "--body");
+  if (!body) fail("crew dispatch needs --body \"...\" (the brief)");
+  const payload = {
+    from, token, harness,
+    body: String(body),
+    subject: getFlag(rest, "--subject"),
+    cmd: getFlag(rest, "--cmd"),
+    cwd: getFlag(rest, "--cwd"),
+    model: getFlag(rest, "--model"),
+    maxTurns: getFlag(rest, "--max-turns") === undefined ? undefined : Number(getFlag(rest, "--max-turns")),
+    allowTools: getFlag(rest, "--allow-tools"),
+    auto: rest.includes("--auto") || undefined,
+    iUnderstandDanger: rest.includes("--i-understand-danger") || undefined,
+    priority: getFlag(rest, "--priority"),
+    senderType: getFlag(rest, "--sender-type"),
+    lifetime: rest.includes("--persistent") ? "persistent" : undefined,
+    keepEnv: rest.includes("--keep-env") || undefined,
+    allowEnv: getFlag(rest, "--allow-env"),
+  };
+  let cursor = 0;
+  const summary = [];
+  for (let k = 0; k < usable.length; k++) {
+    const u = usable[k];
+    const take = names.slice(cursor, cursor + shares[k]);
+    cursor += shares[k];
+    if (take.length === 0) continue;
+    if (dry) {
+      console.log(`would dispatch ${take.length} (${take[0]}..${take[take.length - 1]}) to ${u.url} [weight ${weights[u.index]}]`);
+      summary.push({ url: u.url, to: take, dryRun: true });
+      continue;
+    }
+    const cred = relayCredFor(u.url, rest);
+    let res;
+    try {
+      const r = await httpJson(u.url, "POST", "/api/spawn", JSON.stringify({ ...payload, to: take }), 60000, { "content-type": "application/json", ...relayCredHeaders(cred) });
+      if (r.status !== 200) throw new Error(`HTTP ${r.status}: ${r.body.slice(0, 160)}`);
+      res = JSON.parse(r.body);
+    } catch (e) {
+      console.log(`dispatch to ${u.url} failed (${take.length} workers unplaced): ${String((e && e.message) || e).slice(0, 160)}`);
+      summary.push({ url: u.url, to: take, error: String((e && e.message) || e).slice(0, 160) });
+      continue;
+    }
+    const ok = (res.results || []).filter((x) => !x.error).length;
+    console.log(`dispatched ${ok}/${take.length} to ${u.url} [weight ${weights[u.index]}]`);
+    for (const w of res.results || []) {
+      console.log(`  ${w.error ? `FAILED ${w.to}: ${w.error}` : `${w.to} pid ${w.pid} reply ${w.id}`}`);
+    }
+    summary.push({ url: u.url, to: take, results: res.results || [] });
+  }
+  appendChainRecord(d, from, "crew-dispatch", { relays: usable.map((u) => u.url), count, shares, prefix });
+  if (rest.includes("--json")) console.log(JSON.stringify(summary, null, 2));
 }
 
 async function cmdServe(args) {
@@ -6834,6 +7155,12 @@ async function cmdServe(args) {
   }
   const allowCmd = getFlag(args, "--allow-cmd");
   const workdirRoot = getFlag(args, "--workdir-root");
+  // Weighted crews: --weight advertises this relay's share of dispatch
+  // (default 100). Reported in /healthz alongside live worker count so
+  // `crew survey` / `crew dispatch` can place work proportionally.
+  const weightRaw = getFlag(args, "--weight");
+  const serveWeight = weightRaw === undefined ? 100 : Number(weightRaw);
+  if (!(serveWeight > 0)) fail("--weight must be a positive number");
   // Phase 3: HA standby (active/passive, no consensus). --standby runs a
   // read-replica relay: pull-only sync from the primary on --relay-interval,
   // GET reads served locally, writes refused 503. Promotion via
@@ -7059,13 +7386,23 @@ async function cmdServe(args) {
     }
     if (relaySecret) {
       const got = relaySecretFor(req, url);
-      if (got === undefined || !timingSafeEqualStr(String(got), String(relaySecret))) {
-        if (req.oidc) return true;
-        res.writeHead(403, { "content-type": "application/json; charset=utf-8" });
-        res.end(JSON.stringify({ error: "bad relay secret (x-agentboard-secret or ?secret=)" }));
-        return false;
+      if (got !== undefined && timingSafeEqualStr(String(got), String(relaySecret))) return true;
+      const dev = deviceFromReq(req, url);
+      if (dev) {
+        const rec = readDevice(d, dev.id);
+        if (rec && !rec.revoked && timingSafeEqualStr(hashToken(dev.secret, rec.salt), String(rec.secretHash))) {
+          try {
+            rec.lastSeen = new Date().toISOString();
+            writeJson(devicePath(d, rec.id), rec);
+          } catch {}
+          req.device = { id: rec.id, label: rec.label || "" };
+          return true;
+        }
       }
-      return true;
+      if (req.oidc) return true;
+      res.writeHead(403, { "content-type": "application/json; charset=utf-8" });
+      res.end(JSON.stringify({ error: "bad relay credential (shared secret, paired device, or OIDC Bearer)" }));
+      return false;
     }
     if (remote) {
       if (req.oidc) return true;
@@ -7103,6 +7440,90 @@ async function cmdServe(args) {
         if (req.method === "GET" && url.pathname === "/") {
           res.writeHead(200, { "content-type": "text/plain; charset=utf-8" });
           res.end(`agentboard sync relay [board ${d.root}]\npeers: GET /sync/manifest, GET /sync/file?path=…, POST /sync/put?path=…\ncrews: POST /api/spawn (JSON, token-checked)\n`);
+          return;
+        }
+        if (req.method === "POST" && url.pathname === "/sync/pair") {
+          // Pairing-token exchange (the ONLY unauthenticated relay write):
+          // a single-use, TTL'd token mints one device credential. Atomicity
+          // via exclusive .used.json claim — a raced second exchange 403s.
+          const chunks = [];
+          let size = 0;
+          let tooBig = false;
+          req.on("data", (c) => { size += c.length; if (size <= 65536) chunks.push(c); else tooBig = true; });
+          req.on("end", () => {
+            try {
+              if (tooBig) {
+                res.writeHead(413, { "content-type": "application/json; charset=utf-8" });
+                res.end(JSON.stringify({ error: "pair body too large" }));
+                return;
+              }
+              let body = null;
+              try {
+                body = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+              } catch {
+                res.writeHead(400, { "content-type": "application/json; charset=utf-8" });
+                res.end(JSON.stringify({ error: "want JSON {pairToken, label?}" }));
+                return;
+              }
+              const presented = String((body && body.pairToken) || "");
+              const label = String((body && body.label) || "").slice(0, 80);
+              let rec = null;
+              let recPath = null;
+              try {
+                const dir = path.join(d.root, "pairing");
+                for (const f of fs.readdirSync(dir)) {
+                  if (!f.endsWith(".json") || f.endsWith(".used.json")) continue;
+                  try {
+                    const doc = readJson(path.join(dir, f));
+                    if (doc && doc.tokenHash && doc.salt && timingSafeEqualStr(hashToken(presented, String(doc.salt)), String(doc.tokenHash))) {
+                      rec = doc;
+                      recPath = path.join(dir, f);
+                      break;
+                    }
+                  } catch {}
+                }
+              } catch {}
+              if (!rec) {
+                res.writeHead(403, { "content-type": "application/json; charset=utf-8" });
+                res.end(JSON.stringify({ error: "unknown pairing token" }));
+                return;
+              }
+              if (Date.parse(rec.expiresAt) <= Date.now()) {
+                res.writeHead(403, { "content-type": "application/json; charset=utf-8" });
+                res.end(JSON.stringify({ error: "pairing token expired" }));
+                return;
+              }
+              // Atomic single-use claim first: loser gets 403, token never mints twice.
+              const usedPath = recPath.replace(/\.json$/, ".used.json");
+              if (!writeExclusiveJson(usedPath, { at: new Date().toISOString(), label })) {
+                res.writeHead(403, { "content-type": "application/json; charset=utf-8" });
+                res.end(JSON.stringify({ error: "pairing token already used" }));
+                return;
+              }
+              const dc = newDeviceCred();
+              const salt = newSalt();
+              fs.mkdirSync(path.join(d.root, "devices"), { recursive: true });
+              writeJson(devicePath(d, dc.id), {
+                id: dc.id, label, secretHash: hashToken(dc.secret, salt), salt,
+                createdBy: rec.createdBy || "", createdAt: new Date().toISOString(),
+                lastSeen: "", revoked: false,
+              });
+              try {
+                appendChainRecord(d, "relay", "device-issue", { id: dc.id, label, by: rec.createdBy || "" });
+              } catch {}
+              res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+              res.end(JSON.stringify({ deviceId: dc.id, deviceCredential: dc.cred, label }));
+            } catch (e) {
+              res.writeHead(500, { "content-type": "application/json; charset=utf-8" });
+              res.end(JSON.stringify({ error: `pair failed: ${(e && e.message) || e}` }));
+            }
+          });
+          req.on("error", () => {
+            try {
+              res.writeHead(400, { "content-type": "application/json; charset=utf-8" });
+              res.end("unreadable body");
+            } catch {}
+          });
           return;
         }
         if (req.method === "GET" && url.pathname === "/sync/manifest") {
@@ -7437,9 +7858,18 @@ async function cmdServe(args) {
           refreshRelayState();
           const now = Date.now();
           const role = standbyPrimary !== null ? relay.role : "primary";
+          let workers = 0;
+          try {
+            for (const e of listJson(path.join(d.root, "agents"))) {
+              if (!e || !e.data) continue;
+              if (typeof e.data.spawnedPid === "number" && pidAlive(e.data.spawnedPid)) workers++;
+            }
+          } catch {}
           res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", "x-relay-role": role });
           res.end(JSON.stringify({
             role,
+            weight: serveWeight,
+            workers,
             primary: relay.primary,
             lagMs: relay.lastSyncOk > 0 ? now - relay.lastSyncOk : null,
             lastSyncOk: relay.lastSyncOk > 0 ? new Date(relay.lastSyncOk).toISOString() : null,
@@ -7537,7 +7967,7 @@ async function cmdServe(args) {
   await new Promise(() => {}); // serve until killed
 }
 
-function httpJson(base, method, p, body, timeoutMs) {
+function httpJson(base, method, p, body, timeoutMs, extraHeaders) {
   return new Promise((resolve, reject) => {
     let u;
     try {
@@ -7553,8 +7983,10 @@ function httpJson(base, method, p, body, timeoutMs) {
     const isHttps = u.protocol === "https:";
     const lib = isHttps ? https : http;
     const data = body === undefined ? null : Buffer.isBuffer(body) ? body : Buffer.from(String(body), "utf8");
-    const headers = data ? { "content-type": "application/octet-stream", "content-length": data.length } : {};
+    const headers = { ...(data ? { "content-type": "application/octet-stream", "content-length": data.length } : {}), ...(extraHeaders || {}) };
     if (process.env.AGENTBOARD_SECRET) headers["x-agentboard-secret"] = String(process.env.AGENTBOARD_SECRET);
+    const device = CLIENT_TLS.device || process.env.AGENTBOARD_DEVICE;
+    if (device) headers["x-agentboard-device"] = String(device).trim();
     const bearer = CLIENT_TLS.bearer || process.env.AGENTBOARD_OIDC_TOKEN;
     if (bearer) headers.authorization = `Bearer ${String(bearer).trim()}`;
     const opts = {
@@ -7599,6 +8031,9 @@ function setupClientTls(args) {
   CLIENT_TLS.keyPem = keyPath ? fs.readFileSync(path.resolve(keyPath), "utf8") : null;
   const bearer = getFlag(args, "--bearer") || getFlag(args, "--oidc-token");
   CLIENT_TLS.bearer = bearer !== undefined ? String(bearer) : null;
+  const device = getFlag(args, "--device") || process.env.AGENTBOARD_DEVICE;
+  CLIENT_TLS.device = device !== undefined ? String(device) : null;
+  if (CLIENT_TLS.device && !parseDeviceCred(CLIENT_TLS.device)) fail("malformed --device credential (want abd-<id>-<secret> from the /sync/pair exchange)");
 }
 
 // One exchange round: pull what's missing/newer, push what's missing/newer.
@@ -7613,6 +8048,29 @@ async function syncRound(d, base, dry, since) {
   if (r.status !== 200) throw new Error(`peer manifest HTTP ${r.status}: ${r.body.slice(0, 120)}`);
   const remote = JSON.parse(r.body);
   if (!remote || remote.version !== BOARD_VERSION || !remote.files) throw new Error("peer spoke an incompatible board version");
+  // Capability negotiation: missing caps degrade with a warning, unknown
+  // remote areas are ignored (newer relay), unknown-to-us files already skip
+  // via cleanSyncRel. Baseline (no capabilities field) = 4.0 areas only.
+  const remoteCaps = Array.isArray(remote.capabilities) ? remote.capabilities : [];
+  const capsWarned = new Set();
+  const noteMissingCap = (cap) => {
+    if (!cap || remoteCaps.includes(cap) || capsWarned.has(cap)) return;
+    capsWarned.add(cap);
+    process.stderr.write(`agentboard: warning: peer lacks capability '${cap}' — ${SUB_CAP_NOTE[cap] || "degraded"} (mixed relay versions)\n`);
+  };
+  if (remoteCaps.length === 0) {
+    for (const cap of Object.values(SUB_CAP)) noteMissingCap(cap);
+  }
+  {
+    const unknownSubs = new Set();
+    for (const rel of Object.keys(remote.files)) {
+      const sub = String(rel).split("/")[0];
+      if (sub && !SYNC_SUBS.includes(sub)) unknownSubs.add(sub);
+    }
+    if (unknownSubs.size > 0) {
+      process.stderr.write(`agentboard: warning: peer advertises unknown areas (${[...unknownSubs].join(", ")}) — newer relay? ignored\n`);
+    }
+  }
   const local = syncWalk(d).files;
   const localTombs = readTombstones(d);
   const remoteTombs = new Map();
@@ -7761,6 +8219,11 @@ async function syncRound(d, base, dry, since) {
     if (localTombs.has(rel)) continue; // tombstoned locally: never push the corpse
     const theirs = remote.files[rel];
     const sub = rel.split("/")[0];
+    // Capability-gated push: never push an area the peer doesn't understand.
+    if (SUB_CAP[sub] && !remoteCaps.includes(SUB_CAP[sub])) {
+      noteMissingCap(SUB_CAP[sub]);
+      continue;
+    }
     if (sub === "channels") {
       // Push our lines; the relay merges union-by-id on receipt, so a push
       // never clobbers lines we haven't seen (the next pull brings them).
@@ -7814,6 +8277,25 @@ async function cmdSync(args) {
   if (!/^https?:\/\//.test(baseNoQs)) fail("only http(s):// peers");
   setupClientTls(args);
   const dry = args.includes("--dry-run");
+  // One-time pairing exchange: swap --pair-token for a device credential,
+  // print it once (save as AGENTBOARD_DEVICE), and use it for this round.
+  const pairToken = getFlag(args, "--pair-token");
+  if (pairToken !== undefined) {
+    if (!/^abp-[0-9a-f]{32}$/.test(String(pairToken))) fail("malformed --pair-token (want abp-... from relay pair --from <admin>)");
+    const pairLabel = getFlag(args, "--pair-label") || "";
+    const pr = await httpJson(base, "POST", "/sync/pair", JSON.stringify({ pairToken: String(pairToken), label: String(pairLabel).slice(0, 80) }));
+    if (pr.status !== 200) fail(`pairing exchange failed: ${pr.body.slice(0, 160)}`);
+    let got = null;
+    try {
+      got = JSON.parse(pr.body);
+    } catch {
+      fail("pairing exchange returned bad JSON");
+    }
+    if (!got || !parseDeviceCred(got.deviceCredential)) fail("pairing exchange returned a malformed credential");
+    CLIENT_TLS.device = String(got.deviceCredential);
+    process.env.AGENTBOARD_DEVICE = String(got.deviceCredential);
+    console.log(`paired as device ${got.deviceId}${got.label ? ` (${got.label})` : ""} — save it: set AGENTBOARD_DEVICE=${got.deviceCredential} [board ${d.root}]`);
+  }
   const intervalRaw = getFlag(args, "--interval");
   const interval = intervalRaw === undefined ? 0 : Number(intervalRaw);
   if (intervalRaw !== undefined && !(interval > 0)) fail("--interval must be a positive number of seconds");
@@ -7981,7 +8463,8 @@ Messaging (primitive — just a tool call, whenever you want):
     (recover mail a dead watcher consumed: clears delivered markers and
      rewinds the cursor so the next poll/push treats it as fresh;
      use after re-registering with the live session)
-  agentboard spawn --from <you> (--to <workers> | --count <n> [--prefix <p>]) --body "..." [--subject "..."] [--priority high|normal] [--harness opencode|claude|codex|grok|antigravity|cursor|generic] [--cmd "..."] [--cwd <dir>] [--worktree <branch-prefix> | --branch <branch-prefix>] [--oneshot | --persistent] [--model <m>] [--max-turns <n>] [--allow-tools "..."] [--max-spawn <n>] [--auto --i-understand-danger] [--isolate] [--budget-tokens N] [--budget-minutes M] [--timeout 10m] [--workdir-root <dir>] [--sender-type human|lead|peer] [--dry-run]
+  agentboard spawn --from <you> (--to <workers> | --count <n> [--prefix <p>]) --body "..." [--subject "..."] [--priority high|normal] [--harness opencode|claude|codex|grok|antigravity|cursor|generic] [--cmd "..."] [--cwd <dir>] [--worktree <branch-prefix> | --branch <branch-prefix>] [--oneshot | --persistent] [--model <m>] [--max-turns <n>] [--allow-tools "..."] [--max-spawn <n>] [--auto --i-understand-danger] [--isolate] [--budget-tokens N] [--budget-minutes M] [--timeout 10m] [--keep-env] [--allow-env ANTHROPIC_,GITHUB_] [--workdir-root <dir>] [--sender-type human|lead|peer] [--dry-run]
+   (workers boot with cloud/AI credential vars scrubbed from their environment by default (lead's keys never leak into briefs); pass --keep-env to inherit everything or --allow-env <prefix,...> to keep listed names. AGENTBOARD_TOKEN is never inherited — workers claim their own identity.)
     (brief N workers AND boot them detached: the DM lands first so the brief
      waits even if a launch fails. opencode: \`run\` + brief via --file;
      claude: \`-p\` + brief on stdin; codex: \`exec\` pointing at the brief
@@ -8092,7 +8575,7 @@ Messaging (primitive — just a tool call, whenever you want):
     (local dashboard: workers, presence, broadcasts, recent mail. Reads are
      open; the per-worker kill button POSTs /api/kill with your name+token.
      JSON at /api/board. Binds localhost; tokens are never rendered.)
-  agentboard serve [--port 0] [--host 127.0.0.1] [--secret <s>] [--allow-remote-spawn] [--allow-cmd <regex>] [--workdir-root <dir>] [--tls-cert <pem> --tls-key <pem> [--tls-ca <pem>|--mtls-ca <pem>]] [--oidc-issuer <url> --oidc-audience <id>] [--audit-forward <https-url> [--audit-forward-key <bearer>]]
+  agentboard serve [--port 0] [--host 127.0.0.1] [--secret <s>] [--weight N] [--allow-remote-spawn] [--allow-cmd <regex>] [--workdir-root <dir>] [--tls-cert <pem> --tls-key <pem> [--tls-ca <pem>|--mtls-ca <pem>]] [--oidc-issuer <url> --oidc-audience <id>] [--audit-forward <https-url> [--audit-forward-key <bearer>]]
     (sync relay for one board: peers pull/push via /sync/manifest+file+put,
      boot crews via POST /api/spawn (JSON, token-checked, same rules as the
      spawn command — crews launch on the relay machine). Binds localhost by
@@ -8119,12 +8602,17 @@ Messaging (primitive — just a tool call, whenever you want):
       recommended) or opt-in --promote-on-miss auto-promote (split-brain
       risk — see docs/HA.md). GET /healthz {role, lagMs, uptimeSec} is the
       load-balancer check. Standby and primary share the relay secret.)
-  agentboard relay status [--json] | relay promote [--force] [--fence <path-or-url>]
+  agentboard relay status [--json] | relay promote [--force] [--fence <path-or-url>] | relay pair --from <admin> [--label <device>] [--ttl 10m] | relay devices [--json] | relay revoke-device <id> [--from <admin>]
+    (per-device pairing: pair mints a single-use TTL'd token; the device swaps it once via sync --pair-token for a long-lived credential used as --device/AGENTBOARD_DEVICE instead of the shared --secret. pairing/ + devices/ stay on the relay — never synced, never exported.)
+  agentboard crew survey --relays <url1,url2> [--json]
+    (fleet placement view: role, weight, live workers, lag per relay.)
+  agentboard crew dispatch --from <you> --relays <url1,url2> [--weights <w1,w2>] [--relay-auth <url=cred>...] --count N [--prefix p] [--harness ...] --body "..." [--dry-run] [--json]
+    (weighted elastic crew across reachable primaries (largest remainder); standbys and unreachable relays skip loudly. --relay-auth takes per-relay creds (abd-… or shared secret); bare --secret/--device apply to all. Needs your token: boots land under your identity on each relay.)
     (HA control plane: status shows role/primary lag/promotion from
      relay.json (no server needed); promote flips a standby to primary,
      fence-checked unless --force — a running standby notices without
      restart. Manual failover recommended; see docs/HA.md.)
-  agentboard sync --with http(s)://peer:port [--once] [--interval <sec>] [--dry-run] [--secret <s>] [--insecure] [--mtls-cert <pem> --mtls-key <pem>] [--bearer <jwt>]
+  agentboard sync --with http(s)://peer:port [--once] [--interval <sec>] [--dry-run] [--secret <s>] [--device <abd-cred>] [--pair-token <abp-...> [--pair-label <l>]] [--insecure] [--mtls-cert <pem> --mtls-key <pem>] [--bearer <jwt>]
     (peer sync, both directions: message files union by id (immutable, no
      conflicts); channel logs merge union-by-id per line; presence/cursors/groups/holds
      take HLC LWW winner on (hlc,v),
@@ -8335,6 +8823,10 @@ function collectBoardFiles(d, includeSecrets) {
         if (!st.isFile()) continue;
         const rel = path.relative(d.root, p).split(path.sep).join("/");
         if (!rel || rel.startsWith("..")) continue;
+        // Relay-local trust never exports: pairing tokens, device
+        // credentials, and the audit forward spool belong to one relay.
+        // (sync-state/ cursors DO export: stale ones just cause full-overlap.)
+        if (rel === "pairing" || rel.startsWith("pairing/") || rel === "devices" || rel.startsWith("devices/") || rel === "audit-spool" || rel.startsWith("audit-spool/")) continue;
         let buf = null;
         try {
           buf = fs.readFileSync(p);
@@ -8343,6 +8835,8 @@ function collectBoardFiles(d, includeSecrets) {
         }
         // Secrets are STRIPPED by default: agent token/tokenHash/salt (and
         // revoked tokenHashes) never leave the board unless --include-secrets.
+        // Relay-local trust (pairing tokens, device credentials, audit spool)
+        // never exports at all: it belongs to one relay, not the board.
         if (!includeSecrets && (rel === "board.json" ? false : rel.startsWith("agents/") && rel.endsWith(".json"))) {
           try {
             const doc = JSON.parse(buf.toString("utf8"));
@@ -8891,7 +9385,7 @@ async function cmdPool(args) {
   fs.mkdirSync(logDir, { recursive: true });
   const poolId = newId("pool");
   const statePath = path.join(d.root, "pool-state", `${poolId}.json`);
-  const spawnOpts = { harness, cmd, model, auto, maxTurns: maxTurnsNum, allowTools: getFlag(args, "--allow-tools"), cwd, root: d.root, prompt: null };
+  const spawnOpts = { harness, cmd, model, auto, maxTurns: maxTurnsNum, allowTools: getFlag(args, "--allow-tools"), cwd, root: d.root, prompt: null, keepEnv: args.includes("--keep-env"), allowEnv: parseAllowEnv(getFlag(args, "--allow-env")) };
   const state = { id: poolId, from, total: queue.length, poolSize, harness, createdAt: at, launched: 0, done: 0, active: {}, pending: queue.slice(), results: [] };
   const saveState = () => {
     try {
@@ -9009,6 +9503,7 @@ async function main() {
     case "serve": return await cmdServe(rest);
     case "sync": return await cmdSync(rest);
     case "relay": return await cmdRelay(rest);
+    case "crew": return await cmdCrew(rest);
     case "doctor": return cmdDoctor(rest);
     case undefined:
     case "-h":

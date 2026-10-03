@@ -463,7 +463,8 @@ More docs: `docs/QUICKSTART.md` (5 min), `docs/TROUBLESHOOTING.md`
 (SSO/TLS), `docs/AUDIT_EXPORT.md` (SIEM/legal hold) +
 `docs/TENANCY.md` (backups/quotas), `docs/HA.md` +
 `docs/SHARED_RESPONSIBILITY.md` + `docs/CERT_READINESS.md`
-(enterprise tier).
+(enterprise tier), `docs/PAIRING.md` (device credentials) +
+`docs/CREWS.md` (weighted multi-relay dispatch).
 
 ## Enterprise tier (identity, authority, evidence, continuity)
 
@@ -489,6 +490,15 @@ keeps inbox history. Audit events are HMAC-signed v:1 envelopes,
 forwardable off-box (`serve --audit-forward`); quotas bound
 send/channel/register per tenant-board. RBAC enforced on CLI, MCP, and
 relay endpoints alike.
+
+Fleet posture beyond one relay: relays advertise sync `capabilities[]`
+(mixed versions degrade loudly, never obscurely); spawned workers boot
+with cloud/AI credential vars scrubbed (`--keep-env` / `--allow-env`
+to opt back in; the lead token never inherits); new devices pair with
+single-use tokens (`relay pair`, `sync --pair-token`) into revocable
+device credentials (`docs/PAIRING.md`); elastic crews split across
+primaries by weight (`serve --weight`, `crew survey`, `crew dispatch`
+— `docs/CREWS.md`).
 
 ## Safety notes / trust boundary
 

@@ -21,9 +21,12 @@ will acknowledge within 5 business days.
 - **One board per trust zone.** Never mix sandboxed/untrusted agents with
   privileged ones on the same board.
 - **Never post secrets on the board.** Post references instead.
-- **Relays bind localhost by default; remote use needs `--secret` auth,**
-  and `POST /api/spawn` (which boots processes on the relay) is opt-in
-  (`--allow-remote-spawn`, command allowlist, workdir limits, audit log).
+- **Relays bind localhost by default; remote use needs `--secret` auth**
+  (or a paired device credential — `relay pair`, revocable per device,
+  see `docs/PAIRING.md`), and `POST /api/spawn` (which boots processes on
+  the relay) is opt-in (`--allow-remote-spawn`, command allowlist, workdir
+  limits, audit log). Spawned workers boot with credential vars scrubbed
+  (`--keep-env` / `--allow-env` to opt back in).
   Never face the open internet without a tunnel on top.
 - **`spawn --auto` maps to each harness's fully-unattended mode**
   (dangerous) — isolated runners only.

@@ -886,6 +886,109 @@ check("remote brief on relay board", fs.existsSync(path.join(boardA, "dm", "rem1
 const rKill = await postJson("/api/kill", { from: "anna", token: annaTok, to: ["rem1"] });
 check("remote kill via web api", rKill.status === 200 && JSON.parse(rKill.body).results[0].result === "killed");
 fs.rmSync(remStub, { force: true });
+// ---- BEGIN pairing: one-time tokens -> per-device credentials ----
+{
+  const pA = fs.mkdtempSync(path.join(os.tmpdir(), "ab-pair-a-"));
+  const pB = fs.mkdtempSync(path.join(os.tmpdir(), "ab-pair-b-"));
+  const pEnvA = { ...process.env, AGENTBOARD_DIR: pA };
+  const pEnvB = { ...process.env, AGENTBOARD_DIR: pB };
+  delete pEnvA.AGENTBOARD_TOKEN;
+  delete pEnvB.AGENTBOARD_TOKEN;
+  const pRunA = (a, extra) => execFileSync("node", [CLI, ...a], { env: { ...pEnvA, ...(extra || {}) } }).toString();
+  execFileSync("node", [CLI, "init", "--harness", "generic"], { env: pEnvA });
+  execFileSync("node", [CLI, "init", "--harness", "generic"], { env: pEnvB });
+  const pAdminTok = pRunA(["register", "--from", "pairadmin"]).match(/token (abt-[0-9a-f]+)/)[1];
+  const pAdminEnv = { ...pEnvA, AGENTBOARD_TOKEN: pAdminTok };
+  execFileSync("node", [CLI, "send", "--from", "pairadmin", "--to", "zed", "--body", "pair probe"], { env: pAdminEnv });
+  const pSrv = spawn("node", [CLI, "serve", "--port", "0", "--secret", "pair-secret"], { env: pEnvA });
+  let pOut = "";
+  let pUrl = "";
+  for (let i = 0; i < 40 && !pUrl; i++) {
+    await new Promise((r) => setTimeout(r, 250));
+    pOut += pSrv.stdout.read() || "";
+    const m = pOut.match(/http:\/\/\S+/);
+    if (m) pUrl = m[0];
+  }
+  check("pairing relay comes up", pUrl.startsWith("http://127.0.0.1:"));
+  const pTok = execFileSync("node", [CLI, "relay", "pair", "--from", "pairadmin", "--label", "testdev", "--ttl", "60m"], { env: pAdminEnv }).toString().match(/(abp-[0-9a-f]+)/)[1];
+  check("pairing token minted single-use", !!pTok && fs.existsSync(path.join(pA, "pairing")));
+  const pEx = execFileSync("node", [CLI, "sync", "--with", pUrl, "--secret", "pair-secret", "--once", "--pair-token", pTok, "--pair-label", "testdev"], { env: pEnvB }).toString();
+  const pDev = (pEx.match(/(abd-[0-9a-f-]+)/) || [])[1];
+  check("pairing exchange mints device credential", !!pDev && pEx.includes("paired as device"));
+  const pDevOnly = execFileSync("node", [CLI, "sync", "--with", pUrl, "--device", pDev, "--once"], { env: pEnvB }).toString();
+  check("device credential syncs without shared secret", pDevOnly.includes("synced with") && !pDevOnly.includes("403"));
+  execFileSync("node", [CLI, "send", "--from", "pairadmin", "--to", "zed2", "--body", "post-pair wave"], { env: pAdminEnv });
+  const pDevPull = execFileSync("node", [CLI, "sync", "--with", pUrl, "--device", pDev, "--once"], { env: pEnvB }).toString();
+  check("device credential pulls new mail", /pulled [1-9]/.test(pDevPull) && fs.existsSync(path.join(pB, "dm", "zed2")));
+  let pReuse = false;
+  try {
+    execFileSync("node", [CLI, "sync", "--with", pUrl, "--secret", "pair-secret", "--once", "--pair-token", pTok], { env: pEnvB, stdio: "pipe" });
+  } catch (e) {
+    pReuse = String((e.stdout || "") + (e.stderr || "")).includes("already used");
+  }
+  check("pairing token single-use enforced", pReuse);
+  const pExpTok = execFileSync("node", [CLI, "relay", "pair", "--from", "pairadmin", "--label", "short", "--ttl", "1s"], { env: pAdminEnv }).toString().match(/(abp-[0-9a-f]+)/)[1];
+  await new Promise((r) => setTimeout(r, 1200));
+  let pExp = false;
+  try {
+    execFileSync("node", [CLI, "sync", "--with", pUrl, "--secret", "pair-secret", "--once", "--pair-token", pExpTok], { env: pEnvB, stdio: "pipe" });
+  } catch (e) {
+    pExp = String((e.stdout || "") + (e.stderr || "")).includes("expired");
+  }
+  check("pairing token TTL enforced", pExp);
+  const pDevId = pDev.match(/abd-([0-9a-f]+)-/)[1];
+  check("relay devices lists the device", execFileSync("node", [CLI, "relay", "devices", "--from", "pairadmin"], { env: pAdminEnv }).toString().includes(pDevId));
+  execFileSync("node", [CLI, "relay", "revoke-device", pDevId, "--from", "pairadmin"], { env: pAdminEnv });
+  let pRevoked = false;
+  try {
+    execFileSync("node", [CLI, "sync", "--with", pUrl, "--device", pDev, "--once"], { env: pEnvB, stdio: "pipe" });
+  } catch (e) {
+    pRevoked = String((e.stdout || "") + (e.stderr || "")).includes("403");
+  }
+  check("revoked device credential refused", pRevoked);
+  pSrv.kill();
+  await new Promise((res) => pSrv.on("close", res));
+  fs.rmSync(pA, { recursive: true, force: true });
+  fs.rmSync(pB, { recursive: true, force: true });
+}
+// ---- END pairing ----
+{
+  const crewServe = (board, weight, log) => {
+    const p = spawn("node", [CLI, "serve", "--port", "0", "--secret", "crewsecret", "--weight", String(weight), "--allow-remote-spawn", "--allow-cmd", "^node"], { env: { ...process.env, AGENTBOARD_DIR: board } });
+    return new Promise(async (resolve) => {
+      let out = "";
+      for (let i = 0; i < 40; i++) {
+        await new Promise((r) => setTimeout(r, 250));
+        out += p.stdout.read() || "";
+        const m = out.match(/http:\/\/\S+/);
+        if (m) return resolve({ proc: p, url: m[0] });
+      }
+      resolve({ proc: p, url: "" });
+    });
+  };
+  const cA = fs.mkdtempSync(path.join(os.tmpdir(), "ab-crew-a-"));
+  const cB = fs.mkdtempSync(path.join(os.tmpdir(), "ab-crew-b-"));
+  const cEnvA = { ...process.env, AGENTBOARD_DIR: cA };
+  execFileSync("node", [CLI, "init", "--harness", "generic"], { env: cEnvA });
+  execFileSync("node", [CLI, "init", "--harness", "generic"], { env: { ...process.env, AGENTBOARD_DIR: cB } });
+  const crewTok = execFileSync("node", [CLI, "register", "--from", "crewlead"], { env: cEnvA }).toString().match(/token (abt-[0-9a-f]+)/)[1];
+  const crewEnv = { ...cEnvA, AGENTBOARD_TOKEN: crewTok };
+  const rA = await crewServe(cA, 3);
+  const rB = await crewServe(cB, 1);
+  check("crew survey shows weights", execFileSync("node", [CLI, "crew", "survey", "--relays", `${rA.url},${rB.url}`, "--secret", "crewsecret"], { env: cEnvA }).toString().includes("weight=3") );
+  const crewDry = execFileSync("node", [CLI, "crew", "dispatch", "--from", "crewlead", "--relays", `${rA.url},${rB.url}`, "--weights", "3,1", "--count", "4", "--prefix", "cw", "--harness", "generic", "--cmd", "node -e 0", "--body", "crew brief", "--secret", "crewsecret", "--dry-run"], { env: crewEnv }).toString();
+  check("crew dispatch dry-run splits 3:1", crewDry.includes("would dispatch 3") && crewDry.includes("would dispatch 1"));
+  const crewLive = execFileSync("node", [CLI, "crew", "dispatch", "--from", "crewlead", "--relays", `${rA.url},${rB.url}`, "--weights", "3,1", "--count", "4", "--prefix", "cw", "--harness", "generic", "--cmd", "node -e 0", "--body", "crew brief", "--secret", "crewsecret"], { env: crewEnv }).toString();
+  check("crew dispatch boots 3+1 across relays", crewLive.includes("dispatched 3/3") && crewLive.includes("dispatched 1/1"));
+  check("crew placement lands per share", ["cw-1", "cw-2", "cw-3"].every((w) => fs.existsSync(path.join(cA, "dm", w))) && fs.existsSync(path.join(cB, "dm", "cw-4")));
+  rA.proc.kill();
+  rB.proc.kill();
+  await new Promise((res) => rA.proc.on("close", res));
+  await new Promise((res) => rB.proc.on("close", res));
+  fs.rmSync(cA, { recursive: true, force: true });
+  fs.rmSync(cB, { recursive: true, force: true });
+}
+// ---- END crew ----
 serveProc.kill();
 await new Promise((res) => serveProc.on("close", res));
 fs.rmSync(boardA, { recursive: true, force: true });

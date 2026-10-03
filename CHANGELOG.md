@@ -1,5 +1,24 @@
 # Changelog
 
+## Unreleased
+
+- Sync capability negotiation: relays advertise `capabilities[]` in the
+  manifest; mixed-version peers degrade with loud warnings (unknown areas
+  ignored, ungrok'd pushes skipped) instead of failing obscurely.
+- Ambient credential scrub for spawned workers (T3-style profile
+  isolation): cloud/AI credential vars stripped from worker environments by
+  default (lead tokens never inherited); `--keep-env` / `--allow-env`
+  opt-outs; scrub count on the agent record. See `docs/ISOLATION.md`.
+- Per-device relay pairing: `relay pair --from <admin>` mints single-use
+  TTL'd tokens; `sync --pair-token` swaps one for a long-lived device
+  credential (`--device`/`AGENTBOARD_DEVICE`) usable instead of the shared
+  secret; `relay devices` / `relay revoke-device`; relay-local (never synced
+  or exported). See `docs/PAIRING.md`.
+- Weighted remote crews: `serve --weight N` + live worker count in
+  `/healthz`; `crew survey` fleet view; `crew dispatch` splits elastic crews
+  across reachable primaries by weight (largest remainder) with per-relay
+  `--relay-auth`. See `docs/CREWS.md`.
+
 ## 5.0.0 (2026-10-03)
 
 BREAKING: fresh identities now default to the `worker` role — `spawn`,
