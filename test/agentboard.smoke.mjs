@@ -690,6 +690,53 @@ if (webPort > 0) {
   check("web api peers shape", Array.isArray(snap2.peers));
   const page2 = await webGet(webPort, "/");
   check("web page has groups+peers tables", page2.body.includes('id="groups"') && page2.body.includes('id="peers"'));
+  // fleet console: sections + JSON endpoints + triage ack action
+  const apiPost = (p, payload, contentType) =>
+    new Promise((resolve, reject) => {
+      import("node:http").then(({ default: http }) => {
+        const data = typeof payload === "string" ? payload : JSON.stringify(payload);
+        const req = http.request(
+          { host: "127.0.0.1", port: webPort, path: p, method: "POST", headers: { "content-type": contentType || "application/json", "content-length": Buffer.byteLength(data) }, timeout: 8000 },
+          (res) => {
+            let body = "";
+            res.on("data", (d) => (body += d));
+            res.on("end", () => resolve({ status: res.statusCode, body }));
+          }
+        );
+        req.on("error", reject);
+        req.on("timeout", () => req.destroy(new Error("timeout")));
+        req.write(data);
+        req.end();
+      });
+    });
+  const page3 = await webGet(webPort, "/");
+  check("console page has fleet/channels/results/triage/audit", ["fleet", "channels", "results", "triage", "audit"].every((id) => page3.body.includes('id="' + id + '"')));
+  const fleet = JSON.parse((await webGet(webPort, "/api/fleet")).body);
+  check("console /api/fleet shape", Array.isArray(fleet.relays));
+  run(["channel", "create", "web-chan"]);
+  run(["channel", "post", "web-chan", "--from", "alice", "--subject", "s1", "--body", "hello chan"]);
+  const chans = JSON.parse((await webGet(webPort, "/api/channels")).body);
+  const wc = (chans.channels || []).find((c) => c.name === "web-chan");
+  check("console /api/channels lists posts", !!wc && wc.posts >= 1 && wc.latest.some((p) => p.head.includes("hello chan")));
+  const res2 = JSON.parse((await webGet(webPort, "/api/results")).body);
+  const wg = (res2.groups || []).find((g) => g.group === "web-team");
+  check("console /api/results telemetry shape", !!wg && typeof wg.messages === "number" && Array.isArray(wg.running) && Array.isArray(wg.losers));
+  const aud = JSON.parse((await webGet(webPort, "/api/audit")).body);
+  check("console /api/audit verifies, no secrets", !!aud.verify && aud.verify.ok === true && JSON.stringify(aud).includes("abt-") === false);
+  run(["send", "--from", "bob", "--to", "alice", "--body", "triage me"]);
+  const inb = JSON.parse((await webGet(webPort, "/api/inbox?agent=alice&unacked=1")).body);
+  const triageTarget = (inb.items || []).find((m) => m.head.includes("triage me"));
+  check("console /api/inbox lists unacked", !!triageTarget);
+  const ackBad = await apiPost("/api/ack", { from: "alice", token: "abt-0", id: "x" });
+  check("console ack rejects bad token", ackBad.status === 403);
+  const ackPlain = await apiPost("/api/ack", "x=1", "text/plain");
+  check("console ack needs JSON content-type", ackPlain.status === 415);
+  const ackOk = await apiPost("/api/ack", { from: "alice", token: TOK.alice, id: triageTarget.id });
+  check("console ack closes an item", ackOk.status === 200 && JSON.parse(ackOk.body).results[0].result === "acked");
+  const inb2 = JSON.parse((await webGet(webPort, "/api/inbox?agent=alice&unacked=1")).body);
+  check("console acked item leaves triage", inb2.items.every((m) => m.id !== triageTarget.id));
+  const miss404 = await webGet(webPort, "/api/boardwalk");
+  check("console 404 names the api surface", miss404.status === 404 && miss404.body.includes("/api/fleet"));
   run(["group", "delete", "web-team"]);
   const missing = await webGet(webPort, "/nope");
   check("web 404s unknown paths", missing.status === 404);
@@ -947,7 +994,10 @@ fs.rmSync(remStub, { force: true });
   }
   check("revoked device credential refused", pRevoked);
   pSrv.kill();
-  await new Promise((res) => pSrv.on("close", res));
+  await Promise.race([
+    new Promise((res) => pSrv.on("close", res)),
+    new Promise((res) => setTimeout(res, 5000)),
+  ]);
   fs.rmSync(pA, { recursive: true, force: true });
   fs.rmSync(pB, { recursive: true, force: true });
 }
@@ -983,8 +1033,16 @@ fs.rmSync(remStub, { force: true });
   check("crew placement lands per share", ["cw-1", "cw-2", "cw-3"].every((w) => fs.existsSync(path.join(cA, "dm", w))) && fs.existsSync(path.join(cB, "dm", "cw-4")));
   rA.proc.kill();
   rB.proc.kill();
-  await new Promise((res) => rA.proc.on("close", res));
-  await new Promise((res) => rB.proc.on("close", res));
+  // Close-awaits with a timeout race: a relay that already exited (or a
+  // platform that delivers 'close' before we listen) must never hang the
+  // suite. Same pattern as integration.mjs stopServe.
+  const closeSoon = (proc) =>
+    Promise.race([
+      new Promise((res) => proc.on("close", res)),
+      new Promise((res) => setTimeout(res, 5000)),
+    ]);
+  await closeSoon(rA.proc);
+  await closeSoon(rB.proc);
   // Dispatched `node -e 0` workers exit on their own, but on Windows their
   // log files stay locked until handles close — retry removal briefly.
   for (const p of [cA, cB]) {
@@ -1003,7 +1061,10 @@ fs.rmSync(remStub, { force: true });
 }
 // ---- END crew ----
 serveProc.kill();
-await new Promise((res) => serveProc.on("close", res));
+await Promise.race([
+  new Promise((res) => serveProc.on("close", res)),
+  new Promise((res) => setTimeout(res, 5000)),
+]);
 fs.rmSync(boardA, { recursive: true, force: true });
 fs.rmSync(boardB, { recursive: true, force: true });
 
