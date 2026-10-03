@@ -5,6 +5,12 @@ on:
     branches: [main, master]
   pull_request:
 
+# New pushes supersede older runs on the same ref: cancel them instead of
+# burning runners on code that's already outdated.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     strategy:
