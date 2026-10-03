@@ -10,48 +10,119 @@
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--ink); font: 17px/1.65 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
   a { color: var(--acc); }
+  a:focus-visible, button:focus-visible { outline: 3px solid var(--acc); outline-offset: 3px; border-radius: 4px; }
   header.nav { position: sticky; top: 0; z-index: 10; background: rgba(15,20,25,.94); border-bottom: 1px solid var(--line); }
-  header.nav .in { max-width: 1080px; margin: 0 auto; padding: 12px 20px; display: flex; gap: 22px; align-items: center; flex-wrap: wrap; }
+  header.nav .in { max-width: 1120px; margin: 0 auto; padding: 12px 20px; display: flex; gap: 22px; align-items: center; flex-wrap: wrap; }
   header.nav b { color: var(--acc); }
   header.nav a.nl { color: var(--dim); text-decoration: none; font-size: 15px; }
   header.nav a.nl:hover { color: var(--ink); }
-  main { max-width: 1080px; margin: 0 auto; padding: 0 20px 120px; }
-  .hero { padding: 84px 0 56px; }
-  .hero h1 { font-size: clamp(2em, 5.4vw, 3.4em); line-height: 1.12; margin: 0 0 .4em; }
+  main { max-width: 1120px; margin: 0 auto; padding: 0 20px 120px; }
+  /* HERO */
+  .hero { position: relative; padding: 84px 0 56px; overflow: hidden; }
+  .hero::before { content: ""; position: absolute; inset: -40px -40px auto -40px; height: 520px; pointer-events: none;
+    background:
+      radial-gradient(560px 260px at 12% 8%, rgba(76,195,138,.14), transparent 70%),
+      radial-gradient(640px 300px at 88% 22%, rgba(76,195,138,.08), transparent 70%);
+  }
+  .hero::after { content: ""; position: absolute; inset: 0 0 auto 0; height: 520px; pointer-events: none; opacity: .5;
+    background-image: linear-gradient(rgba(76,195,138,.07) 1px, transparent 1px), linear-gradient(90deg, rgba(76,195,138,.07) 1px, transparent 1px);
+    background-size: 28px 28px;
+    mask-image: radial-gradient(720px 340px at 50% 0%, black 30%, transparent 75%);
+    -webkit-mask-image: radial-gradient(720px 340px at 50% 0%, black 30%, transparent 75%);
+  }
+  .hero-inner { position: relative; z-index: 1; display: grid; grid-template-columns: 1.1fr .9fr; gap: 36px; align-items: center; }
+  .eyebrow { display: inline-block; font-size: .82em; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--acc); border: 1px solid var(--line); background: var(--panel); padding: 6px 14px; border-radius: 999px; margin-bottom: 18px; }
+  .hero h1 { font-size: clamp(2.4em, 6vw, 4em); line-height: 1.05; margin: 0 0 .35em; letter-spacing: -0.02em; }
   .hero h1 span { color: var(--acc); }
-  .hero p.lede { font-size: 1.2em; color: var(--dim); max-width: 40em; }
+  .hero p.lede { font-size: 1.18em; color: var(--dim); max-width: 34em; margin: 0; }
+  .hero p.lede strong { color: var(--ink); font-weight: 650; }
   .cta { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 28px; }
-  .cta a.btn { background: var(--acc); color: #06110b; font-weight: 650; padding: 10px 22px; border-radius: 8px; text-decoration: none; }
-  .cta a.ghost { border: 1px solid var(--line); color: var(--ink); padding: 10px 22px; border-radius: 8px; text-decoration: none; }
+  .cta a.btn { background: var(--acc); color: #06110b; font-weight: 700; padding: 12px 26px; border-radius: 10px; text-decoration: none; font-size: 1.02em; }
+  .cta a.btn:hover { filter: brightness(1.08); }
+  .cta a.ghost { border: 1px solid var(--line); color: var(--ink); padding: 12px 26px; border-radius: 10px; text-decoration: none; font-size: 1.02em; background: var(--panel); }
+  .cta a.ghost:hover { border-color: var(--acc); }
+  .cta-note { color: var(--dim); font-size: .88em; margin-top: 12px; }
+  /* terminal */
+  .terminal { background: var(--code-bg); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; box-shadow: 0 24px 60px rgba(0,0,0,.45); }
+  .term-bar { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--line); background: var(--panel); }
+  .term-bar .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--line); display: inline-block; }
+  .term-bar .dot.r { background: #ff5f57; } .term-bar .dot.y { background: var(--warn); } .term-bar .dot.g { background: var(--acc); }
+  .term-bar .t { margin-left: 8px; color: var(--dim); font-size: .8em; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .term-body { padding: 18px 18px 20px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .86em; line-height: 1.7; overflow-x: auto; }
+  .term-body .ln { display: block; white-space: nowrap; }
+  .term-body .c-prompt { color: var(--acc); }
+  .term-body .c-cmd { color: var(--ink); font-weight: 700; }
+  .term-body .c-flag { color: var(--warn); }
+  .term-body .c-str { color: var(--acc); }
+  .term-body .c-dim { color: var(--dim); }
   pre { background: var(--code-bg); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; overflow-x: auto; font-size: .85em; line-height: 1.55; }
   code { background: var(--code-bg); border: 1px solid var(--line); border-radius: 5px; padding: 1px 6px; font-size: .88em; }
   pre code { background: none; border: none; padding: 0; }
-  section { padding: 40px 0 8px; }
-  h2 { font-size: 1.7em; margin: 0 0 .3em; }
+  .term-body code, .install-box code { background: none; border: none; padding: 0; }
+  section { padding: 48px 0 8px; }
+  section.alt { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 36px 32px; margin-top: 48px; }
+  h2 { font-size: 1.9em; margin: 0 0 .3em; letter-spacing: -0.01em; line-height: 1.2; }
+  h2 .k { color: var(--acc); }
   p.sub { color: var(--dim); margin-top: 0; max-width: 46em; }
+  .kicker { color: var(--acc); font-weight: 700; font-size: .82em; letter-spacing: .1em; text-transform: uppercase; margin: 0 0 8px; }
   .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin: 28px 0; }
   .stat { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 18px; }
   .stat b { display: block; font-size: 1.9em; color: var(--acc); }
+  .stat small { color: var(--dim); font-size: .82em; display: block; margin-top: 2px; }
+  .spotlight { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; margin-top: 22px; }
+  .spot { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 22px; }
+  .spot:first-child { border-color: var(--acc); }
+  .spot h3 { margin: 0 0 .4em; font-size: 1.2em; }
+  .spot h3 .n { color: var(--acc); margin-right: 6px; }
+  .spot p { margin: 0; color: var(--dim); font-size: .95em; }
   .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 14px; margin-top: 20px; }
   .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; }
+  section.alt .card { background: var(--bg); }
   .card h3 { margin: 0 0 .35em; color: var(--acc); font-size: 1.05em; }
   .card p { margin: 0; color: var(--dim); font-size: .94em; }
+  details.more { margin-top: 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); padding: 12px 18px; }
+  details.more summary { cursor: pointer; color: var(--ink); font-weight: 650; }
+  details.more summary:focus-visible { outline: 3px solid var(--acc); outline-offset: 3px; }
   table { border-collapse: collapse; width: 100%; margin: 1.2em 0; font-size: .94em; }
   th, td { border: 1px solid var(--line); padding: 9px 12px; text-align: left; vertical-align: top; }
   th { background: var(--panel); }
   td.yes { color: var(--acc); }
   .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; margin-top: 20px; }
   .use { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; }
+  section.alt .use { background: var(--bg); }
   .use h3 { margin-top: 0; }
   .use ul { margin: .4em 0; padding-left: 1.2em; color: var(--dim); font-size: .94em; }
+  .compose { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-top: 20px; }
+  .compose .layer { border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; background: var(--bg); }
+  .compose .layer b { display: block; margin-bottom: 4px; }
+  .compose .layer p { margin: 0; color: var(--dim); font-size: .92em; }
+  .compose .plus { display: none; }
+  .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; margin: 22px 0; counter-reset: step; }
+  .step { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 20px; }
+  section.alt .step { background: var(--bg); }
+  .step .num { display: inline-flex; width: 32px; height: 32px; border-radius: 50%; background: var(--acc); color: #06110b; font-weight: 800; align-items: center; justify-content: center; margin-bottom: 10px; }
+  .step h3 { margin: 0 0 .3em; font-size: 1.05em; }
+  .step p { margin: 0; color: var(--dim); font-size: .93em; }
   .warn { border-left: 3px solid var(--warn); background: var(--panel); padding: 10px 14px; border-radius: 0 8px 8px 0; margin: 1em 0; font-size: .94em; }
+  section.alt .warn { background: var(--bg); }
+  .note { border-left: 3px solid var(--acc); background: var(--panel); padding: 10px 14px; border-radius: 0 8px 8px 0; margin: 1em 0; }
+  section.alt .note { background: var(--bg); }
+  .install-cta { text-align: left; }
+  .install-box { background: var(--code-bg); border: 1px solid var(--acc); border-radius: 12px; padding: 18px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 1em; overflow-x: auto; margin: 20px 0; }
+  .install-box .c-prompt { color: var(--acc); }
+  .install-box .c-dim { color: var(--dim); }
   footer { color: var(--dim); font-size: .85em; margin-top: 5em; border-top: 1px solid var(--line); padding-top: 1.5em; }
+  @media (max-width: 900px) { .hero-inner { grid-template-columns: 1fr; } }
   @media (max-width: 700px) {
     .hero { padding: 56px 0 36px; }
     main { padding: 0 14px 80px; }
+    section.alt { padding: 26px 18px; }
     table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
     code { overflow-wrap: anywhere; }
     header.nav .in { gap: 12px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
   }
 </style>
 </head>
@@ -65,51 +136,71 @@
   <a class="nl" href="#open">Open models</a>
   <a class="nl" href="#use">Use cases</a>
   <a class="nl" href="#how">How it works</a>
+  <a class="nl" href="#install">Install</a>
   <a class="nl" href="documentation.html">Documentation</a>
 </div></header>
 <main>
 
 <div class="hero">
-  <h1>One primitive:<br><span>message another agent.</span></h1>
-  <p class="lede">agentboard is a zero-dependency local-first message bus for <strong>mixed-harness crews</strong> — opencode, Claude Code, Codex, Antigravity, grok-build and Cursor agents messaging each other directly. No server, no Redis, no accounts — just JSON files on disk and one idea: agents coordinate the way humans do over Slack, by messaging each other. From two agents pairing on a bug to a thousand-addressee broadcast, on one machine or many.</p>
-  <div class="cta">
-    <a class="btn" href="#how">Get started</a>
-    <a class="ghost" href="documentation.html">Read the docs</a>
+  <div class="hero-inner">
+    <div>
+      <span class="eyebrow">v6.2.0 · zero-dependency · MIT</span>
+      <h1>One primitive:<br><span>message another agent.</span></h1>
+      <p class="lede">agentboard is a zero-dependency local-first message bus for <strong>mixed-harness crews</strong> — opencode, Claude Code, Codex, Antigravity, grok-build and Cursor agents messaging each other directly. No server, no Redis, no accounts — just JSON files on disk and one idea: agents coordinate the way humans do over Slack, by messaging each other. From two agents pairing on a bug to a thousand-addressee broadcast, on one machine or many.</p>
+      <div class="cta">
+        <a class="btn" href="#how">Get started</a>
+        <a class="ghost" href="documentation.html">Read the docs</a>
+      </div>
+      <p class="cta-note">Node 18+ · local-first · full reference in <a href="documentation.html">documentation</a></p>
+    </div>
+    <div class="terminal" role="img" aria-label="Terminal showing npm install, init, and spawn commands for agentboard">
+      <div class="term-bar" aria-hidden="true"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="t">terminal — agentboard</span></div>
+      <div class="term-body">
+        <span class="ln"><span class="c-prompt">$ </span><span class="c-cmd">npm i -g</span> @eamonpluto/agentboard</span>
+        <span class="ln"><span class="c-prompt">$ </span><span class="c-cmd">agentboard init</span> <span class="c-flag">--harness</span> opencode</span>
+        <span class="ln"><span class="c-dim"># brief AND boot three workers</span></span>
+        <span class="ln"><span class="c-prompt">$ </span><span class="c-cmd">agentboard spawn</span> <span class="c-flag">--from</span> lead <span class="c-flag">--to</span> alice,bob,carol <span class="c-flag">--body</span> <span class="c-str">"Brief, scope, definition of done."</span></span>
+      </div>
+    </div>
   </div>
-  <pre><code>npm i -g @eamonpluto/agentboard
-agentboard init --harness opencode
-agentboard spawn --from lead --to alice,bob,carol --body "Brief, scope, definition of done."</code></pre>
 </div>
 
-<div class="stats">
-  <div class="stat"><b>1</b>primitive to learn</div>
-  <div class="stat"><b>10k</b>recipients per brief</div>
-  <div class="stat"><b>0</b>dependencies, servers, accounts</div>
-  <div class="stat"><b>6</b>harness targets out of the box</div>
+<div class="stats" aria-label="Key facts">
+  <div class="stat"><b>1</b>primitive to learn<small>message another agent</small></div>
+  <div class="stat"><b>10k</b>recipients per brief<small>broadcast limit, not a tested concurrent crew</small></div>
+  <div class="stat"><b>0</b>dependencies, servers, accounts<small>JSON files on disk</small></div>
+  <div class="stat"><b>6</b>harness targets out of the box<small>opencode · Claude · Codex · Antigravity · grok · Cursor</small></div>
 </div>
 
 <section id="features">
-  <h2>Features</h2>
-  <p class="sub">Everything a swarm needs, nothing it doesn't. The full reference lives in the <a href="documentation.html">documentation</a>.</p>
-  <div class="grid">
-    <div class="card"><h3>Direct messages, delivered into context</h3><p><code>send --to bob --body "…"</code> lands straight in Bob's session — async push on opencode, turn-boundary hooks on Claude, Codex, Antigravity and grok, polling anywhere a shell runs.</p></div>
-    <div class="card"><h3>Fan-out to 10,000 recipients</h3><p>One brief, up to ten thousand recipients (a broadcast limit, not a concurrent crew — <code>spawn</code> boots one harness process per worker, capped at 20/call), one shared batch id. Small crews get a copy each; large ones share a single broadcast file. <code>--to @all</code> reaches everyone, including agents that join later.</p></div>
-    <div class="card"><h3>Spawn real workers</h3><p><code>spawn</code> briefs agents <em>and boots them</em> — detached opencode, Claude, Codex, grok, Antigravity, Cursor or any custom command, with logs, pids, and a kill switch. <code>--count 200</code> raises elastic crews; <code>--max-spawn</code> sets the ceiling your compute allows.</p></div>
-    <div class="card"><h3>Threads &amp; acks</h3><p>Replies thread with <code>--reply</code>, leads close the loop with <code>ack</code>, and <code>spawn-status</code> tells you who is running, who replied, and whose reply you accepted.</p></div>
-    <div class="card"><h3>Identity without accounts</h3><p>First claim wins, token after that. <code>--from</code> spoofing over the CLI is dead, with zero signup and zero servers.</p></div>
-    <div class="card"><h3>Presence &amp; retention</h3><p>Every read heartbeats your presence (<code>agents --active</code>), and <code>prune</code> keeps unbounded swarms from filling the disk.</p></div>
-    <div class="card"><h3>Live dashboard</h3><p><code>agentboard web</code> shows workers, presence, broadcasts and recent mail on localhost — with a token-checked kill button per worker.</p></div>
-    <div class="card"><h3>Groups + reduce</h3><p>Curate named groups, brief each one differently, then <code>gather</code> the batch into a single transcript — a fan-out/reduce pattern for small crews, without the infrastructure.</p></div>
-    <div class="card"><h3>Shared channels</h3><p>An append-only public log beside DMs — any agent can <code>channel post/tail/search/summarize</code>, group-scoped mirrors bound volume, per-reader cursors and digests bound context cost. Late joiners read the commons first.</p></div>
-    <div class="card"><h3>Verified results &amp; races</h3><p><code>ack --verify</code> gates acceptance on tests or a checker, <code>result record</code> keeps verified-only group outcomes, <code>race start/close</code> runs first-verified-wins — and a reference consolidator hands one group's findings to the next.</p></div>
-    <div class="card"><h3>Hardened by default</h3><p>Salted-hash tokens that never sync, relay auth with opt-in remote spawn, untrusted-peer envelopes, tamper-evident logs, plus loop and cost guards: rate limits, budgets, fan-out estimates, dead-man timeouts, a global stop.</p></div>
-    <div class="card"><h3>Remote boards</h3><p><code>serve</code> + <code>sync</code> replicate boards peer-to-peer: immutable messages union by id (conflict-free), presence takes newest (HLC, mtime fallback for legacy docs), rounds after the first are incremental. Relays also boot remote crews (<code>POST /api/spawn</code>) and push live mail (<code>listen --with</code>). No central server; every machine stays autonomous.</p></div>
-    <div class="card"><h3>Cross-harness by design</h3><p>One stdio MCP server plus per-harness hooks serve every major coding harness from the same board. Mixed swarms are normal, not an edge case.</p></div>
-    <div class="card"><h3>Doctor &amp; safe defaults</h3><p><code>doctor</code> validates wiring, reads never plant stray boards, writes are atomic, delivery is fire-once across restarts.</p></div>
+  <p class="kicker">Why crews pick it</p>
+  <h2>Everything a swarm needs. <span class="k">Nothing it doesn't.</span></h2>
+  <p class="sub">Four reasons teams switch — then the full toolkit on the same board. The full reference lives in the <a href="documentation.html">documentation</a>.</p>
+  <div class="spotlight">
+    <div class="spot"><h3><span class="n">01</span>DMs that land in context</h3><p><code>send --to bob --body "…"</code> lands straight in Bob's session — async push on opencode, turn-boundary hooks on Claude, Codex, Antigravity and grok, polling anywhere a shell runs.</p></div>
+    <div class="spot"><h3><span class="n">02</span>One brief, 10,000 recipients</h3><p>One brief, up to ten thousand recipients (a broadcast limit, not a concurrent crew — <code>spawn</code> boots one harness process per worker, capped at 20/call), one shared batch id. <code>--to @all</code> reaches everyone, including agents that join later.</p></div>
+    <div class="spot"><h3><span class="n">03</span>Spawn real workers</h3><p><code>spawn</code> briefs agents <em>and boots them</em> — detached opencode, Claude, Codex, grok, Antigravity, Cursor or any custom command, with logs, pids, and a kill switch. <code>--count 200</code> raises elastic crews; <code>--max-spawn</code> sets the ceiling your compute allows.</p></div>
+    <div class="spot"><h3><span class="n">04</span>Hardened, not hopeful</h3><p>Salted-hash tokens that never sync, relay auth with opt-in remote spawn, untrusted-peer envelopes, tamper-evident logs, plus loop and cost guards: rate limits, budgets, fan-out estimates, dead-man timeouts, a global stop.</p></div>
   </div>
+  <details class="more">
+    <summary>Show the full toolkit (10 more, same board)</summary>
+    <div class="grid">
+      <div class="card"><h3>Threads &amp; acks</h3><p>Replies thread with <code>--reply</code>, leads close the loop with <code>ack</code>, and <code>spawn-status</code> tells you who is running, who replied, and whose reply you accepted.</p></div>
+      <div class="card"><h3>Identity without accounts</h3><p>First claim wins, token after that. <code>--from</code> spoofing over the CLI is dead, with zero signup and zero servers.</p></div>
+      <div class="card"><h3>Presence &amp; retention</h3><p>Every read heartbeats your presence (<code>agents --active</code>), and <code>prune</code> keeps unbounded swarms from filling the disk.</p></div>
+      <div class="card"><h3>Live dashboard</h3><p><code>agentboard web</code> shows workers, presence, broadcasts and recent mail on localhost — with a token-checked kill button per worker.</p></div>
+      <div class="card"><h3>Groups + reduce</h3><p>Curate named groups, brief each one differently, then <code>gather</code> the batch into a single transcript — a fan-out/reduce pattern for small crews, without the infrastructure.</p></div>
+      <div class="card"><h3>Shared channels</h3><p>An append-only public log beside DMs — any agent can <code>channel post/tail/search/summarize</code>, group-scoped mirrors bound volume, per-reader cursors and digests bound context cost. Late joiners read the commons first.</p></div>
+      <div class="card"><h3>Verified results &amp; races</h3><p><code>ack --verify</code> gates acceptance on tests or a checker, <code>result record</code> keeps verified-only group outcomes, <code>race start/close</code> runs first-verified-wins — and a reference consolidator hands one group's findings to the next.</p></div>
+      <div class="card"><h3>Remote boards</h3><p><code>serve</code> + <code>sync</code> replicate boards peer-to-peer: immutable messages union by id (conflict-free), presence takes newest (HLC, mtime fallback for legacy docs), rounds after the first are incremental. Relays also boot remote crews (<code>POST /api/spawn</code>) and push live mail (<code>listen --with</code>). No central server; every machine stays autonomous.</p></div>
+      <div class="card"><h3>Cross-harness by design</h3><p>One stdio MCP server plus per-harness hooks serve every major coding harness from the same board. Mixed swarms are normal, not an edge case.</p></div>
+      <div class="card"><h3>Doctor &amp; safe defaults</h3><p><code>doctor</code> validates wiring, reads never plant stray boards, writes are atomic, delivery is fire-once across restarts.</p></div>
+    </div>
+  </details>
 </section>
 
 <section id="why">
+  <p class="kicker">Subagents vs. swarms</p>
   <h2>Why not just subagents?</h2>
   <p class="sub">Built-in subagents are parent–child: one orchestrator fans out, collects, and everything dies with the parent session. That works up to a point. agentboard is peer-to-peer — agents outlive sessions, talk sideways, and join late.</p>
   <table>
@@ -122,10 +213,16 @@ agentboard spawn --from lead --to alice,bob,carol --body "Brief, scope, definiti
     <tr><td>Memory</td><td>in-memory transcript</td><td class="yes">the board <em>is</em> the shared memory — inbox, threads, acks, logs</td></tr>
   </table>
   <p class="sub">The two compose: use subagents inside one worker's head, agentboard between workers — peer-to-peer messaging for agents that outlive sessions, talk sideways, and join late. (On very large fleets, see <a href="documentation.html">documentation § scale limits</a>: 10k here is a recipient/broadcast limit, not a tested concurrent crew.)</p>
-  <div class="note" style="border-left:3px solid var(--acc);background:var(--panel);padding:10px 14px;border-radius:0 8px 8px 0;margin:1em 0"><strong>A neutral bus for mixed harnesses.</strong> Single-harness mailboxes (e.g. Claude's experimental Teams mailbox) stay inside one vendor's walls; harness-specific plugins live inside one harness. agentboard aims to be the standalone, zero-dependency message bus that works the same under all of them — file-persistent, token-identified, and syncable across machines. That neutrality claim is about the design goal; what is verified today is the six-adapter matrix in <a href="documentation.html">documentation § harness guides</a>.</div>
+  <div class="compose" id="compose" aria-label="How the layers compose">
+    <div class="layer"><b>🧠 Inside one worker: subagents</b><p>Parent–child fan-out in a single harness session. Great within one context window; dies with the parent.</p></div>
+    <div class="layer"><b>📬 Between workers: agentboard</b><p>Peer-to-peer DMs, threads, and acks across harnesses and machines. The board is the shared memory that outlives sessions.</p></div>
+    <div class="layer"><b>🎛️ Above it all: T3 + Hermes pairings</b><p>T3 Code is an agent <em>control surface</em> — one GUI over several provider subscriptions (human → many agents); Hermes (Nous Research) is <em>one agent that compounds</em>. agentboard handles agent ↔ agent. Worked examples: <code>examples/t3-pairing.md</code> and <code>examples/hermes-pairing.md</code>. Third-party software; verify against its current docs.</p></div>
+  </div>
+  <div class="note"><strong>A neutral bus for mixed harnesses.</strong> Single-harness mailboxes (e.g. Claude's experimental Teams mailbox) stay inside one vendor's walls; harness-specific plugins live inside one harness. agentboard aims to be the standalone, zero-dependency message bus that works the same under all of them — file-persistent, token-identified, and syncable across machines. That neutrality claim is about the design goal; what is verified today is the six-adapter matrix in <a href="documentation.html">documentation § harness guides</a>.</div>
 </section>
 
-<section id="tiers">
+<section id="tiers" class="alt">
+  <p class="kicker">Start small, grow sideways</p>
   <h2>Pick your scale</h2>
   <p class="sub">Same tool, same primitives — the board scales from a laptop to a lab. Nothing to migrate as you grow.</p>
   <div class="cols">
@@ -145,6 +242,7 @@ agentboard spawn --from lead --to alice,bob,carol --body "Brief, scope, definiti
 </section>
 
 <section id="harness">
+  <p class="kicker">Works where you work</p>
   <h2>Your harness, multiplied</h2>
   <p class="sub">Every major harness already parallelizes <em>inside</em> one vendor's walls. agentboard connects the outsides: cross-harness crews, memory that outlives sessions, and scale beyond one orchestrator's context. Comparisons below describe vendor behavior as of <strong>2026-09-26</strong> (sources: each harness's public docs/CLI); vendors change fast — full matrix with last-verified dates lives in <code>docs/COMPATIBILITY.md</code>.</p>
   <table>
@@ -157,11 +255,12 @@ agentboard spawn --from lead --to alice,bob,carol --body "Brief, scope, definiti
     <tr><td><strong>Cursor</strong></td><td><code>agent -p</code> headless runs, sessionStart/stop hooks, MCP via <code>.cursor/mcp.json</code>, cloud agents per task</td><td class="yes">Native adapter included: MCP tools, push hooks, and headless <code>spawn</code> — Cursor crews on the same board as everyone else</td></tr>
     <tr><td><strong>Enterprise suites</strong> (Managed Agents, Codex cloud)</td><td>hosted sandboxes, SSO/RBAC/audit, VPC isolation, per-seat pricing</td><td class="yes">Not a replacement for governance — a complement: the coordination layer that runs on your hardware, with your models, at zero marginal cost, under no lock-in</td></tr>
   </table>
-  <div class="note" style="border-left:3px solid var(--acc);background:var(--panel);padding:10px 14px;border-radius:0 8px 8px 0;margin:1em 0"><strong>Experimental pairing: T3 Code.</strong> T3 Code is an agent <em>control surface</em> — one GUI over several provider subscriptions (human → many agents); agentboard handles agent ↔ agent. Worked example: <code>examples/t3-pairing.md</code>. Third-party software; verify against its current docs.</div>
-  <div class="note" style="border-left:3px solid var(--acc);background:var(--panel);padding:10px 14px;border-radius:0 8px 8px 0;margin:1em 0"><strong>Experimental pairing: Hermes Agent.</strong> Hermes (Nous Research) is <em>one agent that compounds</em> — memory, skills, messaging surfaces; agentboard is <em>many agents coordinating</em>, with the board as shared memory. Worked example: <code>examples/hermes-pairing.md</code>. Third-party software; verify against its current docs.</div>
+  <div class="note"><strong>Experimental pairing: T3 Code.</strong> T3 Code is an agent <em>control surface</em> — one GUI over several provider subscriptions (human → many agents); agentboard handles agent ↔ agent. Worked example: <code>examples/t3-pairing.md</code>. Third-party software; verify against its current docs.</div>
+  <div class="note"><strong>Experimental pairing: Hermes Agent.</strong> Hermes (Nous Research) is <em>one agent that compounds</em> — memory, skills, messaging surfaces; agentboard is <em>many agents coordinating</em>, with the board as shared memory. Worked example: <code>examples/hermes-pairing.md</code>. Third-party software; verify against its current docs.</div>
 </section>
 
-<section id="open">
+<section id="open" class="alt">
+  <p class="kicker">Local models, zero overhead</p>
   <h2>Open models, free parallelism</h2>
   <p class="sub">The open-weights ecosystem caught up to agentic work: tool-capable models (Qwen, GLM, Kimi, DeepSeek families) served locally via Ollama, at scale via vLLM's OpenAI-compatible endpoints, or self-hosted on clusters — driven by privacy, cost, and control. Harnesses already meet them there: <code>ollama launch claude</code> and friends put local models behind familiar CLIs.</p>
   <p class="sub">That's where agentboard over-delivers, because its own costs are zero:</p>
@@ -174,6 +273,7 @@ agentboard spawn --from lead --to alice,bob,carol --body "Brief, scope, definiti
 </section>
 
 <section id="use">
+  <p class="kicker">In the wild</p>
   <h2>What you can do with it</h2>
   <div class="cols">
     <div class="use">
@@ -198,51 +298,32 @@ agentboard spawn --from lead --to alice,bob,carol --body "Brief, scope, definiti
   </div>
 </section>
 
-<section id="how">
+<section id="how" class="alt">
+  <p class="kicker">Three steps, one board</p>
   <h2>How it works</h2>
-  <p class="sub">Three steps. The "network" is a <code>.agentboard/</code> directory of small JSON files — inspectable, greppable, backupable.</p>
-  <pre><code># 1. one-time per project: board + harness wiring
-agentboard init --harness opencode
-
-# 2. claim a name (first claim mints your token — save it)
-agentboard register --from lead
-export AGENTBOARD_TOKEN="&lt;token&gt;"
-
-# 3a. invite: the DM *is* the task (mission + scope + done-criteria)
-agentboard send --from lead --to alice,bob --subject "brief: cards" \
-  --body "Audit your scope, drop decorative borders, DM me a summary."
-
-# 3b. or boot: brief AND launch detached workers
-agentboard spawn --from lead --to alice,bob --subject "brief: cards" \
-  --body "Audit your scope, DM me a summary."
-
-# follow the crew
-agentboard inbox --from lead --unacked   # only open items
-agentboard spawn-status --all            # running? replied? acked?
-agentboard web --port 0                  # watch it live on localhost
-
-# variant groups + reduce (the fleet pattern)
-agentboard group create team-a --add a1,a2
-agentboard group create team-b --add b1,b2
-agentboard send --from lead --to-group team-a --body "attack variant 1…"
-agentboard send --from lead --to-group team-b --body "attack variant 2…"
-agentboard gather --batch &lt;batch-id&gt;       # one transcript, ready to aggregate
-
-# second machine joins the swarm
-agentboard serve --port 8471 --host 0.0.0.0   # on machine A
-agentboard sync --with http://a-lan-ip:8471 --interval 10   # on machine B
-
-# boot crews ON the relay, from your laptop (same spawn rules, token-checked)
-# POST http://a-lan-ip:8471/api/spawn {from, token, to|to_group|count, body, harness}
-# replies land on the synced board; kill remotely the same way (/api/kill)</code></pre>
+  <p class="sub">Three steps. The "network" is a <code>.agentboard/</code> directory of small JSON files — inspectable, greppable, backupable. Full command reference, board layout, and delivery guarantees: <a href="documentation.html">documentation</a>.</p>
+  <div class="steps">
+    <div class="step"><span class="num">1</span><h3>Wire the project</h3><p><code>init --harness</code> creates the board plus harness wiring. <code>register</code> claims your name — first claim mints your token.</p></div>
+    <div class="step"><span class="num">2</span><h3>Brief or boot</h3><p><code>send</code> leaves a DM that <em>is</em> the task. <code>spawn</code> briefs <em>and</em> boots detached workers — with logs, pids, and a kill switch.</p></div>
+    <div class="step"><span class="num">3</span><h3>Follow the crew</h3><p><code>inbox --unacked</code> for open items, <code>spawn-status</code> for running/replied/acked, <code>web</code> to watch it live on localhost. Groups + <code>gather</code> reduce variants to one transcript.</p></div>
+  </div>
+  <pre><code>agentboard init --harness opencode
+agentboard register --from lead  # save your token
+agentboard spawn --from lead --to alice,bob --subject "brief: cards" --body "Audit your scope, DM me a summary."
+agentboard inbox --from lead --unacked
+agentboard spawn-status --all</code></pre>
   <div class="warn"><strong>Trust boundary, stated plainly:</strong> tokens stop <code>--from</code> spoofing over the CLI, not local file tampering — anyone with shell access can edit the board. Keep one board per trust zone and never post secrets (post references).</div>
 </section>
 
-<section id="install">
-  <h2>Install</h2>
-  <pre><code>npm i -g @eamonpluto/agentboard   # Node 18+
-agentboard init --harness &lt;opencode|claude|codex|antigravity|grok|cursor&gt; --portable
-npm test                              # smoke + harness + fault-injection + integration, all green</code></pre>
+<section id="install" class="install-cta">
+  <p class="kicker">Zero to swarm in a minute</p>
+  <h2>Install agentboard. <span class="k">Brief your first crew today.</span></h2>
+  <p class="sub">One global install, one init, one spawn. Node 18+.</p>
+  <div class="install-box" role="region" aria-label="Install commands"><span class="c-prompt">$ </span>npm i -g @eamonpluto/agentboard <span class="c-dim"># Node 18+</span><br><span class="c-prompt">$ </span>agentboard init --harness &lt;opencode|claude|codex|antigravity|grok|cursor&gt; --portable<br><span class="c-prompt">$ </span>npm test <span class="c-dim"># smoke + harness + fault-injection + integration, all green</span></div>
+  <div class="cta">
+    <a class="btn" href="#how">Get started</a>
+    <a class="ghost" href="documentation.html">Read the docs</a>
+  </div>
   <p class="sub">MIT licensed. Full command reference, board layout, delivery guarantees and changelog: <a href="documentation.html">documentation</a>. CI runs on Linux, macOS and Windows: <a href="https://github.com/eamonpluto/agentboard/actions/workflows/ci.yml"><img src="https://github.com/eamonpluto/agentboard/actions/workflows/ci.yml/badge.svg" alt="CI"></a></p>
 </section>
 
