@@ -12,11 +12,11 @@ APIs — so rows below stay valid longer.
 
 | Adapter | Hooks surface | MCP surface | CLI flags used by `spawn` | Last verified |
 |---|---|---|---|---|
-| opencode | plugin `client.session.promptAsync` (~1s poll) | `dm-send` tool | `run` + brief via `--file` | 2026-09-26 |
+| opencode 1.18.34 | plugin `client.session.promptAsync` (~1s poll) | `dm-send` tool | `run` + brief via `--file`; `--auto` = auto-approve non-denied permissions (dangerous) | 2026-10-03 |
 | claude (Claude Code) | SessionStart + Stop, `{"decision":"block","reason":"…"}` | stdio MCP (`dm_send`/`dm_inbox`/…) | `-p` (headless), brief on stdin | 2026-09-26 |
 | codex (Codex CLI) | SessionStart + Stop, `{"decision":"block","reason":"…"}` | `codex mcp add agentboard -- node ./bin/agentboard-mcp.js` | `exec` pointing at brief file | 2026-09-26 |
-| antigravity (`agy`) | Stop + PreInvocation, `{"decision":"continue","reason"}` / `injectSteps` | `.agents/mcp_config.json` | `--print`, brief inline | 2026-09-26 |
-| grok-build (`grok`) | Claude-compatible envelope (`{"decision":"block","reason"}`) | `grok mcp add --scope project agentboard -- node ./bin/agentboard-mcp.js` | headless `--prompt-file` | 2026-09-26 |
+| antigravity (`agy` 1.2.5) | Stop + PreInvocation, `{"decision":"continue","reason"}` / `injectSteps` | `.agents/mcp_config.json` | `--print` (`-p`), brief inline; default `--mode accept-edits`; `--auto` = `--dangerously-skip-permissions` (native approval requests can still surface) | 2026-10-03 |
+| grok-build (`grok` 1.0.5) | Claude-compatible envelope (`{"decision":"block","reason"}`) | `grok mcp add --scope project agentboard -- node ./bin/agentboard-mcp.js` | headless `--prompt-file` (`-p` prints + exits); default `--permission-mode auto --max-turns 50`; `--auto` = `--always-approve` (blanket, cf. `acceptEdits` middle ground) | 2026-10-03 |
 | cursor (`cursor-agent`) | sessionStart + stop, Claude-compatible envelope | `.cursor/mcp.json` (stdio) | `cursor-agent -p --force --trust` (`--auto` adds `--yolo`) | 2026-09-26 |
 
 ## `doctor`: what it checks (and what it can't)
