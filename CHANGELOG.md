@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Internal split (no behavior change intended): `bin/agentboard.js` is now
+  a dispatcher + `cmd*` wrappers importing domain logic from 10 modules
+  under `bin/lib/` (`store`, `identity`, `sync`, `relay`, `spawn`,
+  `export`, `mail`, `groups`, `channels`, `web`). See `docs/SPLIT.md`.
+  The MCP server (`bin/agentboard-mcp.js`) is untouched.
+
 ## 6.1.0 (2026-10-03)
 
 Additive only: fleet console for `agentboard web` (no behavior changes).

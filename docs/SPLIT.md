@@ -1,0 +1,70 @@
+# Split: `bin/agentboard.js` → `bin/lib/*.js`
+
+Status: being integrated. `bin/agentboard.js` is now a dispatcher + `cmd*`
+wrappers that imports domain logic from 10 lib modules (import block,
+`bin/agentboard.js` lines 42–51). No behavior change is intended.
+
+## Module map
+
+| File | Responsibility (per file header) | Key exports |
+|---|---|---|
+| `bin/lib/store.js` | Board filesystem layer: constants, board resolution, JSON IO, `clean*` validators, HLC | `BOARD_VERSION`, `MAX_BODY_CHARS`, `MAX_RECIPIENTS`, `MAX_SPAWN`, `BROADCAST_AFTER`, `boardDir`, `dirs`, `ensureBoard`, `readJson`, `writeJson`, `writeExclusiveJson`, `clean*` (`cleanSubject`, `cleanGroupName`, `cleanChannelName`, `cleanWebName`, …), `nextHlc`, `stampSyncDoc`, `hlcCompare` |
+| `bin/lib/identity.js` | Tokens + RBAC: mint/verify, salted hashes, ACLs, `authorize` | `mintToken`, `hashToken`, `checkToken`, `ensureSender`, `sanitizeAgentForSync`, `mergeSyncedAgent`, `VALID_ROLES`, `authorize`, `authorizeCheck`, `authorizeThrow`, `touchAgent` |
+| `bin/lib/sync.js` | Sync engine + outbound client: union-by-id merge, HLC LWW, tombstones, per-peer cursors | `SYNC_SUBS`, `SYNC_UNION`, `SYNC_LWW`, `syncRound`, `syncWalk`, `httpJson`, `relayAuthEntries`, `crewSurvey`, `splitByWeight`, `readSyncState`, `tombstoneIdForRel` |
+| `bin/lib/relay.js` | Relay serve-side: secrets, device/pairing creds, OIDC, remote spawn/kill cores | `relaySecretFromArgs`, `requireRelaySecret`, `requireRelayClientCert`, `readRelayState`, `tryAcquireFence`, `remoteSpawn`, `newPairToken`, `newDeviceCred`, `verifyOidcJwt` |
+| `bin/lib/spawn.js` | Worker boot / spawn: prompts, harness targets, env scrub, pid liveness | `bootWorker`, `buildSpawnPrompt`, `buildSpawnTarget`, `scrubChildEnv`, `parseAllowEnv`, `workerStatus`, `pidAlive`, `killWorkers`, `provisionWorktree`, `provisionBranch` |
+| `bin/lib/export.js` | Backup/restore/quotas/storage + audit chain + legal hold | `doExportToFile`, `collectBoardFiles`, `encryptBackupPayload`, `decryptBackupPayload`, `readBoardQuotas`, `enforce*Quota`, `holdActive`, `readHold`, `appendChainRecord`, `verifyChainRecords`, `spoolAuditEvent`, `snapshotStamp` |
+| `bin/lib/mail.js` | DMs + delivery: send-path expansion, broadcast manifest, visible reads, digest, ack, verifier, thread/prune/listen/redeliver cores | `deliverDMs`, `readDMs`, `readVisible`, `parseRecipients`, `recordBroadcastManifest`, `ackedIds`, `runVerifier`, `signMessage`, `verifyMessageSig`, `checkSendRateLimit` |
+| `bin/lib/groups.js` | Groups + outcomes: group docs, expansion, telemetry, batch gather, results, races | `readGroup`, `expandGroups`, `expandGroupsOrFail`, `collectBatch`, `groupTelemetryData`, `gatherTelemetry`, `readResultRecord`, `writeResultRecord`, `findFirstVerifiedReply` |
+| `bin/lib/channels.js` | Shared channels + locks: log IO, per-reader cursors, digest/summarize, group mirrors, advisory locks, channel text-merge | `appendChannelPost`, `readChannelPosts`, `tailChannelPosts`, `parseChannelText`, `mergeChannelText`, `mirrorToGroupChannels`, `acquireLockDoc`, `releaseLockDoc` |
+| `bin/lib/web.js` | Dashboard + API: snapshots, HTML render, ack/kill handlers, `cmdWeb` | `boardSnapshot`, `fleetSnapshot`, `channelsSnapshot`, `resultsSnapshot`, `auditSnapshot`, `renderBoardHtml`, `handleApiAck`, `handleApiKill`, `cmdWeb` |
+
+Full export lists: see the import block at the top of `bin/agentboard.js`
+(lines 42–51). Entry-point `cmd*` functions (e.g. `cmdSend`, `cmdSync`,
+`cmdServe`) stay in the monolith; lib modules carry the computation helpers
+those verbs call.
+
+## Dependency rules
+
+- `store` ← everyone. All lib modules may import from `store.js`; `store.js`
+  imports only node builtins.
+- Top-level side-effect-free: every `bin/lib/*.js` module must contain only
+  imports + consts + function declarations at top level — no top-level I/O
+  or calls — so import evaluation order is never hazardous.
+- Deferred-call cycles allowed (safe only because tops are side-effect-free
+  and every cross-module use is inside function bodies, never at import
+  time):
+  - `identity` ↔ `groups` via `mail` (`identity.js` imports `readGroup`
+    from `groups.js`; `groups.js` imports `readDMs`/`findMessageById` from
+    `mail.js`; `mail.js` imports `writeAgentFile` from `identity.js`).
+  - `sync` ↔ `relay` (`sync.js` imports `parseDeviceCred` from `relay.js`;
+    `relay.js` imports `httpJson` from `sync.js`).
+- Canonical homes for duplicated helpers (keep exactly one; delete the rest
+  in favor of these):
+  - `clean*` validators → `store.js`.
+  - Channel text merge (`parseChannelText`, `mergeChannelText`) →
+    `channels.js` (`sync.js` imports them from there).
+  - `handleApiKill` → `web.js` (`relay.js` still carries a verbatim copy;
+    dedup keeps `web.js` as owner).
+  - HLC (`nextHlc`, `stampSyncDoc`, `hlcCompare`) → `store.js`.
+
+## How to add a command
+
+1. Add the `cmd*` wrapper + `main()` switch case (+ `USAGE` text) in
+   `bin/agentboard.js` (dispatcher owns CLI parsing and flag handling).
+2. Put reusable logic in the owning `bin/lib/*.js` module (table above);
+   keep the new lib code side-effect-free at top level.
+3. Add tests under `test/` covering the new path (`npm test` runs smoke +
+   harness + fault-injection + integration).
+
+## Embeds note
+
+The `OPENCODE_TOOL_DM_SEND` / `OPENCODE_PLUGIN_DM_WATCH` template literals
+stay in `bin/agentboard.js` (populated from `opencode/tools/dm-send.js` +
+`opencode/plugins/dm-watch.js`). `sync-embeds.mjs` is unaffected by this
+split — keep running `node sync-embeds.mjs --check` after edits.
+
+## MCP note
+
+`bin/agentboard-mcp.js` is still standalone (own copies, no `bin/lib/*`
+imports). Sharing lib modules with the MCP server is future work, NOT done.

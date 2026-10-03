@@ -559,5 +559,9 @@ npm publish       # ships bin/ + opencode/ + docs (see "files" in package.json)
 and verify with `npm test`. `init` prefers the repo files when run from a
 checkout, so the embed only matters for `npm i -g` installs.
 
+Code layout: `bin/agentboard.js` is a dispatcher + `cmd*` wrappers; domain
+logic lives in `bin/lib/` (10 modules). See `docs/SPLIT.md` for the module
+map, dependency rules, and how to add a command.
+
 After publishing, projects can skip the checkout entirely:
 `npm i -g @eamonpluto/agentboard` then `agentboard init --harness <name> --portable`.
