@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- Fleet console (`agentboard web`): new Fleet (live relay role/weight/
+  workers/lag via `/healthz`), Channels, Results & races (telemetry,
+  verified outcomes, kill-the-losers), Triage (unacked queue with ack
+  action), and Audit (chain verification + recent events) sections backed
+  by read-only `/api/fleet|channels|results|audit|inbox` plus token-checked
+  `POST /api/ack` (plain accept only — verifiers stay CLI-only).
+
 ## 6.0.0 (2026-10-03)
 
 Behavior change (same class as 5.0.0's RBAC defaults): spawned workers no

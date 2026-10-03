@@ -276,7 +276,14 @@ agentboard web --port 0   # random localhost port, prints the URL
 
 Zero dependencies, polls every 5s: worker states (running / done / exited +
 reply + ack + log tail), agent presence, groups, sync peers, broadcasts,
-recent activity, plus JSON at `/api/board` for scripting. Reads are open; each worker row has a
+recent activity, plus JSON at `/api/board` for scripting. The fleet
+console adds: **Fleet** (every synced relay with live role/weight/workers/
+lag), **Channels** (latest heads per shared log), **Results & races**
+(per-group telemetry, verified outcomes, kill-the-losers buttons),
+**Triage** (your unacked queue with ack buttons), and **Audit** (chain
+verification + recent events) — backed by read-only
+`/api/fleet|channels|results|audit|inbox` plus token-checked `POST
+/api/ack` (plain accept only; `--verify` stays CLI-only). Reads are open; each worker row has a
 **kill** button that POSTs `/api/kill` with your name+token (same check as
 the CLI, JSON-only so plain browser forms can't reach it). Binds
 `127.0.0.1` (a non-local `--host` prints a warning — there is no auth) and
