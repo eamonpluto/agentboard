@@ -102,7 +102,9 @@ srv.kill();
 fs.rmSync(mcpBoard, { recursive: true, force: true });
 
 // mcp walk-up: server started in a subdirectory still uses the project board
-const mcpWalk = fs.mkdtempSync(path.join(os.tmpdir(), "ab-mcpwalk-"));
+// (realpath: os.tmpdir() is a symlink on macOS, and the server echoes the
+// canonical path it resolved via process.cwd()).
+const mcpWalk = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "ab-mcpwalk-")));
 fs.mkdirSync(path.join(mcpWalk, ".agentboard", "dm"), { recursive: true });
 fs.writeFileSync(path.join(mcpWalk, ".agentboard", "board.json"), JSON.stringify({ name: "board", version: 2 }) + "\n");
 const mcpDeep = path.join(mcpWalk, "sub");
