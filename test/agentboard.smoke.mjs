@@ -580,20 +580,24 @@ fs.rmSync(walk, { recursive: true, force: true });
 const rootEnv = { ...process.env };
 delete rootEnv.AGENTBOARD_DIR;
 delete rootEnv.AGENTBOARD_AGENT;
+// Portable filesystem root ("C:\" on Windows, "/" on POSIX): writers must
+// refuse to plant a board there and fail loudly instead.
+const fsRoot = path.parse(process.cwd()).root;
+const rootBoard = path.join(fsRoot, ".agentboard");
 let rootRefused = false;
 try {
-  execFileSync("node", [CLI, "send", "--from", "r1", "--to", "r2", "--body", "x"], { env: rootEnv, cwd: "C:\\", stdio: "pipe" });
+  execFileSync("node", [CLI, "send", "--from", "r1", "--to", "r2", "--body", "x"], { env: rootEnv, cwd: fsRoot, stdio: "pipe" });
 } catch (e) {
   rootRefused = String((e.stdout || "") + (e.stderr || "")).includes("drive root");
 }
-check("send from drive root refused loudly", rootRefused && !fs.existsSync("C:\\.agentboard"));
+check("send from drive root refused loudly", rootRefused && !fs.existsSync(rootBoard));
 let rootRegRefused = false;
 try {
-  execFileSync("node", [CLI, "register", "--from", "r1"], { env: rootEnv, cwd: "C:\\", stdio: "pipe" });
+  execFileSync("node", [CLI, "register", "--from", "r1"], { env: rootEnv, cwd: fsRoot, stdio: "pipe" });
 } catch (e) {
   rootRegRefused = String((e.stdout || "") + (e.stderr || "")).includes("drive root");
 }
-check("register from drive root refused loudly", rootRegRefused && !fs.existsSync("C:\\.agentboard"));
+check("register from drive root refused loudly", rootRegRefused && !fs.existsSync(rootBoard));
 
 // 10. doctor: healthy project passes, broken wiring fails
 const doc = fs.mkdtempSync(path.join(os.tmpdir(), "ab-doc-"));
