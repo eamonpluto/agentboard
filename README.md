@@ -471,7 +471,8 @@ More docs: `docs/QUICKSTART.md` (5 min), `docs/TROUBLESHOOTING.md`
 `docs/TENANCY.md` (backups/quotas), `docs/HA.md` +
 `docs/SHARED_RESPONSIBILITY.md` + `docs/CERT_READINESS.md`
 (enterprise tier), `docs/PAIRING.md` (device credentials) +
-`docs/CREWS.md` (weighted multi-relay dispatch).
+`docs/CREWS.md` (weighted multi-relay dispatch) +
+`docs/SPLIT.md` (module map).
 
 ## Enterprise tier (identity, authority, evidence, continuity)
 

@@ -61,60 +61,6 @@ import { boardSnapshot, cmdWeb, escapeHtml, fleetSnapshot, channelsSnapshot, res
 // helpers
 // ---------------------------------------------------------------------------
 
-
-// Nearest ancestor (incl. start) containing a .agentboard dir, or null.
-
-// Never silently plant a board at a drive root (e.g. C:\.agentboard): that
-// means cwd resolution failed (detached harness worktree). Fail loudly so
-// the agent sets --board/AGENTBOARD_DIR instead of talking to a stray board.
-
-
-// Best-effort git revision for the project containing the board, so recipients
-// can tell whether cited file:line numbers are stale. Never throws.
-
-
-/** Atomic fire-once claim: create file only if it does not exist. */
-
-
-// Identity: first claim wins, token after that. Tokens stop CLI-level
-// --from spoofing; they do NOT stop local file tampering (anyone with shell
-// access can edit .agentboard/ directly) — separate boards per trust zone.
-// §4.4: agent files store ONLY a salted hash ({tokenHash, salt}, never
-// plaintext). Plaintext is printed once at mint. Legacy files with a
-// plaintext `token` field are accepted once, then migrated to a hash.
-// Sync NEVER replicates token/tokenHash/salt (see sanitizeAgentForSync).
-
-
-// Best-effort 0600 on agent files (Windows-tolerant: ACLs differ, ignore).
-
-
-// After minting over an EXISTING record (legacy takeover, post-revoke
-// re-claim, admin grant), confirm our token won the file. Parallel minters
-// must fail loudly instead of printing a dead token. Fresh claims use
-// exclusive create instead (see ensureSender / cmdRegister).
-
-// True when the presented token matches the record (hash or legacy plaintext).
-
-
-// Sync-safe agent doc: secrets stripped, presence/cursor/spawn fields kept.
-// Incoming synced docs are merged the same way (local secrets win).
-
-
-// Phase 1a: per-identity token lifecycle (expiry, revocation, service,
-// offboarding). Agent docs may carry expiresAt (ISO|null), rotatedAt (ISO),
-// service (bool), offboarded (bool), revokedAt (ISO). Secrets stay local:
-// sync replicates the flags, never token/tokenHash/salt (see sanitize).
-
-
-// Acting as a KNOWN agent requires its token. Unknown names fail here —
-// claim them with send (first send mints the token) or register.
-// Legacy plaintext `token` files are accepted once, then re-hashed and the
-// plaintext is dropped (migration).
-
-// First send as a new name mints its record + token (same first-claim-wins
-// as register, zero extra round-trip). Returns { created } so callers can
-// print the token exactly once — it is never shown again via send.
-
 // ---------------------------------------------------------------------------
 // Phase 1b RBAC + per-board ACLs + group-scoped send permissions.
 //
@@ -3866,21 +3812,6 @@ function cmdDoctor(args) {
 // failed, never the credential.
 // ---------------------------------------------------------------------------
 
-const _oidcConfigCache = new Map(); // issuer -> { at, doc }
-const _oidcJwksCache = new Map(); // jwksUri -> { at, keys }
-let _insecureWarned = false;
-
-// Outbound client TLS state for sync/listen (set per-command from flags/env;
-// httpJson reads it — syncRound itself takes no args).
-
-
-// JWS ECDSA signatures are raw R||S; node:crypto verifies DER. Convert.
-
-
-// Hand-rolled JWT verify (RS/ES family) against the issuer's JWKS. Throws on
-// any failure with a check-naming message (never the token). Returns claims.
-
-
 function oidcAgentName(sub) {
   const clean = String(sub).trim().toLowerCase().replace(/[^a-z0-9_.-]/g, "-").replace(/^-+/, "").slice(0, 35) || "unknown";
   return `oidc-${clean}`;
@@ -5164,7 +5095,9 @@ Messaging (primitive — just a tool call, whenever you want):
   agentboard web [--port 0] [--host 127.0.0.1]
     (local dashboard: workers, presence, broadcasts, recent mail. Reads are
      open; the per-worker kill button POSTs /api/kill with your name+token.
-     JSON at /api/board. Binds localhost; tokens are never rendered.)
+     JSON at /api/board. Fleet console: read-only /api/fleet|channels|
+     results|audit|inbox; token-checked POST /api/ack (plain accept only,
+     verifiers stay CLI-only). Binds localhost; tokens are never rendered.)
   agentboard serve [--port 0] [--host 127.0.0.1] [--secret <s>] [--weight N] [--allow-remote-spawn] [--allow-cmd <regex>] [--workdir-root <dir>] [--tls-cert <pem> --tls-key <pem> [--tls-ca <pem>|--mtls-ca <pem>]] [--oidc-issuer <url> --oidc-audience <id>] [--audit-forward <https-url> [--audit-forward-key <bearer>]]
     (sync relay for one board: peers pull/push via /sync/manifest+file+put,
      boot crews via POST /api/spawn (JSON, token-checked, same rules as the
@@ -5210,7 +5143,8 @@ Messaging (primitive — just a tool call, whenever you want):
      Rounds after the first are incremental (manifest ?since= + per-peer
      cursor, 60s overlap). --dry-run reports tombstone count.
      index/, logs/ and board.json stay local. --interval loops until Ctrl-C.
-     Topology: star/tree via relays, gossip via pairwise sync rounds.)
+     Topology: star/tree via relays, gossip via pairwise sync rounds.
+     capabilities[] negotiated (mixed-version peers degrade with warnings).)
   agentboard doctor [--harness <list>] [--board <path>]
 
 Tips:

@@ -7,8 +7,7 @@
 //   cmdWeb 6408-6565 (nested readKillBody 6418-6437),
 //   handleApiKill 8662-8691 (cleanWebName 8654-8658 lives in store.js; imported).
 // Shared with relay crew (cmdServe): boardSnapshot, handleApiKill.
-// NOTE: relay.js currently also exports a verbatim handleApiKill copy (line 8662);
-//   Phase-2 dedup should keep web.js as owner (relay.js can re-export from here).
+// NOTE: dedup done — relay.js re-exports handleApiKill from web.js (owner).
 // NOTE: readChainRecords/verifyChainRecords (auditSnapshot deps) are imported
 //   from export.js but are NOT yet exported there (unclaimed audit-chain block,
 //   monolith lines ~692-1010) — export crew must add them for web.js to link.

@@ -8,7 +8,6 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import { readJson, writeJson, newId, fail, cleanChannelName, listJson } from "./store.js";
-import { enforceChannelQuota, enforceBytesQuota } from "./export.js";
 import { isHigh, relTime } from "./mail.js";
 
 // cleanChannelName lives in store.js (canonical home for all clean* helpers).

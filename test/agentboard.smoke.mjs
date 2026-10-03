@@ -1,4 +1,4 @@
-import { execFileSync, spawn } from "node:child_process";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -1502,6 +1502,155 @@ fs.rmSync(secBoard, { recursive: true, force: true });
   fs.rmSync(p2Board, { recursive: true, force: true });
 }
 // ---- END Phase 2a audit export + legal hold ----
+
+// ---- BEGIN caps: capability-degraded sync against a legacy peer ----
+{
+  const capsBoard = fs.mkdtempSync(path.join(os.tmpdir(), "ab-caps-"));
+  const capsEnv = { ...process.env, AGENTBOARD_DIR: capsBoard };
+  const capsTok = {};
+  const capsRun = (a, extra) => {
+    const merged = { ...capsEnv, ...(extra || {}) };
+    const fi = a.indexOf("--from");
+    const who = fi !== -1 && a[fi + 1] && !String(a[fi + 1]).startsWith("--") ? String(a[fi + 1]).toLowerCase() : null;
+    if (who && capsTok[who] && !merged.AGENTBOARD_TOKEN) merged.AGENTBOARD_TOKEN = capsTok[who];
+    const out = execFileSync("node", [CLI, ...a], { env: merged }).toString();
+    const m = out.match(/token (abt-[0-9a-f]+)/);
+    if (m && who && !capsTok[who]) capsTok[who] = m[1];
+    return out;
+  };
+  capsRun(["init", "--harness", "generic"]);
+  capsRun(["register", "--from", "capadmin"]);
+  capsRun(["send", "--from", "capadmin", "--to", "keepme", "--body", "keep this"]);
+  capsRun(["send", "--from", "capadmin", "--to", "doomed", "--body", "prune me"]);
+  // Age one DM out so prune mints a real tombstone next to the channel post.
+  const doomDir = path.join(capsBoard, "dm", "doomed");
+  const doomFile = fs.readdirSync(doomDir).map((f) => path.join(doomDir, f)).find((p) => {
+    try { return JSON.parse(fs.readFileSync(p, "utf8")).body === "prune me"; } catch { return false; }
+  });
+  const doomDoc = JSON.parse(fs.readFileSync(doomFile, "utf8"));
+  doomDoc.at = new Date(Date.now() - 8 * 24 * 3600 * 1000).toISOString();
+  fs.writeFileSync(doomFile, JSON.stringify(doomDoc, null, 2) + "\n");
+  capsRun(["channel", "create", "caps-chan"]);
+  capsRun(["channel", "post", "caps-chan", "--from", "capadmin", "--body", "hello chan"]);
+  capsRun(["prune", "--older-than", "7d"]);
+  check("caps: temp board holds a channel post + tombstone",
+    fs.existsSync(path.join(capsBoard, "channels", "caps-chan.log.jsonl")) &&
+    fs.existsSync(path.join(capsBoard, "tombstones")) &&
+    fs.readdirSync(path.join(capsBoard, "tombstones")).some((f) => f.endsWith(".json")));
+  // Legacy stub relay in a child process (same STUB_READY pattern as the
+  // OIDC stub in test/integration.mjs — an in-test server cannot serve
+  // while the parent blocks in execFileSync): manifest WITHOUT the
+  // `capabilities` field (4.0 baseline) plus one dm file entry, and it
+  // records every /sync/put path to putsFile.
+  const stubDir = fs.mkdtempSync(path.join(os.tmpdir(), "ab-caps-stub-"));
+  const stubFile = path.join(stubDir, "stub-legacy.mjs");
+  const putsFile = path.join(stubDir, "puts.jsonl");
+  fs.writeFileSync(stubFile, `import http from "node:http";\nimport fs from "node:fs";\nconst putsFile = process.argv[2];\nconst legacyDoc = { id: "msg-legacy", from: "legacy-peer", to: "capadmin", body: "legacy hello", at: new Date().toISOString() };\nconst srv = http.createServer((req, res) => {\n  const u = new URL(req.url, "http://x");\n  if (req.method === "GET" && u.pathname === "/sync/manifest") {\n    res.writeHead(200, { "content-type": "application/json" });\n    res.end(JSON.stringify({ version: 2, files: { "dm/legacy-peer/msg-legacy.json": { mtime: Date.now(), size: 200 } } }));\n    return;\n  }\n  if (req.method === "GET" && u.pathname === "/sync/file") {\n    if (u.searchParams.get("path") === "dm/legacy-peer/msg-legacy.json") {\n      res.writeHead(200, { "content-type": "application/json" });\n      res.end(JSON.stringify(legacyDoc));\n    } else { res.writeHead(404); res.end("nope"); }\n    return;\n  }\n  if (req.method === "POST" && u.pathname === "/sync/put") {\n    let b = "";\n    req.on("data", (c) => { b += c; });\n    req.on("end", () => {\n      fs.appendFileSync(putsFile, JSON.stringify({ path: u.searchParams.get("path") }) + "\\n");\n      res.writeHead(200, { "content-type": "application/json" });\n      res.end("{}");\n    });\n    return;\n  }\n  res.writeHead(404); res.end("nope");\n});\nsrv.listen(0, "127.0.0.1", () => console.log("STUB_READY http://127.0.0.1:" + srv.address().port));\n`);
+  const stubProc = spawn("node", [stubFile, putsFile], { stdio: ["ignore", "pipe", "pipe"] });
+  const stubUrl = await new Promise((resolve, reject) => {
+    let out = "";
+    const timer = setTimeout(() => {
+      try { stubProc.kill(); } catch {}
+      reject(new Error(`legacy stub did not start: ${out.slice(0, 200)}`));
+    }, 15000);
+    stubProc.stdout.on("data", (c) => {
+      out += c.toString();
+      const m = out.match(/STUB_READY (\S+)/);
+      if (m) { clearTimeout(timer); resolve(m[1]); }
+    });
+    stubProc.stderr.on("data", (c) => { out += c.toString(); });
+    stubProc.on("error", (e) => { clearTimeout(timer); reject(e); });
+  });
+  check("caps: legacy stub relay comes up", stubUrl.startsWith("http://127.0.0.1:"));
+  // Warnings go to stderr, so spawnSync (not execFileSync) captures both.
+  const syncRes = spawnSync("node", [CLI, "sync", "--with", stubUrl], { env: capsEnv, timeout: 60000 });
+  const syncOut = String(syncRes.stdout || "") + String(syncRes.stderr || "");
+  check("caps: legacy sync completes", syncRes.status === 0 && syncOut.includes("synced with"));
+  check("caps: legacy sync warns about missing capabilities",
+    /capabilit/.test(syncOut) && syncOut.includes("tombstones") && syncOut.includes("channels"));
+  check("caps: legacy sync pulls baseline mail", /pulled [1-9]/.test(syncOut) && fs.existsSync(path.join(capsBoard, "dm", "legacy-peer")));
+  let puts = [];
+  try {
+    puts = fs.readFileSync(putsFile, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l).path);
+  } catch {}
+  check("caps: baseline areas pushed (stub recorded puts)", puts.length >= 1 && puts.some((p) => String(p).startsWith("dm/")));
+  check("caps: channel/tombstone files NOT pushed to legacy peer",
+    !puts.some((p) => String(p).startsWith("channels/") || String(p).startsWith("tombstones/")));
+  stubProc.kill();
+  await Promise.race([
+    new Promise((res) => stubProc.on("close", res)),
+    new Promise((res) => setTimeout(res, 5000)),
+  ]);
+  fs.rmSync(stubDir, { recursive: true, force: true });
+  fs.rmSync(capsBoard, { recursive: true, force: true });
+}
+// ---- END caps: capability-degraded sync ----
+
+// ---- BEGIN env-features: spawn --allow-env / --keep-env ----
+{
+  // MARK ends in _API_KEY so the default scrub removes it (bin/lib/spawn.js
+  // SCRUB_SUFFIXES); AGENTBOARD_TEST_PLAIN matches no scrub pattern.
+  // NOTE: bootWorker passes spawnedEnvScrubbed to touchAgent, but touchAgent
+  // whitelists agent-record fields and drops it — so it is NOT asserted here;
+  // the child-observed files below are the scrub signal.
+  const tag = Date.now().toString(36);
+  const MARK = "AGENTBOARD_TEST_KEEP_API_KEY";
+  const canary = "CANARY_" + tag;
+  const plainVal = "PLAIN_" + tag;
+  const envBoard = fs.mkdtempSync(path.join(os.tmpdir(), "ab-env-"));
+  const envEnv = { ...process.env, AGENTBOARD_DIR: envBoard };
+  const envTok = {};
+  const envRun = (a, extra) => {
+    const merged = { ...envEnv, ...(extra || {}) };
+    const fi = a.indexOf("--from");
+    const who = fi !== -1 && a[fi + 1] && !String(a[fi + 1]).startsWith("--") ? String(a[fi + 1]).toLowerCase() : null;
+    if (who && envTok[who] && !merged.AGENTBOARD_TOKEN) merged.AGENTBOARD_TOKEN = envTok[who];
+    const out = execFileSync("node", [CLI, ...a], { env: merged }).toString();
+    const m = out.match(/token (abt-[0-9a-f]+)/);
+    if (m && who && !envTok[who]) envTok[who] = m[1];
+    return out;
+  };
+  envRun(["init", "--harness", "generic"]);
+  const leadTok = (envRun(["register", "--from", "envlead"]).match(/token (abt-[0-9a-f]+)/) || [])[1];
+  const childEnv = { AGENTBOARD_TOKEN: leadTok, [MARK]: canary, AGENTBOARD_TEST_PLAIN: plainVal };
+  // Short-lived `node -e` probes (no sleepers): each writes what IT sees.
+  const envCmd = (out) => `node -e "require('fs').writeFileSync('${out}', JSON.stringify({keep: process.env.${MARK} || null, plain: process.env.AGENTBOARD_TEST_PLAIN || null, path: process.env.PATH ? 'yes' : null, token: process.env.AGENTBOARD_TOKEN || null}))"`;
+  const outDef = path.join(os.tmpdir(), `ab-envdef-${tag}.json`).replace(/\\/g, "/");
+  const outAllow = path.join(os.tmpdir(), `ab-envallow-${tag}.json`).replace(/\\/g, "/");
+  const outKeep = path.join(os.tmpdir(), `ab-envkeep-${tag}.json`).replace(/\\/g, "/");
+  // Boot all three detached workers up front, then poll once for every file.
+  const spDef = envRun(["spawn", "--from", "envlead", "--harness", "generic", "--cmd", envCmd(outDef), "--to", "envdef", "--body", "env probe"], childEnv);
+  const spAllow = envRun(["spawn", "--from", "envlead", "--harness", "generic", "--cmd", envCmd(outAllow), "--to", "envallow", "--body", "env probe", "--allow-env", "AGENTBOARD_TEST_KEEP"], childEnv);
+  const spKeep = envRun(["spawn", "--from", "envlead", "--harness", "generic", "--cmd", envCmd(outKeep), "--to", "envkeep", "--body", "env probe", "--keep-env"], childEnv);
+  check("env-features: all three workers booted",
+    spDef.includes("spawned envdef pid ") && spAllow.includes("spawned envallow pid ") && spKeep.includes("spawned envkeep pid "));
+  const readProbe = (p) => {
+    try { return JSON.parse(fs.readFileSync(p.replace(/\//g, path.sep), "utf8")); } catch { return null; }
+  };
+  let d0 = null, d1 = null, d2 = null;
+  // Detached boots on a loaded box can take a minute+ each (same lottery as
+  // the 7b2 gw1 marker above); all three share one generous window and the
+  // loop exits as soon as every probe has reported.
+  for (let i = 0; i < 480 && !(d0 && d1 && d2); i++) {
+    await new Promise((r) => setTimeout(r, 500));
+    d0 = d0 || readProbe(outDef);
+    d1 = d1 || readProbe(outAllow);
+    d2 = d2 || readProbe(outKeep);
+  }
+  check("env-features: all workers reported back", !!(d0 && d1 && d2));
+  check("env-features: default spawn scrubs the credential marker", !!d0 && d0.keep === null);
+  check("env-features: default spawn keeps plain/PATH, never inherits the token",
+    !!d0 && d0.plain === plainVal && d0.path === "yes" && d0.token === null);
+  check("env-features: --allow-env keeps the listed marker, still drops the token",
+    !!d1 && d1.keep === canary && d1.plain === plainVal && d1.token === null);
+  check("env-features: --keep-env keeps the marker but still drops the token",
+    !!d2 && d2.keep === canary && d2.token === null);
+  for (const f of [outDef, outAllow, outKeep]) {
+    try { fs.rmSync(f.replace(/\//g, path.sep), { force: true }); } catch {}
+  }
+  fs.rmSync(envBoard, { recursive: true, force: true });
+}
+// ---- END env-features: spawn --allow-env / --keep-env ----
 
 if (failures > 0) {
   console.error(`\n${failures} failure(s)`);

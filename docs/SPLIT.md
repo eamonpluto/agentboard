@@ -1,8 +1,9 @@
 # Split: `bin/agentboard.js` → `bin/lib/*.js`
 
-Status: being integrated. `bin/agentboard.js` is now a dispatcher + `cmd*`
-wrappers that imports domain logic from 10 lib modules (import block,
-`bin/agentboard.js` lines 42–51). No behavior change is intended.
+Status: landed. `bin/agentboard.js` is a dispatcher that intentionally
+retains the `cmd*` wrappers, `USAGE`, `main()`, and the opencode
+tool/plugin embeds; domain logic lives in the 10 lib modules (import
+block, `bin/agentboard.js` lines 42–51). No behavior change is intended, with one deliberate exception recorded in CHANGELOG (parseRecipients full-version canonicalization).
 
 ## Module map
 
@@ -44,8 +45,8 @@ those verbs call.
   - `clean*` validators → `store.js`.
   - Channel text merge (`parseChannelText`, `mergeChannelText`) →
     `channels.js` (`sync.js` imports them from there).
-  - `handleApiKill` → `web.js` (`relay.js` still carries a verbatim copy;
-    dedup keeps `web.js` as owner).
+  - `handleApiKill` → `web.js` (dedup done — `relay.js` re-exports
+    `handleApiKill` from `web.js`).
   - HLC (`nextHlc`, `stampSyncDoc`, `hlcCompare`) → `store.js`.
 
 ## How to add a command

@@ -8,9 +8,9 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { readJson, writeJson, listJson, newId, sanitizeName, fail, MAX_RECIPIENTS, BROADCAST_AFTER, MAX_FWD_DEPTH, SEND_RATE_CAP, SEND_RATE_WINDOW_MS, DEDUPE_WINDOW_MS, cleanPriority, cleanSubject, cleanReply, cleanArtifact } from "./store.js";
+import { readJson, writeJson, listJson, newId, sanitizeName, fail, MAX_RECIPIENTS, BROADCAST_AFTER, MAX_FWD_DEPTH, SEND_RATE_CAP, SEND_RATE_WINDOW_MS, DEDUPE_WINDOW_MS, cleanPriority, cleanSubject, cleanReply, cleanArtifact, stampSyncDoc } from "./store.js";
 import { writeAgentFile, timingSafeEqualStr } from "./identity.js";
-import { writeTombstone, stampSyncDoc } from "./sync.js";
+import { writeTombstone } from "./sync.js";
 import { boardHmacKey } from "./export.js";
 
 export function readRecipientsFile(p) {
@@ -672,7 +672,7 @@ export function redeliverOrder(d, agent) {
   const order = readVisible(d, agent).map((m) => m.id);
   return order;
 }
-export function redeliverMarkers(d, agent, ids, order) {
+export function redeliverMarkers(d, agent, ids, order, all) {
   for (const mid of ids) {
     try {
       fs.rmSync(path.join(d.delivered, agent, `${mid}.json`), { force: true });

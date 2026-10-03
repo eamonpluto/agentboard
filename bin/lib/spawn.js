@@ -127,13 +127,28 @@ export const SCRUB_EXACT = new Set(["GOOGLE_APPLICATION_CREDENTIALS", "KUBECONFI
 export function scrubChildEnv(baseEnv, opts) { // line 4062
   const keepEnv = !!(opts && opts.keepEnv);
   const allow = String((opts && opts.allowEnv) || "").split(",").map((s) => String(s).trim()).filter(Boolean);
-  if (keepEnv) return { env: { ...baseEnv }, scrubbed: [], kept: true };
+  // Identity tokens (AGENTBOARD_* members of SCRUB_EXACT) are ALWAYS stripped,
+  // even under --keep-env/--allow-env: an inherited lead token never has
+  // legitimate use (checkToken binds tokens to names; the worker claims its
+  // own identity on first send), it only enables lead impersonation via
+  // --from <lead>. --keep-env/--allow-env keep working for non-identity vars.
+  const alwaysStrip = (key) => SCRUB_EXACT.has(key) && String(key).startsWith("AGENTBOARD_");
+  if (keepEnv) {
+    const env = {};
+    const scrubbed = [];
+    for (const [k, v] of Object.entries(baseEnv || {})) {
+      const key = String(k);
+      if (alwaysStrip(key)) scrubbed.push(key);
+      else env[key] = v;
+    }
+    return { env, scrubbed, kept: true };
+  }
   const env = {};
   const scrubbed = [];
   for (const [k, v] of Object.entries(baseEnv || {})) {
     const key = String(k);
     let hit = SCRUB_EXACT.has(key) || SCRUB_SUFFIXES.some((s) => key.endsWith(s)) || SCRUB_PREFIXES.some((p) => key.startsWith(p));
-    if (hit && allow.some((a) => key === a || key.startsWith(a))) hit = false;
+    if (hit && !alwaysStrip(key) && allow.some((a) => key === a || key.startsWith(a))) hit = false;
     if (hit) scrubbed.push(key);
     else env[key] = v;
   }

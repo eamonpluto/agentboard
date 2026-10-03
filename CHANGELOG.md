@@ -7,6 +7,13 @@
   under `bin/lib/` (`store`, `identity`, `sync`, `relay`, `spawn`,
   `export`, `mail`, `groups`, `channels`, `web`). See `docs/SPLIT.md`.
   The MCP server (`bin/agentboard-mcp.js`) is untouched.
+- Deliberate behavior fix from the split: the pre-split monolith
+  contained two `parseRecipients` definitions (a full 3-arg version and a
+  simple 1-arg version; JS hoisting meant the simple one won, so
+  `--to-file`/`--to-group` extra args were silently dropped). The split
+  canonicalizes on the full version in `bin/lib/mail.js`
+  (`parseRecipients(raw, toFile, extraNames)`), so those flags are now
+  honored.
 
 ## 6.1.0 (2026-10-03)
 

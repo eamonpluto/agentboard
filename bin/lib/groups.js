@@ -211,7 +211,7 @@ export function readResultRecord(d, group) {
   return rec;
 }
 export function writeResultRecord(d, rec) {
-  writeJson(path.join(d.results, `${group}.json`), rec);
+  writeJson(path.join(d.results, `${rec.group}.json`), rec);
   return rec;
 }
 
@@ -220,7 +220,7 @@ export function writeResultRecord(d, rec) {
 // cmdRace in the monolith. Returns the first verified {msg, by, output} or null.
 export function findFirstVerifiedReply(d, items) {
   let firstVerified = null;
-  for (const m of res.items) {
+  for (const m of items) {
     const v = isVerified(d, m.id);
     if (v) { firstVerified = { msg: m, by: v.by, output: v.marker && v.marker.output }; break; }
   }
