@@ -1,6 +1,16 @@
 # Changelog
 
-## Unreleased
+## 6.2.0 (2026-10-03)
+
+Internal restructure + hardening, no CLI contract changes: `bin/agentboard.js`
+is now a dispatcher over 10 zero-dependency ESM modules in `bin/lib/`
+(`store`, `identity`, `sync`, `relay`, `spawn`, `export`, `mail`, `groups`,
+`channels`, `web`) — see `docs/SPLIT.md`. Two behavior tightenings: identity
+tokens (`AGENTBOARD_TOKEN` et al) are now always stripped from spawned worker
+environments, even under `--keep-env`/`--allow-env` (an inherited lead token
+has no legitimate use and only enables impersonation); and the split
+canonicalizes on the full 3-arg `parseRecipients`, so `--to-file`/`--to-group`
+extra args are honored instead of silently dropped.
 
 - Internal split (no behavior change intended): `bin/agentboard.js` is now
   a dispatcher + `cmd*` wrappers importing domain logic from 10 modules

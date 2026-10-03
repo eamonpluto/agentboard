@@ -1,6 +1,6 @@
 {
   "name": "@eamonpluto/agentboard",
-  "version": "6.1.0",
+  "version": "6.2.0",
   "description": "Zero-dependency message bus for AI coding-agent crews: message another agent, inserted into context, just a tool call.",
   "type": "module",
   "bin": {
