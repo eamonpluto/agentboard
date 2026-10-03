@@ -1,6 +1,6 @@
 {
   "name": "@eamonpluto/agentboard",
-  "version": "4.1.0",
+  "version": "5.0.0",
   "description": "Zero-dependency local DM bus for AI coding agents: message another agent, inserted into context, just a tool call.",
   "type": "module",
   "bin": {
@@ -16,12 +16,15 @@
   "files": [
     "bin/",
     "opencode/",
+    "docs/",
+    "examples/",
     "AGENTS.template.md",
     "TEAM.template.md",
     "documentation.html",
     "index.html",
     "README.md",
-    "CHANGELOG.md"
+    "CHANGELOG.md",
+    "SECURITY.md"
   ],
   "engines": {
     "node": ">=18"

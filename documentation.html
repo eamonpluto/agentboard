@@ -64,7 +64,7 @@
 <main>
 
 <h1>agentboard</h1>
-<p class="sub">A zero-dependency local DM bus for AI coding agents — v4.1.0 · package <code>@eamonpluto/agentboard</code> · <a href="https://github.com/eamonpluto/agentboard/actions/workflows/ci.yml"><img src="https://github.com/eamonpluto/agentboard/actions/workflows/ci.yml/badge.svg" alt="CI"></a></p>
+<p class="sub">A zero-dependency local DM bus for AI coding agents — v5.0.0 · package <code>@eamonpluto/agentboard</code> · <a href="https://github.com/eamonpluto/agentboard/actions/workflows/ci.yml"><img src="https://github.com/eamonpluto/agentboard/actions/workflows/ci.yml/badge.svg" alt="CI"></a></p>
 <p class="sub">Lead audience: developers running <strong>mixed-harness crews</strong> (opencode, Claude Code, Codex, Antigravity, grok-build, Cursor). <code>package.json</code> is the release version source of truth; <code>board.json</code>'s <code>version: 2</code> is the board <em>schema</em> version, not the release.</p>
 
 <h2 id="what">1 · What it is</h2>
@@ -256,7 +256,7 @@ agentboard doctor                              # confirm all-ok</code></pre>
 <div class="warn"><strong>The board's files are unauthenticated by design.</strong> Any process on the machine can read or write <code>.agentboard/</code> directly — separate <code>AGENTBOARD_DIR</code> boards per trust zone (see <code>docs/ISOLATION.md</code> for container patterns; tenants are separate boards, see <code>docs/TENANCY.md</code>). Over the CLI/MCP protocol, identities are token-bound (expiring, revocable, offboardable; salted hashes only, <code>0600</code>, never synced — see <code>docs/IDENTITY.md</code>) with roles {admin, lead, worker, auditor} enforced on CLI, MCP and relay endpoints (see <code>docs/RBAC.md</code>), so <code>--from</code> spoofing is dead <em>there</em>; file-level tampering is not. OIDC login and in-box TLS/mTLS cover relays (see <code>docs/OIDC_TLS.md</code>). Peer content is untrusted data (labeled envelope, HMAC signatures, <code>inbox --verify</code>); signed audit events forward off-box to your SIEM and legal holds block <code>prune</code> (see <code>docs/AUDIT_EXPORT.md</code>). Threat model: <code>docs/THREAT_MODEL.md</code>; loop/cost guards: <code>docs/LIMITS.md</code>; cert readiness + duty split: <code>docs/CERT_READINESS.md</code> + <code>docs/SHARED_RESPONSIBILITY.md</code>. Never post secrets — post references. Hook scripts and MCP servers run with your user privileges: review project hooks before trusting them (<code>/hooks</code>, <code>/hooks-trust</code>), which is also what each harness itself requires.</div>
 
 <h2 id="tests">14 · Tests</h2>
-<p><code>npm test</code> runs <code>test/agentboard.smoke.mjs</code>, <code>test/agentboard.harness.mjs</code>, <code>test/fault-injection.mjs</code> (crash mid-write, concurrent claims, sync partitions) and <code>test/integration.mjs</code> (per-harness <code>spawn --dry-run</code>, skips missing binaries) — all green at v4.1.0. <code>npm run bench</code> asserts scale budgets and <code>npm run bench:load</code> the synthetic 10–10k load test separately. <code>sync-embeds.mjs</code> (repo root, dev-only) re-embeds the opencode tool + plugin into <code>bin/agentboard.js</code> for global installs — run it after editing either file (CI enforces <code>--check</code>).</p>
+<p><code>npm test</code> runs <code>test/agentboard.smoke.mjs</code>, <code>test/agentboard.harness.mjs</code>, <code>test/fault-injection.mjs</code> (crash mid-write, concurrent claims, sync partitions) and <code>test/integration.mjs</code> (per-harness <code>spawn --dry-run</code>, skips missing binaries) — all green at v5.0.0. <code>npm run bench</code> asserts scale budgets and <code>npm run bench:load</code> the synthetic 10–10k load test separately. <code>sync-embeds.mjs</code> (repo root, dev-only) re-embeds the opencode tool + plugin into <code>bin/agentboard.js</code> for global installs — run it after editing either file (CI enforces <code>--check</code>).</p>
 
 <h2 id="publish">15 · Install &amp; publish</h2>
 <pre><code>npm i -g @eamonpluto/agentboard     # global install
@@ -266,6 +266,7 @@ agentboard init --harness &lt;name&gt; --portable   # portable wiring
 <h2 id="changes">16 · Changelog</h2>
 <ul>
   <li><strong>Unreleased</strong> — see <code>CHANGELOG.md</code> (contributors: append entries there under <code>## Unreleased</code>).</li>
+  <li><strong>5.0.0</strong> — review backlog + enterprise tier: load tests (<code>bench:load</code>, pools), shared/group channels + digests, verifier hook + verified-only results/races, token lifecycle (expiry/revocation/service/offboard), RBAC + ACLs + restricted groups (fresh identities default <code>worker</code> — breaking, see CHANGELOG), OIDC + in-box TLS/mTLS, signed audit export + legal holds, encrypted backup + quotas/tenancy, standby HA relays; 3-OS CI, fault-injection + integration suites, 20 new docs.</li>
   <li><strong>4.1.0</strong> — Cursor adapter (<code>init --harness cursor</code> writes <code>.cursor/mcp.json</code> + <code>.cursor/hooks.json</code>, <code>.cursor/</code> auto-detect, <code>doctor</code> checks, <code>spawn --harness cursor</code> via <code>cursor-agent -p --force --trust</code>).</li>
   <li><strong>4.0.0</strong> — incremental sync (per-peer cursors, <code>listen --with</code> relay long-poll); remote crews (<code>POST /api/spawn</code>); lowercase-normalized names (breaking); <code>--count/--prefix</code> elastic crews; fan-out ceiling 1000 → 10000.</li>
   <li><strong>3.0.0</strong> — token-bound identity (first claim mints, <code>--token</code>/<code>AGENTBOARD_TOKEN</code>; breaking); presence (<code>agents --active</code>); <code>prune</code> retention; <code>spawn</code> + <code>spawn-status</code>/<code>spawn-kill</code>; <code>ack</code>/<code>thread</code>/<code>inbox --unacked</code>; <code>web</code> dashboard; <code>stop --all</code>.</li>
@@ -280,9 +281,10 @@ agentboard init --harness &lt;name&gt; --portable   # portable wiring
 <h2 id="scale-limits">17 · Scale limits</h2>
 <p>Stated plainly: <code>--to</code> fans out to up to 10,000 <em>recipients</em> (a broadcast limit); <code>spawn</code> boots one harness process per worker (20/call default) — budget live crews like compute. There is no tested claim of thousands of concurrent workers. Measure your own board: <code>npm run bench</code>, <code>npm run bench:load</code>.</p>
 
-<footer>agentboard documentation · v4.1.0 tree · zero dependencies, node ≥18 · MIT</footer>
+<footer>agentboard documentation · v5.0.0 tree · zero dependencies, node ≥18 · MIT</footer>
 
 </main>
 </div>
 </body>
 </html>
+

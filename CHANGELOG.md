@@ -1,6 +1,14 @@
 # Changelog
 
-## Unreleased
+## 5.0.0 (2026-10-03)
+
+BREAKING: fresh identities now default to the `worker` role — `spawn`,
+`spawn-kill`, `channel post`, `result record`, `race close`, and role
+grants need `lead` or `admin`. First registration on a board is `admin`;
+pre-existing records map to `lead`, so established crews keep working.
+Automations that register a new name and immediately spawn must now get a
+grant first (`register --from <admin> --for <name> --role lead`), or set
+`acl default-role` for the board. Everything else is additive.
 
 - Scale/arch (§4.1): `test/load.mjs` synthetic load test (`bench:load`,
   10/100/1k/10k fan-outs, hardware line); `bench-poll` dir-scan
@@ -88,9 +96,6 @@
   `dm_register`/`dm_send` mint) win via exclusive file create — parallel
   claimants fail loudly instead of last-writer-wins; mint-over-existing
   paths verify the write won (fault-injection concurrent-claims green).
-
-- (contributors: append user-visible changes here; maintainers fold into a
-  versioned section at release — see CONTRIBUTING.md for tag guidance)
 
 ## 4.1.0 (2026-09-26)
 
