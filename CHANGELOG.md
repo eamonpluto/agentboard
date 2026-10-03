@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 6.1.0 (2026-10-03)
+
+Additive only: fleet console for `agentboard web` (no behavior changes).
 
 - Fleet console (`agentboard web`): new Fleet (live relay role/weight/
   workers/lag via `/healthz`), Channels, Results & races (telemetry,
