@@ -16,7 +16,11 @@ const run = (args, extraEnv) => {
   const fi = args.indexOf("--from");
   const who = fi !== -1 && args[fi + 1] && !String(args[fi + 1]).startsWith("--") ? String(args[fi + 1]).toLowerCase() : null;
   if (who && TOK[who] && !merged.AGENTBOARD_TOKEN) merged.AGENTBOARD_TOKEN = TOK[who];
-  const out = execFileSync("node", [CLI, ...args], { env: merged }).toString();
+  // The suite fires dozens of sends as the same identity; without the bypass
+  // the 30/min token bucket trips on fast machines (speed-flaky). The limiter
+  // itself is covered by a dedicated deterministic block below.
+  const finalArgs = args[0] === "send" && !args.includes("--no-rate-limit") ? [...args, "--no-rate-limit"] : args;
+  const out = execFileSync("node", [CLI, ...finalArgs], { env: merged }).toString();
   const m = out.match(/token (abt-[0-9a-f]+)/);
   if (m && who && !TOK[who]) TOK[who] = m[1];
   return out;
@@ -559,7 +563,9 @@ check("re-init keeps single block", md2.indexOf("agentboard:start") === md2.last
 fs.rmSync(proj, { recursive: true, force: true });
 
 // 9b. walk-up: commands from a subdirectory land on the project board
-const walk = fs.mkdtempSync(path.join(os.tmpdir(), "ab-walk-"));
+// (realpath: os.tmpdir() is a symlink on macOS, and the CLI echoes the
+// canonical path it resolved via process.cwd()).
+const walk = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "ab-walk-")));
 const walkEnv = { ...process.env };
 delete walkEnv.AGENTBOARD_DIR;
 delete walkEnv.AGENTBOARD_AGENT;
@@ -1014,6 +1020,30 @@ try {
   fwdBad = true;
 }
 check("forward depth over 5 refused", fwdBad);
+// rate limiter: deterministic via bucket seeding (rapid-fire would be
+// speed-flaky: fast runners trip in-bucket, slow ones refill mid-burst)
+{
+  const rlEnv = { ...env };
+  delete rlEnv.AGENTBOARD_TOKEN;
+  const rlReg = execFileSync("node", [CLI, "register", "--from", "rl1"], { env: rlEnv }).toString();
+  const rlTok = (rlReg.match(/token (abt-[0-9a-f]+)/) || [])[1];
+  const rlSend = (body, extra) =>
+    execFileSync("node", [CLI, "send", "--from", "rl1", "--to", "rl2", "--body", body, ...(extra || [])], { env: { ...rlEnv, AGENTBOARD_TOKEN: rlTok }, stdio: "pipe" }).toString();
+  rlSend("first burst");
+  const bucketFile = path.join(board, "rate", "rl1.json");
+  const before = JSON.parse(fs.readFileSync(bucketFile, "utf8"));
+  check("rate limiter spends bucket per send", before.tokens < 30);
+  // force-empty the bucket: the next send must refuse, instantly, on any box
+  fs.writeFileSync(bucketFile, JSON.stringify({ tokens: 0, updated: Date.now() }));
+  let rlRefused = false;
+  try {
+    rlSend("should be limited");
+  } catch (e) {
+    rlRefused = String((e.stdout || "") + (e.stderr || "")).includes("rate limited");
+  }
+  check("rate limiter refuses on empty bucket", rlRefused);
+  check("rate limiter override --no-rate-limit works", rlSend("burst override", ["--no-rate-limit"]).includes("sent "));
+}
 let autoBad = false;
 try {
   secRun(["spawn", "--from", "sec1", "--to", "zz1", "--body", "x", "--auto", "--dry-run"]);
