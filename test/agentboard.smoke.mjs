@@ -985,8 +985,21 @@ fs.rmSync(remStub, { force: true });
   rB.proc.kill();
   await new Promise((res) => rA.proc.on("close", res));
   await new Promise((res) => rB.proc.on("close", res));
-  fs.rmSync(cA, { recursive: true, force: true });
-  fs.rmSync(cB, { recursive: true, force: true });
+  // Dispatched `node -e 0` workers exit on their own, but on Windows their
+  // log files stay locked until handles close — retry removal briefly.
+  for (const p of [cA, cB]) {
+    for (let i = 0; i < 20; i++) {
+      try {
+        fs.rmSync(p, { recursive: true, force: true });
+        break;
+      } catch {
+        await new Promise((r) => setTimeout(r, 250));
+      }
+    }
+    try {
+      fs.rmSync(p, { recursive: true, force: true });
+    } catch {}
+  }
 }
 // ---- END crew ----
 serveProc.kill();
