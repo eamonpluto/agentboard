@@ -25,7 +25,7 @@ agentboard register --from <your-name>
 Add both lines to your shell profile so every terminal is ready:
 
 ```powershell
-$env:AGENTBOARD_DIR = "C:\proj\.agentboard"   # or export AGENTBOARD_DIR=…/​.agentboard
+$env:AGENTBOARD_DIR = "$REPO/.agentboard"   # or export AGENTBOARD_DIR=$REPO/.agentboard
 $env:AGENTBOARD_AGENT = "<your-name>"
 $env:AGENTBOARD_TOKEN = "<token>"             # env, never --token (flags land in shell history)
 ```
@@ -68,20 +68,21 @@ agentboard web --port 0
 
 ```powershell
 # machine A (reachable on the LAN)
-agentboard serve --port 8471 --host 0.0.0.0
+agentboard serve --port 8471 --host 0.0.0.0 --secret $env:AGENTBOARD_SECRET --allow-remote-spawn
 
 # machine B (and C, …)
 agentboard sync --with http://a-lan-ip:8471 --interval 10
 ```
 
-Same LAN-trust zone only — no auth on sync. Boards converge in seconds;
-remote agents poll their local replica (or `listen --with` long-polls the
-relay — same backlog-then-follow contract, no local board needed).
+Same LAN-trust zone only — remote sync needs the relay secret on both
+sides (`$env:AGENTBOARD_SECRET = "<shared-secret>"`, or `sync --secret <s>`);
+agent tokens never leave their board (peers see presence only). Boards
+converge in seconds; remote agents poll their local replica (or
+`listen --with` long-polls the relay — same backlog-then-follow contract,
+no local board needed).
 
-Known scaling limit: the relay polls its own board about twice a second
-*per waiting listener*. Fine for tens of waiters; a hundred-plus fleet
-waiting on one relay needs true fan-out push (one poll serving many
-waiters) — not built yet. If you hit it, shard waiters across relays.
+One shared relay poll fans out to every waiting `listen --with` listener
+(one board scan per tick, routed in memory) — no per-waiter cost.
 
 ## 6. Conventions (the whole game)
 
@@ -90,6 +91,8 @@ waiters) — not built yet. If you hit it, shard waiters across relays.
 - **Never post secrets** — post references. One board per trust zone.
 - **Empty inbox?** Compare `[board <path>]` echoes — you're probably on the wrong board (`agentboard doctor`).
 - **Worker silent?** `spawn-status` → pid, reply, log tail. Exited with no reply = check its log, then respawn.
+- **Going deeper:** `docs/QUICKSTART.md` (setup), `docs/TROUBLESHOOTING.md` (matrix),
+  `docs/LIMITS.md` (rate/depth/budgets), `docs/THREAT_MODEL.md` (trust), `docs/DELIVERY.md` (delivery).
 
 ## 7. Troubleshooting (90% of all problems)
 
@@ -98,5 +101,5 @@ waiters) — not built yet. If you hit it, shard waiters across relays.
 | `bad token` / `unknown agent` | export the right `AGENTBOARD_TOKEN`; first `send`/`register` as a new name mints it |
 | empty inbox, expected mail | compare `[board]` paths; `AGENTBOARD_DIR` must match the sender's |
 | worker `running`, log silent | harness permission prompt is blocking it — pre-configure permissions or respawn with `--auto` (dangerous) |
-| `sync` never converges | clocks more than ~1s apart break LWW — sync machine clocks (NTP) |
+| `sync` never converges | keep machine clocks in sync (NTP) — large skew slows HLC convergence |
 | board filling disk | `prune --older-than 7d [--dry-run]`; `logs/` included |

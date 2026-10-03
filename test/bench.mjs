@@ -28,10 +28,14 @@ const timed = (label, fn, budgetMs) => {
 run(["init", "--harness", "generic"]);
 const leadTok = run(["register", "--from", "lead"]).match(/token (abt-[0-9a-f]+)/)[1];
 const LEAD = { AGENTBOARD_TOKEN: leadTok };
+{
+  const cpu = os.cpus()[0];
+  console.log(`hardware: ${os.cpus().length}x ${(cpu && cpu.model || "unknown").trim().replace(/\s+/g, " ")} | mem ${(os.totalmem() / 2 ** 30).toFixed(1)}GB | ${os.platform()} ${os.release()} | ${process.version}`);
+}
 
 // 1. one 500-recipient broadcast write (manifest record included)
 const big = ["reader", ...Array.from({ length: 499 }, (_, i) => `w${i}`)].join(",");
-timed("broadcast fan-out x500", () => run(["send", "--from", "lead", "--to", big, "--body", "bench brief"], LEAD), 15000);
+timed("broadcast fan-out x500", () => run(["send", "--from", "lead", "--to", big, "--body", "bench brief", "--yes"], LEAD), 15000);
 
 // 2. direct-write N more broadcasts (bypass CLI: scale the read side fast)
 const bdir = path.join(board, "broadcast");
@@ -42,11 +46,34 @@ for (let i = 0; i < N; i++) {
     JSON.stringify({ id, from: "lead", to: ["reader", `w${i % 500}`], body: `bench ${i}`, at: new Date(Date.now() - (N - i) * 1000).toISOString(), batch: id }) + "\n"
   );
 }
-run(["register", "--from", "reader"]);
-const readerTok = JSON.parse(fs.readFileSync(path.join(board, "agents", "reader.json"), "utf8")).token;
+const readerReg = run(["register", "--from", "reader"]);
+const readerTok = readerReg.match(/token (abt-[0-9a-f]+)/)[1];
 
 // 3. inbox read across ~300 broadcasts (manifest fast path + heal for direct writes)
 timed(`inbox across ${N}+ broadcasts`, () => run(["inbox", "--from", "reader", "--json"], { AGENTBOARD_TOKEN: readerTok }), 15000);
+
+// 3b. broadcast index regression: heal path covered the direct writes, and
+// the second read is the pure index-hit path (no full-dir parse).
+{
+  const manifestPath = path.join(board, "index", "broadcasts.json");
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+  const healed = manifest["batch-bench-0000"] && manifest["batch-bench-0000"].to;
+  const healOk = !!healed && JSON.stringify(healed).includes("reader");
+  console.log(`${healOk ? "PASS" : "FAIL"}  index heal path: direct-written batch-bench-0000 indexed with reader`);
+  budgets.push(healOk);
+  timed(`inbox index-hit across ${N}+ broadcasts`, () => run(["inbox", "--from", "reader", "--json"], { AGENTBOARD_TOKEN: readerTok }), 15000);
+  // Evict one entry and prove the next read heals it (missing index entry
+  // falls back to parsing the file, then repairs the manifest).
+  const evicted = "batch-bench-0001";
+  const m2 = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+  delete m2[evicted];
+  fs.writeFileSync(manifestPath, JSON.stringify(m2, null, 2) + "\n");
+  run(["inbox", "--from", "reader", "--json"], { AGENTBOARD_TOKEN: readerTok });
+  const m3 = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+  const rehealed = !!m3[evicted];
+  console.log(`${rehealed ? "PASS" : "FAIL"}  index heal path: evicted ${evicted} repaired on read`);
+  budgets.push(rehealed);
+}
 
 // 4. gather over a batch with replies (full history; batch off the reader's copy)
 const readerFull = JSON.parse(run(["inbox", "--from", "reader", "--json", "--limit", "5000"], { AGENTBOARD_TOKEN: readerTok }));

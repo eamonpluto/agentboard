@@ -1,5 +1,97 @@
 # Changelog
 
+## Unreleased
+
+- Scale/arch (§4.1): `test/load.mjs` synthetic load test (`bench:load`,
+  10/100/1k/10k fan-outs, hardware line); `bench-poll` dir-scan
+  measurement; `storage --json` + `docs/STORAGE.md` decision note;
+  `pool --count/--pool-size` worker pool with backpressure + `pool-status`;
+  sync HLC (`hlc`+`v`) merge with tombstones (`prune` writes, sync honors,
+  `--dry-run` reports); `listen --watch` (fs.watch) + `GET /api/events`
+  SSE; reply-index O(N) fix in gather/thread; `--max-turns` default 50.
+- Coordination (§4.2): `channel create|post|tail|search|summarize|list`
+  shared append-only log with per-reader cursors (synced union-by-id);
+  group-scoped channels (`group channel`, `send --to-group --also-channel`,
+  `gather` includes mirrors); reader-side digesting (`--digest`,
+  `--grep`, `--priority`, `--max-chars`, `channel summarize`);
+  `examples/consolidator.mjs` + `docs/CONSOLIDATOR.md`;
+  `spawn --worktree|--branch`, `--oneshot|--persistent`;
+  `lock acquire|release|list` advisory locks (off by default);
+  `docs/DELIVERY.md` (at-least-once, ordering, death-mid-brief,
+  unacked-timeout reassign, partitions, lifetimes); `inbox --older-than`.
+- Group outcomes (§4.3): `ack --verify "<cmd>"` machine-verification hook
+  (exit 0 acks + records output, `AGENTBOARD_MSG`/`AGENTBOARD_BOARD` env);
+  `send --artifact`; `result record|show|list` verified-only group results;
+  `race start|close [--kill]` first-verified-wins; `group status|telemetry`
+  (running, replies, verified, spend); attribution reply→batch→groups.
+  Docs: `docs/VERIFIER.md`, `docs/GROUPS.md`.
+- Security (§4.4): salted-hash token storage (0600, legacy migrates,
+  never synced) + `token rotate`; relay `--secret` auth + `--allow-remote-spawn`
+  opt-in, `--allow-cmd`, `--workdir-root`, audit log; `--auto` loud
+  confirmation (`--i-understand-danger`) + sandbox warning; untrusted-peer
+  envelope + sender types + message HMAC (`inbox --verify`);
+  hash-chained `log` + `log --verify`; `docs/THREAT_MODEL.md`,
+  `docs/ISOLATION.md` (+ `spawn --isolate`); loop/cost guards — rate limit
+  (`--no-rate-limit`), `fwd` cap 5, 10s dedupe, budgets
+  (`--budget-tokens/--budget-minutes`), fan-out estimate (`--yes` past 100),
+  `spawn --timeout`, `stop --all`; `docs/LIMITS.md`.
+- Docs/hygiene/vendor (§4.5–4.8): `docs/EXPERIMENTS.md` ablation design, `docs/QUICKSTART.md`,
+  `docs/TROUBLESHOOTING.md`, `docs/WHEN_NOT.md`, `docs/COMPATIBILITY.md`
+  (6-adapter matrix), `SECURITY.md`, `CONTRIBUTING.md`, issue templates,
+  `examples/t3-pairing.md` + `examples/hermes-pairing.md`; README reframed
+  (mixed-harness lead audience, 10k = recipient limit, schema-v2 note);
+  CI on Linux/macOS/Windows × Node 18/20/22 (`npm test`, embeds `--check`,
+  bench regression) + status badge; `test/fault-injection.mjs` +
+  `test/integration.mjs` wired into `npm test`.
+
+- Enterprise Phase 1a — per-identity token lifecycle: `register
+  --expires-in <dur>` (`expiresAt`, expired fails loudly); `revoked/`
+  revocation list + `token revoke --from <caller> --target <name>` (syncs,
+  never resurrected); `token rotate [--expires-in]` records `rotatedAt` +
+  `token status [--json]` (no secrets); `register --service <name>`
+  (vault-stored, hidden from `agents --active`); `register --offboard
+  <name> --from <admin>` (revokes, sends refused, inbox kept).
+  See `docs/IDENTITY.md`.
+- Enterprise Phase 1b — RBAC + ACLs: roles {admin, lead, worker,
+  auditor} (first registration is admin; legacy maps to lead);
+  `authorize()` after every `checkToken()` (CLI + MCP + relay
+  `/api/spawn` + `/api/kill`); auditor read-only; leads own-crew kills.
+  Per-board `acl {defaultRole, frozen}` + `acl set/show`;
+  restricted groups (`group restrict`) — `--to-group` needs
+  admin/lead/member. See `docs/RBAC.md`.
+- Enterprise Phase 1c — OIDC + TLS: `serve --tls-cert/--tls-key`
+  (node:https, same routes), `sync`/`listen --with https://`,
+  `--insecure` dev-only; `--mtls-ca` + `--mtls-cert/--mtls-key` for
+  relay-to-relay; `login --issuer/--client-id/--token` (discovery+JWKS,
+  iss/aud/exp, 60s skew) binding `oidc-<sub>`; `serve
+  --oidc-issuer/--oidc-audience` Bearer alternative to `--secret`.
+  See `docs/OIDC_TLS.md`.
+- Enterprise Phase 2a — audit export + legal hold: v:1 signed envelopes
+  (seq/prevHash/sig via `AGENTBOARD_AUDIT_KEY`, `log --verify` reports
+  first-broken-seq); `serve --audit-forward <url>` off-box spool
+  (at-least-once, schema in `docs/AUDIT_EXPORT.md`); `hold place|lift`
+  (admin) / `hold status` — active hold refuses `prune`.
+- Enterprise Phase 2b — backup + tenancy: `board export --out <file>`
+  (AES-256-GCM, secrets stripped unless `--include-secrets`);
+  `board import --in <file> --into <dir>` (GCM-verified, holds respected);
+  `snapshot schedule|run|show` (cron-friendly, `--keep`);
+  `quota set|show` (`quotas` + `tenant` in board.json, enforced on
+  send/channel/register, shown in `storage --json`). Tenants are
+  separate boards. See `docs/TENANCY.md`.
+- Enterprise Phase 3 — HA + compliance docs: `serve --standby
+  <primary>` read-replica (writes 503 + `X-Relay-Role`), `relay
+  status|promote`, `--promote-on-miss` + `--fence` split-brain guard,
+  `GET /healthz` for LBs. `docs/HA.md`,
+  `docs/SHARED_RESPONSIBILITY.md`, `docs/CERT_READINESS.md`.
+- Registration atomicity restored (enterprise follow-up): fresh claims
+  (CLI `register`, first-`send` mint, `register --for` grant, MCP
+  `dm_register`/`dm_send` mint) win via exclusive file create — parallel
+  claimants fail loudly instead of last-writer-wins; mint-over-existing
+  paths verify the write won (fault-injection concurrent-claims green).
+
+- (contributors: append user-visible changes here; maintainers fold into a
+  versioned section at release — see CONTRIBUTING.md for tag guidance)
+
 ## 4.1.0 (2026-09-26)
 
 - Cursor adapter: `init --harness cursor` writes `.cursor/mcp.json` +

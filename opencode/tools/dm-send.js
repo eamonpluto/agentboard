@@ -82,6 +82,44 @@ function mintToken() {
   return `abt-${crypto.randomBytes(18).toString("hex")}`;
 }
 
+function newSalt() {
+  return crypto.randomBytes(16).toString("hex");
+}
+
+function hashToken(token, salt) {
+  return crypto.createHash("sha256").update(String(salt) + String(token)).digest("hex");
+}
+
+function timingSafeEqual(a, b) {
+  const ba = Buffer.from(String(a)), bb = Buffer.from(String(b));
+  if (ba.length !== bb.length) return false;
+  try {
+    return crypto.timingSafeEqual(ba, bb);
+  } catch {
+    return String(a) === String(b);
+  }
+}
+
+function agentTokenMatches(rec, token) {
+  if (!rec || token === undefined || token === null || String(token) === "") return false;
+  if (rec.tokenHash && rec.salt) {
+    try {
+      return timingSafeEqual(hashToken(String(token), String(rec.salt)), String(rec.tokenHash));
+    } catch {
+      return false;
+    }
+  }
+  if (rec.token) return timingSafeEqual(String(token), String(rec.token));
+  return false;
+}
+
+function writeAgentHashed(p, doc) {
+  writeJsonAtomic(p, doc);
+  try {
+    fs.chmodSync(p, 0o600);
+  } catch {}
+}
+
 function readAgent(root, name) {
   try {
     return JSON.parse(fs.readFileSync(path.join(root, "agents", name + ".json"), "utf8"));
@@ -97,22 +135,35 @@ function resolveToken(args) {
 }
 
 // First send as a new name mints its record + token (first-claim-wins).
+// Stores only a salted hash; legacy plaintext migrates on successful auth.
 function ensureSender(root, agent, token) {
   const rec = readAgent(root, agent);
   if (!rec) {
     const fresh = mintToken();
+    const salt = newSalt();
     const now = new Date().toISOString();
-    writeJsonAtomic(path.join(root, "agents", agent + ".json"), { name: agent, firstSeen: now, lastSeen: now, token: fresh });
+    writeAgentHashed(path.join(root, "agents", agent + ".json"), { name: agent, firstSeen: now, lastSeen: now, tokenHash: hashToken(fresh, salt), salt });
     return { created: true, token: fresh };
   }
-  if (!rec.token) {
+  if (!rec.tokenHash && !rec.token) {
     const fresh = mintToken();
-    rec.token = fresh;
+    const salt = newSalt();
+    rec.tokenHash = hashToken(fresh, salt);
+    rec.salt = salt;
     rec.lastSeen = new Date().toISOString();
-    writeJsonAtomic(path.join(root, "agents", agent + ".json"), rec);
+    writeAgentHashed(path.join(root, "agents", agent + ".json"), rec);
     return { created: true, token: fresh };
   }
-  if (token !== rec.token) throw new Error(`bad token for "${agent}" (pass token or set AGENTBOARD_TOKEN)`);
+  if (rec.token && !rec.tokenHash) {
+    if (!agentTokenMatches(rec, token)) throw new Error(`bad token for "${agent}" (pass token or set AGENTBOARD_TOKEN)`);
+    const salt = newSalt();
+    rec.tokenHash = hashToken(String(token), salt);
+    rec.salt = salt;
+    delete rec.token;
+    writeAgentHashed(path.join(root, "agents", agent + ".json"), rec);
+    return { created: false };
+  }
+  if (!agentTokenMatches(rec, token)) throw new Error(`bad token for "${agent}" (pass token or set AGENTBOARD_TOKEN)`);
   return { created: false };
 }
 
@@ -268,6 +319,9 @@ export default tool({
     body: tool.schema.string().describe("Message text, 1..8000 chars."),
     subject: tool.schema.string().optional().describe("Optional mission line, e.g. 'brief: borderless cards'. Shown above the body."),
     replyTo: tool.schema.string().optional().describe("Optional message id you are answering (threads the reply)."),
+    artifact: tool.schema.string().optional().describe("Optional checkable artifact reference (path or URL, max 500 chars). Stored on the message, shown by inbox/gather/thread."),
+    priority: tool.schema.string().optional().describe("Optional urgency flag: high or normal (default normal). Readers filter with inbox --priority / dm_inbox priority."),
+    also_channel: tool.schema.boolean().optional().describe("With to_group: also append the brief to each group's channel (grp-<group>), stamped with the DM batch id so gather picks it up."),
     board: tool.schema.string().optional().describe("Optional absolute board path, e.g. C:/proj/.agentboard. Overrides AGENTBOARD_DIR and auto-detection."),
   },
   async execute(args, context) {
@@ -286,6 +340,16 @@ export default tool({
     if (body.length > 8000) return "error: body too large (max 8000 chars)";
     const subject = cleanSubject(args.subject);
     const replyTo = cleanReply(args.replyTo);
+    const artifact = args.artifact === undefined || args.artifact === null || String(args.artifact).trim() === "" ? undefined : String(args.artifact).trim().slice(0, 500);
+    const priority = (() => {
+      if (args.priority === undefined || args.priority === null || String(args.priority).trim() === "") return undefined;
+      const p = String(args.priority).trim().toLowerCase();
+      if (p !== "high" && p !== "normal") return "error: invalid priority (want high|normal)";
+      return p;
+    })();
+    if (priority !== undefined && priority.startsWith("error:")) return priority;
+    const groupNames = String(args.to_group === undefined || args.to_group === null ? "" : args.to_group).split(",").map((s) => String(s).trim().toLowerCase().replace(/[^a-z0-9_.-]/g, "-").slice(0, 40)).filter(Boolean);
+    if (args.also_channel === true && groupNames.length === 0) return "error: also_channel needs to_group (it mirrors the brief into each group's channel)";
     const boardArg = args.board === undefined || args.board === null || String(args.board).trim() === "" ? undefined : String(args.board);
     const worktree = context.worktree || context.directory || process.cwd();
     const { root, tried } = boardRoot([worktree, context.directory, process.cwd()], boardArg);
@@ -314,19 +378,42 @@ export default tool({
       lastSeen: new Date().toISOString(),
       sessionId: (context && context.sessionID) || (prev && prev.sessionId) || undefined,
       lastDir: context.worktree || context.directory || undefined,
-      token: (prev && prev.token) || minted.token,
+      token: (prev && prev.token) || undefined,
+      tokenHash: (prev && prev.tokenHash) || undefined,
+      salt: (prev && prev.salt) || undefined,
     });
     const isAll = recipients.length === 1 && recipients[0] === "@all";
+    const mirrorChannels = (batch) => {
+      if (args.also_channel !== true) return "";
+      const names = [];
+      for (const g of groupNames) {
+        const chan = `grp-${g}`.slice(0, 60);
+        const post = { id: newId("ch"), from, body, at };
+        if (subject) post.subject = subject;
+        if (replyTo) post.replyTo = replyTo;
+        if (batch) post.batch = batch;
+        if (priority === "high") post.priority = "high";
+        if (rev) post.rev = rev;
+        try {
+          fs.mkdirSync(path.join(root, "channels"), { recursive: true });
+          fs.writeFileSync(path.join(root, "channels", chan + ".log.jsonl"), JSON.stringify(post) + "\n", { flag: "a" });
+          names.push(chan);
+        } catch {}
+      }
+      return names.length > 0 ? ` +channel ${names.join(",")}` : "";
+    };
     if (isAll || recipients.length > BROADCAST_AFTER) {
       const batch = newId("batch");
       const msg = { id: batch, from, to: recipients.slice(), body, at, batch, count: isAll ? undefined : recipients.length };
       if (subject) msg.subject = subject;
       if (replyTo) msg.replyTo = replyTo;
+      if (artifact) msg.artifact = artifact;
+      if (priority === "high") msg.priority = "high";
       if (rev) msg.rev = rev;
       writeJsonAtomic(path.join(root, "broadcast", batch + ".json"), msg);
       const who = isAll ? "@all" : `${recipients.length} recipients`;
       recordBroadcastManifest(root, batch, recipients.slice(), at);
-      return `sent ${isAll ? "@all" : recipients.length + " messages"} via broadcast ${batch} to ${who} [board ${root}]${tokenHint}`;
+      return `sent ${isAll ? "@all" : recipients.length + " messages"} via broadcast ${batch} to ${who} [board ${root}]${mirrorChannels(batch)}${tokenHint}`;
     }
     const batch = recipients.length > 1 ? newId("batch") : undefined;
     const sent = [];
@@ -335,13 +422,16 @@ export default tool({
       const msg = { id, from, to, body, at };
       if (subject) msg.subject = subject;
       if (replyTo) msg.replyTo = replyTo;
+      if (artifact) msg.artifact = artifact;
+      if (priority === "high") msg.priority = "high";
       if (batch) msg.batch = batch;
       if (rev) msg.rev = rev;
       writeJsonAtomic(path.join(root, "dm", to, id + ".json"), msg);
       sent.push(`${id} -> ${to}`);
     }
-    if (sent.length === 1) return "sent " + sent[0] + " [board " + root + "]" + tokenHint;
-    if (sent.length > 10) return `sent ${sent.length} messages [board ${root}] batch ${batch}: ${sent.slice(0, 10).join(", ")} + ${sent.length - 10} more${tokenHint}`;
-    return `sent ${sent.length} messages [board ${root}] batch ${batch}: ${sent.join(", ")}${tokenHint}`;
+    const chanNote = mirrorChannels(batch || (sent.length === 1 ? sent[0].split(" ")[0] : undefined));
+    if (sent.length === 1) return "sent " + sent[0] + " [board " + root + "]" + chanNote + tokenHint;
+    if (sent.length > 10) return `sent ${sent.length} messages [board ${root}] batch ${batch}: ${sent.slice(0, 10).join(", ")} + ${sent.length - 10} more${chanNote}${tokenHint}`;
+    return `sent ${sent.length} messages [board ${root}] batch ${batch}: ${sent.join(", ")}${chanNote}${tokenHint}`;
   },
 });

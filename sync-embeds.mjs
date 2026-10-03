@@ -24,5 +24,14 @@ function replaceConst(src, name, body) {
 }
 cli = replaceConst(cli, "OPENCODE_TOOL_DM_SEND", toEmbed("opencode/tools/dm-send.js"));
 cli = replaceConst(cli, "OPENCODE_PLUGIN_DM_WATCH", toEmbed("opencode/plugins/dm-watch.js"));
-fs.writeFileSync(cliPath, cli);
-console.log("embeds synced OK");
+if (process.argv.includes("--check")) {
+  const current = fs.readFileSync(cliPath, "utf8");
+  if (current !== cli) {
+    console.error("embeds drifted: run `node sync-embeds.mjs` and commit the result");
+    process.exit(1);
+  }
+  console.log("embeds clean");
+} else {
+  fs.writeFileSync(cliPath, cli);
+  console.log("embeds synced OK");
+}

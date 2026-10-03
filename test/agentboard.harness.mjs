@@ -64,8 +64,8 @@ const init2 = await mcpReq("initialize", { protocolVersion: "9999-99-99" });
 check("mcp: unknown version falls back", init2.result.protocolVersion === "2024-11-05");
 const tools = await mcpReq("tools/list", {});
 check(
-  "mcp: 6 tools listed",
-  JSON.stringify(tools.result.tools.map((t) => t.name).sort()) === JSON.stringify(["dm_ack", "dm_agents", "dm_gather", "dm_inbox", "dm_register", "dm_send"])
+  "mcp: 8 tools listed",
+  JSON.stringify(tools.result.tools.map((t) => t.name).sort()) === JSON.stringify(["dm_ack", "dm_agents", "dm_channel_post", "dm_channel_tail", "dm_gather", "dm_inbox", "dm_register", "dm_send"])
 );
 const mcpReg = await mcpReq("tools/call", { name: "dm_register", arguments: { agent: "alice", session: "s1" } });
 check("mcp: register ok + mints token", mcpReg.result.content[0].text.includes("registered alice") && /token abt-[0-9a-f]+/.test(mcpReg.result.content[0].text));
@@ -83,6 +83,17 @@ const mcpAck = await mcpReq("tools/call", { name: "dm_ack", arguments: { agent: 
 check("mcp: ack works", mcpAck.result.content[0].text.includes("acked"));
 const mcpUnacked = await mcpReq("tools/call", { name: "dm_inbox", arguments: { agent: "bob", unacked: true, token: bobTok } });
 check("mcp: unacked hides acked", mcpUnacked.result.content[0].text.includes("no messages"));
+// mcp artifact + verifier hook (§4.2 item 5)
+const mcpArt = await mcpReq("tools/call", { name: "dm_send", arguments: { from: "alice", to: "bob", body: "mcp artifact mail", artifact: "out/mcp.json", token: aliceTok } });
+check("mcp: send with artifact ok", /sent \S+ -> bob/.test(mcpArt.result.content[0].text));
+const mcpArtId = mcpArt.result.content[0].text.match(/sent (\S+) -> bob/)[1];
+check("mcp: artifact shown in inbox", (await mcpReq("tools/call", { name: "dm_inbox", arguments: { agent: "bob", token: bobTok } })).result.content[0].text.includes("artifact: out/mcp.json"));
+const mcpVer = await mcpReq("tools/call", { name: "dm_ack", arguments: { agent: "bob", id: mcpArtId, verify: "node -e process.exit(0)", token: bobTok } });
+check("mcp: dm_ack verify acks on exit 0", mcpVer.result.content[0].text.includes("acked+verified"));
+const mcpArt2 = await mcpReq("tools/call", { name: "dm_send", arguments: { from: "alice", to: "bob", body: "mcp artifact mail 2", token: aliceTok } });
+const mcpArtId2 = mcpArt2.result.content[0].text.match(/sent (\S+) -> bob/)[1];
+const mcpBad = await mcpReq("tools/call", { name: "dm_ack", arguments: { agent: "bob", id: mcpArtId2, verify: "node -e process.exit(3)", token: bobTok } });
+check("mcp: dm_ack verify fails on non-zero exit", mcpBad.result.isError === true);
 check("mcp: unknown tool isError", (await mcpReq("tools/call", { name: "nope", arguments: {} })).result.isError === true);
 check("mcp: missing body isError", (await mcpReq("tools/call", { name: "dm_send", arguments: { from: "a", to: "b" } })).result.isError === true);
 check("mcp: unknown method -32601", (await mcpReq("bogus/method", {})).error.code === -32601);

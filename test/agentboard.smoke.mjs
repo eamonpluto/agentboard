@@ -271,11 +271,11 @@ const dryAgy = run(["spawn", "--from", "alice", "--harness", "antigravity", "--t
 check("spawn antigravity builds print command", dryAgy.includes("cmd: agy --print") && dryAgy.includes("--mode accept-edits"));
 const dryCur = run(["spawn", "--from", "alice", "--harness", "cursor", "--to", "cw1", "--body", "x", "--dry-run"]);
 check("spawn cursor builds headless command", dryCur.includes("cmd: cursor-agent -p") && dryCur.includes("--force") && dryCur.includes("--trust") && dryCur.includes("--workspace"));
-check("spawn cursor+auto maps to yolo", run(["spawn", "--from", "alice", "--harness", "cursor", "--to", "cw1", "--body", "x", "--dry-run", "--auto"]).includes("--yolo"));
+check("spawn cursor+auto maps to yolo", run(["spawn", "--from", "alice", "--harness", "cursor", "--to", "cw1", "--body", "x", "--dry-run", "--auto", "--i-understand-danger"]).includes("--yolo"));
 check("spawn agy alias resolves", run(["spawn", "--from", "alice", "--harness", "agy", "--to", "cw1", "--body", "x", "--dry-run"]).includes("[antigravity]"));
-check("spawn claude+auto maps to skip-permissions", run(["spawn", "--from", "alice", "--harness", "claude", "--to", "cw1", "--body", "x", "--dry-run", "--auto"]).includes("--dangerously-skip-permissions"));
-check("spawn codex+auto maps to danger-full-access", run(["spawn", "--from", "alice", "--harness", "codex", "--to", "cw1", "--body", "x", "--dry-run", "--auto"]).includes("danger-full-access"));
-check("spawn grok+auto maps to always-approve", run(["spawn", "--from", "alice", "--harness", "grok", "--to", "cw1", "--body", "x", "--dry-run", "--auto"]).includes("--always-approve"));
+check("spawn claude+auto maps to skip-permissions", run(["spawn", "--from", "alice", "--harness", "claude", "--to", "cw1", "--body", "x", "--dry-run", "--auto", "--i-understand-danger"]).includes("--dangerously-skip-permissions"));
+check("spawn codex+auto maps to danger-full-access", run(["spawn", "--from", "alice", "--harness", "codex", "--to", "cw1", "--body", "x", "--dry-run", "--auto", "--i-understand-danger"]).includes("danger-full-access"));
+check("spawn grok+auto maps to always-approve", run(["spawn", "--from", "alice", "--harness", "grok", "--to", "cw1", "--body", "x", "--dry-run", "--auto", "--i-understand-danger"]).includes("--always-approve"));
 let spawnScope = false;
 try {
   run(["spawn", "--from", "alice", "--harness", "codex", "--to", "cw1", "--body", "x", "--allow-tools", "Read", "--dry-run"]);
@@ -457,6 +457,58 @@ try {
 check("send --to-group unknown refused", unknownGroup);
 check("spawn --to-group dry-run", run(["spawn", "--from", "alice", "--to-group", "team-a", "--body", "x", "--dry-run"]).includes("would spawn ga1"));
 check("group delete", run(["group", "delete", "team-a"]).includes("deleted group team-a"));
+
+// 7b7. verifier hook + artifacts + results + race + status/telemetry (§4.2.5, §4.3)
+check("group create race", run(["group", "create", "race-team", "--add", "rv1,rv2"]).includes("created group race-team (2 members)"));
+const vsend = run(["send", "--from", "alice", "--to", "rv1,rv2", "--subject", "variant: x", "--body", "produce ok"]);
+const vbatch = (vsend.match(/batch (batch-[0-9a-z-]+)/) || [])[1];
+check("variant brief fanned out with batch", vsend.includes("sent 2 messages") && !!vbatch);
+run(["register", "--from", "rv1"]);
+run(["register", "--from", "rv2"]);
+const vbrief = JSON.parse(run(["inbox", "--from", "rv1", "--json"])).find((m) => m.batch === vbatch).id;
+run(["send", "--from", "rv1", "--to", "alice", "--reply", vbrief, "--artifact", "out/rv1.json", "--body", "rv1 done"]);
+const vreply = JSON.parse(run(["inbox", "--from", "alice", "--json"])).find((m) => m.replyTo === vbrief).id;
+check("artifact shown in inbox text", run(["inbox", "--from", "alice"]).includes("artifact: out/rv1.json"));
+check("artifact stored on message json", JSON.parse(run(["inbox", "--from", "alice", "--json"])).find((m) => m.id === vreply).artifact === "out/rv1.json");
+check("ack --verify success marks verified", run(["ack", "--from", "alice", "--id", vreply, "--verify", "node -e process.exit(0)"]).includes("acked+verified"));
+const vmark = JSON.parse(fs.readFileSync(path.join(board, "acked", "alice", `${vreply}.json`), "utf8"));
+check("ack marker verified with exit+output", vmark.verified === true && vmark.exit === 0 && typeof vmark.output === "string");
+run(["send", "--from", "rv2", "--to", "alice", "--reply", vbrief, "--artifact", "out/rv2.json", "--body", "rv2 done"]);
+const vreply2 = JSON.parse(run(["inbox", "--from", "alice", "--json"])).find((m) => m.from === "rv2").id;
+let vfail = false;
+try {
+  run(["ack", "--from", "alice", "--id", vreply2, "--verify", "node -e process.exit(3)"]);
+} catch {
+  vfail = true;
+}
+check("ack --verify failure does NOT ack, exit 1", vfail && !fs.existsSync(path.join(board, "acked", "alice", `${vreply2}.json`)));
+let unrec = false;
+try {
+  run(["result", "record", "--group", "race-team", "--msg", vreply2, "--artifact", "out/rv2.json", "--from", "alice"]);
+} catch {
+  unrec = true;
+}
+check("result record rejects unverified", unrec);
+check("result record verified", run(["result", "record", "--group", "race-team", "--msg", vreply, "--artifact", "out/rv1.json", "--from", "alice"]).includes("recorded result for race-team"));
+check("result record --force warns but records", run(["result", "record", "--group", "race-team", "--msg", vreply2, "--artifact", "out/rv2.json", "--from", "alice", "--force"]).includes("recorded result for race-team"));
+check("result record verified again (race winner)", run(["result", "record", "--group", "race-team", "--msg", vreply, "--artifact", "out/r1.json", "--from", "alice"]).includes("recorded result for race-team"));
+const rshow = JSON.parse(run(["result", "show", "--group", "race-team", "--json"]));
+check("result show structured", rshow.group === "race-team" && rshow.msgId === vreply && rshow.by === "alice");
+check("result list", run(["result", "list"]).includes("race-team"));
+const vstatus = JSON.parse(run(["group", "status", "race-team", "--json"]));
+check("group status telemetry shape", vstatus.messages >= 4 && vstatus.verifiedCount >= 1 && vstatus.tokensEst > 0 && typeof vstatus.wallClockMs === "number" && Array.isArray(vstatus.running));
+check("group status text shows spend", run(["group", "status", "race-team"]).includes("spend:"));
+const vtele = JSON.parse(run(["group", "telemetry", "race-team", "--json"]));
+check("group telemetry shape", vtele.messages >= 4 && vtele.verifiedCount >= 1 && vtele.tokensEst > 0 && typeof vtele.wallClockMs === "number");
+const vgather = JSON.parse(run(["gather", "--batch", vbatch, "--json"]));
+check("gather shows contributing groups + telemetry", (vgather.contributingGroups || []).includes("race-team") && vgather.telemetry && vgather.telemetry.messages >= 4);
+check("gather text telemetry footer", run(["gather", "--batch", vbatch]).includes("contributing groups:"));
+check("race start finds winner", run(["race", "start", "--group", "race-team", "--batch", vbatch]).includes(vreply));
+const vclose = run(["race", "close", "--group", "race-team", "--from", "alice", "--kill"]);
+check("race close notifies members", vclose.includes("notified 2 member(s)") && vclose.includes("kill:"));
+run(["register", "--from", "rv2"]);
+check("race close broadcast lands", run(["inbox", "--from", "rv2"]).includes("race closed by alice"));
+check("group delete race", run(["group", "delete", "race-team"]).includes("deleted group race-team"));
 
 // 7c. read commands never plant boards + always echo the board
 const ghost = path.join(os.tmpdir(), "ab-ghost-" + Date.now());
@@ -691,7 +743,7 @@ cliA(["init", "--harness", "generic"]);
 cliB(["init", "--harness", "generic"]);
 cliA(["register", "--from", "anna"]);
 cliA(["send", "--from", "anna", "--to", "zoe", "--body", "hello from A"]);
-const serveProc = spawn("node", [CLI, "serve", "--port", "0"], { env: envA });
+const serveProc = spawn("node", [CLI, "serve", "--port", "0", "--allow-remote-spawn", "--allow-cmd", "^node"], { env: envA });
 let serveOut = "";
 let peerUrl = "";
 for (let i = 0; i < 40 && !peerUrl; i++) {
@@ -746,8 +798,9 @@ const manFilter = await new Promise((resolve) => {
   });
 });
 check("manifest ?since filters", Object.keys(manFilter.files).length === 0);
-// push: remote long-poll waits, then delivers (token-checked)
-const annaTokB = JSON.parse(fs.readFileSync(path.join(boardA, "agents", "anna.json"), "utf8")).token;
+// push: remote long-poll waits, then delivers (token-checked; agent files
+// store only a salted hash, so reuse the harvested mint token, not the file)
+const annaTokB = TOKAB[`${boardA}\nanna`];
 const waiter = spawn("node", [CLI, "listen", "--with", peerUrl, "--from", "anna", "--timeout", "10000"], { env: { ...envA, AGENTBOARD_TOKEN: annaTokB } });
 let waitOut = "";
 waiter.stdout.on("data", (d) => (waitOut += d.toString()));
@@ -807,7 +860,7 @@ const postJson = (p, payload, contentType) =>
       req.end();
     });
   });
-const annaTok = JSON.parse(fs.readFileSync(path.join(boardA, "agents", "anna.json"), "utf8")).token;
+const annaTok = TOKAB[`${boardA}\nanna`];
 const rBadTok = await postJson("/api/spawn", { from: "anna", token: "abt-0", to: ["rem1"], body: "x", harness: "generic", cmd: "node -e 0" });
 check("remote spawn rejects bad token", rBadTok.status === 403);
 const rPlain = await postJson("/api/spawn", { from: "anna", token: annaTok, to: ["rem1"], body: "x" }, "text/plain");
@@ -827,6 +880,417 @@ serveProc.kill();
 await new Promise((res) => serveProc.on("close", res));
 fs.rmSync(boardA, { recursive: true, force: true });
 fs.rmSync(boardB, { recursive: true, force: true });
+
+// 13. §4.4 security + integrity (all on temp boards, never the real one)
+const secBoard = fs.mkdtempSync(path.join(os.tmpdir(), "ab-sec-"));
+const secEnv = { ...process.env, AGENTBOARD_DIR: secBoard };
+const secTok = {};
+const secRun = (a, extra) => {
+  const merged = { ...secEnv, ...(extra || {}) };
+  const fi = a.indexOf("--from");
+  const who = fi !== -1 && a[fi + 1] && !String(a[fi + 1]).startsWith("--") ? String(a[fi + 1]).toLowerCase() : null;
+  if (who && secTok[who] && !merged.AGENTBOARD_TOKEN) merged.AGENTBOARD_TOKEN = secTok[who];
+  const out = execFileSync("node", [CLI, ...a], { env: merged }).toString();
+  const m = out.match(/token (abt-[0-9a-f]+)/);
+  if (m && who && !secTok[who]) secTok[who] = m[1];
+  return out;
+};
+secRun(["init", "--harness", "generic"]);
+secRun(["register", "--from", "sec1"]);
+const secDoc = JSON.parse(fs.readFileSync(path.join(secBoard, "agents", "sec1.json"), "utf8"));
+check("tokens stored hashed, never plaintext", !secDoc.token && typeof secDoc.tokenHash === "string" && typeof secDoc.salt === "string");
+const oldTok = secTok.sec1;
+const rotOut = secRun(["token", "rotate", "--from", "sec1"]);
+const newTok = (rotOut.match(/token (abt-[0-9a-f]+)/) || [])[1];
+check("token rotate issues a new token", !!newTok && newTok !== oldTok);
+let oldDead = false;
+try {
+  execFileSync("node", [CLI, "send", "--from", "sec1", "--to", "sec2", "--body", "x"], { env: { ...secEnv, AGENTBOARD_TOKEN: oldTok }, stdio: "pipe" });
+} catch {
+  oldDead = true;
+}
+check("rotated-out token is dead", oldDead);
+secTok.sec1 = newTok;
+secRun(["send", "--from", "sec1", "--to", "sec2", "--body", "after rotate"]);
+// ---- BEGIN Phase 1a per-identity token lifecycle ----
+{
+  const idRun = (a, extra) => secRun(a, extra);
+  // expiry: register with TTL, json shows it (never the secret), expired fails loudly
+  const expReg = idRun(["register", "--from", "exp1", "--expires-in", "1s"]);
+  const expTok = (expReg.match(/token (abt-[0-9a-f]+)/) || [])[1];
+  secTok.exp1 = expTok;
+  const expJson = JSON.parse(idRun(["agents", "--json"])).find((a) => a.name === "exp1");
+  check("1a expiry shown, secret never", !!expJson.expiresAt && JSON.stringify(expJson).includes("abt-") === false);
+  await new Promise((r) => setTimeout(r, 1200));
+  let expDead = false;
+  try {
+    execFileSync("node", [CLI, "send", "--from", "exp1", "--to", "sec2", "--body", "late"], { env: { ...secEnv, AGENTBOARD_TOKEN: expTok }, stdio: "pipe" });
+  } catch (e) {
+    expDead = String((e.stdout || "") + (e.stderr || "")).includes("expired");
+  }
+  check("1a expired token rejected loudly", expDead);
+  // rotation records rotatedAt + honors --expires-in; status shows state, no secrets
+  const rot2 = idRun(["token", "rotate", "--from", "sec1", "--expires-in", "7d"]);
+  secTok.sec1 = (rot2.match(/token (abt-[0-9a-f]+)/) || [])[1];
+  const stJson = JSON.parse(execFileSync("node", [CLI, "token", "status", "--from", "sec1", "--json"], { env: { ...secEnv, AGENTBOARD_TOKEN: secTok.sec1 } }).toString());
+  check("1a rotate+status show expiry/rotation, no secrets", !!stJson.expiresAt && !!stJson.rotatedAt && JSON.stringify(stJson).includes("abt-") === false);
+  // revocation: caller-checked, target must re-register, old token dead
+  idRun(["register", "--from", "vic1"]);
+  const vicTok = secTok.vic1;
+  idRun(["token", "revoke", "--from", "sec1", "--target", "vic1", "--reason", "test"]);
+  check("1a revocation record written", fs.existsSync(path.join(secBoard, "revoked")) && fs.readdirSync(path.join(secBoard, "revoked")).length >= 1);
+  let vicDead = false;
+  try {
+    execFileSync("node", [CLI, "send", "--from", "vic1", "--to", "sec2", "--body", "x"], { env: { ...secEnv, AGENTBOARD_TOKEN: vicTok }, stdio: "pipe" });
+  } catch (e) {
+    vicDead = String((e.stdout || "") + (e.stderr || "")).includes("revok") || String((e.stdout || "") + (e.stderr || "")).includes("re-register");
+  }
+  check("1a revoked token dead", vicDead);
+  const reReg = execFileSync("node", [CLI, "register", "--from", "vic1"], { env: { ...secEnv, AGENTBOARD_TOKEN: "" } }).toString();
+  check("1a revoked identity re-registers", /token abt-[0-9a-f]+/.test(reReg));
+  secTok.vic1 = (reReg.match(/token (abt-[0-9a-f]+)/) || [])[1];
+  // service accounts: non-expiring, hidden from --active unless opted in
+  const svcReg = idRun(["register", "--service", "svc1"]);
+  secTok.svc1 = (svcReg.match(/token (abt-[0-9a-f]+)/) || [])[1];
+  const svcJson = JSON.parse(idRun(["agents", "--json"])).find((a) => a.name === "svc1");
+  check("1a service flagged, never expires by default", svcJson && svcJson.service === true && (svcJson.expiresAt === null || svcJson.expiresAt === undefined));
+  check("1a service hidden from --active", !idRun(["agents", "--active"]).includes("svc1") && idRun(["agents", "--active", "--include-services"]).includes("svc1"));
+  // offboarding: tokens die, sends refused, inbox files preserved
+  idRun(["register", "--from", "leav1"]);
+  idRun(["send", "--from", "sec1", "--to", "leav1", "--body", "bye"]);
+  idRun(["register", "--offboard", "leav1", "--from", "sec1"]);
+  const leavDoc = JSON.parse(fs.readFileSync(path.join(secBoard, "agents", "leav1.json"), "utf8"));
+  let leavDead = false;
+  try {
+    execFileSync("node", [CLI, "send", "--from", "leav1", "--to", "sec2", "--body", "x"], { env: { ...secEnv, AGENTBOARD_TOKEN: secTok.leav1 || "abt-0" }, stdio: "pipe" });
+  } catch (e) {
+    leavDead = String((e.stdout || "") + (e.stderr || "")).includes("offboard");
+  }
+  check("1a offboarded sends refused, flags set", leavDead && leavDoc.offboarded === true);
+  check("1a offboarded inbox preserved", fs.existsSync(path.join(secBoard, "dm", "leav1")));
+  // sync hygiene: flags replicate, secrets never do
+  const syncPeer = fs.mkdtempSync(path.join(os.tmpdir(), "ab-1a-peer-"));
+  execFileSync("node", [CLI, "init", "--harness", "generic"], { env: { ...process.env, AGENTBOARD_DIR: syncPeer } });
+  const fwdServe = spawn("node", [CLI, "serve", "--port", "0"], { env: secEnv });
+  let fwdUrl = "";
+  for (let i = 0; i < 40 && !fwdUrl; i++) {
+    await new Promise((r) => setTimeout(r, 250));
+    fwdUrl += fwdServe.stdout.read() || "";
+    const m = fwdUrl.match(/http:\/\/\S+/);
+    if (m) { fwdUrl = m[0]; break; }
+  }
+  execFileSync("node", [CLI, "sync", "--with", fwdUrl], { env: { ...process.env, AGENTBOARD_DIR: syncPeer } });
+  const peerLeav = JSON.parse(fs.readFileSync(path.join(syncPeer, "agents", "leav1.json"), "utf8"));
+  const peerSvc = JSON.parse(fs.readFileSync(path.join(syncPeer, "agents", "svc1.json"), "utf8"));
+  check("1a sync replicates offboard/service, strips secrets", peerLeav.offboarded === true && peerSvc.service === true && !peerSvc.tokenHash && !peerSvc.salt);
+  check("1a sync replicates revocations", fs.existsSync(path.join(syncPeer, "revoked")) && fs.readdirSync(path.join(syncPeer, "revoked")).length >= 1);
+  fwdServe.kill();
+  await new Promise((res) => fwdServe.on("close", res));
+  fs.rmSync(syncPeer, { recursive: true, force: true });
+}
+// ---- END Phase 1a per-identity token lifecycle ----
+// legacy plaintext migration: plant a legacy file, auth once, hash replaces it
+fs.writeFileSync(path.join(secBoard, "agents", "legacy1.json"), JSON.stringify({ name: "legacy1", firstSeen: new Date().toISOString(), lastSeen: new Date().toISOString(), token: "abt-legacy1" }) + "\n");
+secRun(["send", "--from", "legacy1", "--to", "sec2", "--body", "migrate me"], { AGENTBOARD_TOKEN: "abt-legacy1" });
+const legDoc = JSON.parse(fs.readFileSync(path.join(secBoard, "agents", "legacy1.json"), "utf8"));
+check("legacy plaintext migrates to hash", !legDoc.token && !!legDoc.tokenHash && !!legDoc.salt);
+// tamper-evident log verifies
+check("chain log verifies", secRun(["log", "--verify"]).includes("chain OK"));
+// inbox wraps peer content in the untrusted envelope
+secRun(["register", "--from", "sec2"]);
+check("inbox labels untrusted peer content", secRun(["inbox", "--from", "sec2"]).includes("[untrusted peer:sec1"));
+// duplicate suppression within 10s returns the existing id
+const dup1 = secRun(["send", "--from", "sec1", "--to", "sec2", "--body", "dup body"]);
+const dup2 = secRun(["send", "--from", "sec1", "--to", "sec2", "--body", "dup body"]);
+check("duplicate send deduped", dup2.includes("(deduped"));
+let fwdBad = false;
+try {
+  secRun(["send", "--from", "sec1", "--to", "sec2", "--body", "deep", "--fwd", "6"]);
+} catch {
+  fwdBad = true;
+}
+check("forward depth over 5 refused", fwdBad);
+let autoBad = false;
+try {
+  secRun(["spawn", "--from", "sec1", "--to", "zz1", "--body", "x", "--auto", "--dry-run"]);
+} catch {
+  autoBad = true;
+}
+check("spawn --auto needs loud confirmation", autoBad);
+check("spawn --auto confirmed via flag", secRun(["spawn", "--from", "sec1", "--to", "zz1", "--body", "x", "--auto", "--i-understand-danger", "--dry-run"]).includes("would spawn zz1"));
+// relay: spawn/kill OPT-IN (default OFF → 403); secret required when set
+const secServe = spawn("node", [CLI, "serve", "--port", "0"], { env: secEnv });
+let secUrl = "";
+for (let i = 0; i < 40 && !secUrl; i++) {
+  await new Promise((r) => setTimeout(r, 250));
+  secUrl += secServe.stdout.read() || "";
+  const m = secUrl.match(/http:\/\/\S+/);
+  if (m) { secUrl = m[0]; break; }
+}
+const denySpawn = await new Promise((resolve) => {
+  import("node:http").then(({ default: http }) => {
+    const data = JSON.stringify({ from: "sec1", token: newTok, to: ["zz9"], body: "x", harness: "generic", cmd: "node -e 0" });
+    const u = new URL(secUrl);
+    const req = http.request(
+      { host: u.hostname, port: u.port, path: "/api/spawn", method: "POST", headers: { "content-type": "application/json", "content-length": Buffer.byteLength(data) }, timeout: 8000 },
+      (res) => {
+        let body = "";
+        res.on("data", (d) => (body += d));
+        res.on("end", () => resolve({ status: res.statusCode, body }));
+      }
+    );
+    req.on("error", () => resolve(null));
+    req.write(data);
+    req.end();
+  });
+});
+check("relay spawn OPT-IN (default OFF → 403)", denySpawn && denySpawn.status === 403);
+// sync never replicates secrets: peer sees presence-only agent docs
+const boardS2 = fs.mkdtempSync(path.join(os.tmpdir(), "ab-secS2-"));
+execFileSync("node", [CLI, "init", "--harness", "generic"], { env: { ...process.env, AGENTBOARD_DIR: boardS2 } });
+execFileSync("node", [CLI, "sync", "--with", secUrl], { env: { ...process.env, AGENTBOARD_DIR: boardS2 } });
+const s2Anna = path.join(boardS2, "agents", "sec1.json");
+check("synced peer holds no secrets", fs.existsSync(s2Anna) && (() => {
+  const pb = JSON.parse(fs.readFileSync(s2Anna, "utf8"));
+  return !pb.token && !pb.tokenHash && !pb.salt && pb.name === "sec1";
+})());
+fs.rmSync(boardS2, { recursive: true, force: true });
+secServe.kill();
+await new Promise((res) => secServe.on("close", res));
+fs.rmSync(secBoard, { recursive: true, force: true });
+
+// ---- BEGIN Phase 1b RBAC + per-board ACLs + group-scoped sends ----
+{
+  const rbBoard = fs.mkdtempSync(path.join(os.tmpdir(), "ab-rb-"));
+  const rbEnv = { ...process.env, AGENTBOARD_DIR: rbBoard };
+  const rbTok = {};
+  const rbRun = (args, extraEnv) => {
+    const merged = { ...rbEnv, ...(extraEnv || {}) };
+    const fi = args.indexOf("--from");
+    const who = fi !== -1 && args[fi + 1] && !String(args[fi + 1]).startsWith("--") ? String(args[fi + 1]).toLowerCase() : null;
+    if (who && rbTok[who] && !merged.AGENTBOARD_TOKEN) merged.AGENTBOARD_TOKEN = rbTok[who];
+    const out = execFileSync("node", [CLI, ...args], { env: merged }).toString();
+    const m = out.match(/token (abt-[0-9a-f]+)/);
+    if (m && who && !rbTok[who]) rbTok[who] = m[1];
+    return out;
+  };
+  const rbMustFail = (label, args) => {
+    let bad = false;
+    try { rbRun(args); } catch { bad = true; }
+    check(label, bad);
+  };
+  rbRun(["init", "--board", rbBoard]);
+  rbRun(["register", "--from", "boss"]); // first on board -> admin
+  rbRun(["register", "--from", "lead1"]);
+  rbRun(["register", "--from", "work1"]);
+  rbRun(["register", "--from", "boss", "--for", "lead1", "--role", "lead"]);
+  rbRun(["register", "--from", "boss", "--for", "work1", "--role", "worker"]);
+  rbRun(["register", "--from", "work2"]);
+  rbRun(["register", "--from", "boss", "--for", "work2", "--role", "worker"]);
+  const grantOut = rbRun(["register", "--from", "boss", "--for", "aud1", "--role", "auditor"]);
+  const gm = grantOut.match(/token (abt-[0-9a-f]+)/); // grant mints aud1's token; harvest for aud1 (runner only tracks --from)
+  if (gm) rbTok["aud1"] = gm[1];
+  const rbRoles = JSON.parse(rbRun(["agents", "--json"]));
+  const roleOf = (n) => (rbRoles.find((a) => a.name === n) || {}).role;
+  check("first agent is admin", roleOf("boss") === "admin");
+  check("role grants stick", roleOf("lead1") === "lead" && roleOf("work1") === "worker" && roleOf("aud1") === "auditor");
+  // worker refused spawn-kill/prune/role-grant; auditor read-ok/write-refused
+  rbMustFail("worker refused spawn-kill", ["spawn-kill", "--from", "work1", "--to", "nobody"]);
+  rbMustFail("worker refused prune", ["prune", "--from", "work1", "--older-than", "7d", "--dry-run"]);
+  rbMustFail("worker refused role-grant", ["register", "--from", "work1", "--for", "work1", "--role", "admin"]);
+  rbRun(["send", "--from", "lead1", "--to", "work1", "--body", "rb hello"]);
+  check("auditor read-ok (inbox)", rbRun(["inbox", "--from", "aud1"]).includes("no messages"));
+  rbMustFail("auditor write-refused (send)", ["send", "--from", "aud1", "--to", "work1", "--body", "nope"]);
+  rbMustFail("auditor write-refused (ack)", ["ack", "--from", "aud1", "--all"]);
+  // restricted-group refusal + member-ok
+  rbRun(["group", "create", "elite", "--add", "lead1,work1"]);
+  rbRun(["group", "restrict", "elite", "--from", "boss"]);
+  rbMustFail("restricted group refuses outsider", ["send", "--from", "work2", "--to-group", "elite", "--to", "lead1", "--body", "gate"]);
+  check("restricted group member-ok", rbRun(["send", "--from", "work1", "--to-group", "elite", "--to", "lead1", "--body", "member mail"]).includes("sent "));
+  check("restricted group lead-ok", rbRun(["send", "--from", "lead1", "--to-group", "elite", "--to", "work1", "--body", "lead mail"]).includes("sent "));
+  // frozen board refuses newcomers, admin grant still works
+  rbRun(["acl", "set", "--from", "boss", "--freeze"]);
+  rbMustFail("frozen board refuses new registration", ["register", "--from", "newbie"]);
+  check("frozen board admin grant works", rbRun(["register", "--from", "boss", "--for", "newbie"]).includes("newbie"));
+  rbMustFail("non-admin acl set refused", ["acl", "set", "--from", "work1", "--unfreeze"]);
+  fs.rmSync(rbBoard, { recursive: true, force: true });
+}
+// ---- END Phase 1b RBAC + per-board ACLs + group-scoped sends ----
+
+// ---- BEGIN Phase 2b encrypted backup/restore + quotas/tenancy (temp boards only) ----
+{
+  const b2Board = fs.mkdtempSync(path.join(os.tmpdir(), "ab-2b-"));
+  const b2Env = { ...process.env, AGENTBOARD_DIR: b2Board };
+  const b2Tok = {};
+  const b2Run = (args, extraEnv) => {
+    const merged = { ...b2Env, ...(extraEnv || {}) };
+    const fi = args.indexOf("--from");
+    const who = fi !== -1 && args[fi + 1] && !String(args[fi + 1]).startsWith("--") ? String(args[fi + 1]).toLowerCase() : null;
+    if (who && b2Tok[who] && !merged.AGENTBOARD_TOKEN) merged.AGENTBOARD_TOKEN = b2Tok[who];
+    const out = execFileSync("node", [CLI, ...args], { env: merged }).toString();
+    const m = out.match(/token (abt-[0-9a-f]+)/);
+    if (m && who && !b2Tok[who]) b2Tok[who] = m[1];
+    return out;
+  };
+  const b2MustFail = (label, args, extraEnv, needle) => {
+    let bad = false;
+    try { b2Run(args, extraEnv); } catch (e) {
+      bad = needle ? String((e.stdout || "") + (e.stderr || "")).includes(needle) : true;
+    }
+    check(label, bad);
+  };
+  const B2KEY = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+  const b2KeyEnv = { AGENTBOARD_BACKUP_KEY: B2KEY };
+  b2Run(["init", "--board", b2Board]);
+  b2Run(["register", "--from", "boss"]);
+  const b2Grant = b2Run(["register", "--from", "boss", "--for", "aud1", "--role", "auditor"]);
+  const b2GrantM = b2Grant.match(/token (abt-[0-9a-f]+)/);
+  if (b2GrantM) b2Tok["aud1"] = b2GrantM[1];
+  b2Run(["send", "--from", "boss", "--to", "aud1", "--body", "2b hello"]);
+  // export -> wipe -> import round-trip: mail byte-equality, secrets stripped
+  const b2Out = path.join(os.tmpdir(), "ab-2b-" + Date.now() + ".abbackup.json");
+  check("2b auditor export ok", b2Run(["board", "export", "--from", "aud1", "--out", b2Out], b2KeyEnv).includes("exported"));
+  const b2Env1 = JSON.parse(fs.readFileSync(b2Out, "utf8"));
+  check("2b envelope encrypted aes-256-gcm", b2Env1.encrypted === true && b2Env1.algo === "aes-256-gcm" && typeof b2Env1.data === "string");
+  const b2MailBefore = fs.readFileSync(path.join(b2Board, "dm", "aud1", fs.readdirSync(path.join(b2Board, "dm", "aud1"))[0]), "utf8");
+  const b2Into = b2Board + "-restored";
+  check("2b import refuses live target without --force", (() => { try { b2Run(["board", "import", "--from", "boss", "--in", b2Out, "--into", b2Board], b2KeyEnv); return false; } catch { return true; } })());
+  b2Run(["board", "import", "--from", "boss", "--in", b2Out, "--into", b2Into, "--force"], b2KeyEnv);
+  const b2MailAfter = fs.readFileSync(path.join(b2Into, "dm", "aud1", fs.readdirSync(path.join(b2Into, "dm", "aud1"))[0]), "utf8");
+  check("2b export->wipe->import mail byte-equality", b2MailBefore === b2MailAfter);
+  check("2b restored agents carry no secrets", !JSON.parse(fs.readFileSync(path.join(b2Into, "agents", "boss.json"), "utf8")).tokenHash);
+  // wrong-key import refused before any write
+  const b2IntoBad = b2Board + "-badkey";
+  b2MustFail("2b wrong-key import refused, nothing written", ["board", "import", "--from", "boss", "--in", b2Out, "--into", b2IntoBad, "--force"], { AGENTBOARD_BACKUP_KEY: "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff" }, "GCM auth failed");
+  check("2b wrong-key wrote nothing", !fs.existsSync(b2IntoBad));
+  // password-based key (scrypt) round-trip + plaintext mode
+  const b2PwOut = path.join(os.tmpdir(), "ab-2b-pw-" + Date.now() + ".json");
+  b2Run(["board", "export", "--from", "boss", "--out", b2PwOut], { AGENTBOARD_BACKUP_KEY: "a human password" });
+  check("2b password key uses scrypt", JSON.parse(fs.readFileSync(b2PwOut, "utf8")).kdf === "scrypt");
+  b2Run(["board", "import", "--from", "boss", "--in", b2PwOut, "--into", b2Board + "-pw", "--force"], { AGENTBOARD_BACKUP_KEY: "a human password" });
+  check("2b password round-trip restores mail", fs.existsSync(path.join(b2Board + "-pw", "dm", "aud1")));
+  const b2PlainOut = path.join(os.tmpdir(), "ab-2b-plain-" + Date.now() + ".json");
+  b2Run(["board", "export", "--from", "boss", "--out", b2PlainOut, "--no-encrypt"]);
+  check("2b --no-encrypt plaintext envelope", JSON.parse(fs.readFileSync(b2PlainOut, "utf8")).encrypted === false);
+  // quotas: N+1th agent + message refused; storage reports quota vs actual
+  // (board already holds boss + aud1, so cap 3 lets w1 in and refuses w2)
+  b2Run(["quota", "set", "--from", "boss", "--max-agents", "3", "--tenant", "acme"]);
+  b2Run(["register", "--from", "w1"]);
+  b2MustFail("2b quota refuses N+1th agent", ["register", "--from", "w2"], null, "maxAgents");
+  b2Run(["quota", "set", "--from", "boss", "--max-agents", "unlimited", "--max-bytes", "1"]);
+  b2MustFail("2b quota refuses N+1th message", ["send", "--from", "boss", "--to", "w1", "--body", "over quota"], null, "maxBytes");
+  const b2Storage = JSON.parse(b2Run(["storage", "--json"]));
+  check("2b storage reports quota vs actual", b2Storage.quota && b2Storage.quota.bytes && b2Storage.quota.bytes.ok === false && b2Storage.tenant === "acme");
+  b2MustFail("2b non-admin quota-set refused", ["quota", "set", "--from", "aud1", "--max-agents", "9"], null, "need admin");
+  b2Run(["quota", "set", "--from", "boss", "--clear"]);
+  check("2b quota cleared, send works again", b2Run(["send", "--from", "boss", "--to", "w1", "--body", "under quota"]).includes("sent "));
+  // channel quota
+  b2Run(["quota", "set", "--from", "boss", "--max-channels", "1"]);
+  b2Run(["channel", "create", "c1"]);
+  b2MustFail("2b quota refuses N+1th channel", ["channel", "create", "c2"], null, "maxChannels");
+  b2Run(["quota", "set", "--from", "boss", "--clear"]);
+  // snapshots: schedule + run + --keep pruning
+  const b2SnapDir = fs.mkdtempSync(path.join(os.tmpdir(), "ab-2b-snap-"));
+  b2Run(["snapshot", "schedule", "--from", "boss", "--every", "24h", "--keep", "2", "--out-dir", b2SnapDir, "--no-encrypt"]);
+  check("2b snapshot schedule recorded", JSON.parse(fs.readFileSync(path.join(b2Board, "board.json"), "utf8")).snapshot.keep === 2);
+  b2Run(["snapshot", "run"]);
+  b2Run(["snapshot", "run"]);
+  b2Run(["snapshot", "run"]);
+  const b2Snaps = fs.readdirSync(b2SnapDir).filter((f) => f.startsWith("snapshot-") && f.endsWith(".abbackup.json"));
+  check("2b snapshot --keep prunes to 2", b2Snaps.length === 2);
+  b2MustFail("2b non-admin snapshot-schedule refused", ["snapshot", "schedule", "--from", "aud1", "--every", "24h", "--keep", "2", "--out-dir", b2SnapDir, "--no-encrypt"], null, "need admin");
+  // legal-hold interplay: backups preserve held data, never drop it
+  b2Run(["hold", "place", "--from", "boss", "--reason", "2b litigation"]);
+  const b2HoldOut = path.join(os.tmpdir(), "ab-2b-hold-" + Date.now() + ".json");
+  b2Run(["board", "export", "--from", "boss", "--out", b2HoldOut, "--no-encrypt"]);
+  const b2HoldEnv = JSON.parse(fs.readFileSync(b2HoldOut, "utf8"));
+  check("2b export preserves the hold record", b2HoldEnv.files.some((f) => f.rel === "holds/legal.json"));
+  check("2b export stamps active hold", b2HoldEnv.manifest.hold && b2HoldEnv.manifest.hold.active === true);
+  b2MustFail("2b import over held board refused even with --force", ["board", "import", "--from", "boss", "--in", b2Out, "--into", b2Board, "--force"], b2KeyEnv, "legal hold ACTIVE");
+  b2Run(["snapshot", "run"]);
+  b2Run(["snapshot", "run"]);
+  check("2b snapshot under hold retains all (no pruning)", fs.readdirSync(b2SnapDir).filter((f) => f.startsWith("snapshot-")).length === 4);
+  b2Run(["hold", "lift", "--from", "boss"]);
+  b2Run(["snapshot", "run"]);
+  check("2b snapshot pruning resumes after lift", fs.readdirSync(b2SnapDir).filter((f) => f.startsWith("snapshot-")).length === 2);
+  fs.rmSync(b2HoldOut, { force: true });
+  fs.rmSync(b2Board, { recursive: true, force: true });
+  fs.rmSync(b2Into, { recursive: true, force: true });
+  fs.rmSync(b2Board + "-pw", { recursive: true, force: true });
+  fs.rmSync(b2SnapDir, { recursive: true, force: true });
+  for (const f of [b2Out, b2PwOut, b2PlainOut]) fs.rmSync(f, { force: true });
+}
+// ---- END Phase 2b encrypted backup/restore + quotas/tenancy ----
+
+// ---- BEGIN Phase 2a audit export + legal hold (temp boards only) ----
+{
+  const p2Board = fs.mkdtempSync(path.join(os.tmpdir(), "ab-p2a-"));
+  const p2Env = { ...process.env, AGENTBOARD_DIR: p2Board, AGENTBOARD_SECRET: "p2a-test-secret" };
+  const p2Tok = {};
+  const p2Run = (args, extraEnv) => {
+    const merged = { ...p2Env, ...(extraEnv || {}) };
+    const fi = args.indexOf("--from");
+    const who = fi !== -1 && args[fi + 1] && !String(args[fi + 1]).startsWith("--") ? String(args[fi + 1]).toLowerCase() : null;
+    if (who && p2Tok[who] && !merged.AGENTBOARD_TOKEN) merged.AGENTBOARD_TOKEN = p2Tok[who];
+    const out = execFileSync("node", [CLI, ...args], { env: merged }).toString();
+    const m = out.match(/token (abt-[0-9a-f]+)/);
+    if (m && who && !p2Tok[who]) p2Tok[who] = m[1];
+    return out;
+  };
+  const p2MustFail = (label, args, needle) => {
+    let bad = false;
+    try { p2Run(args); } catch (e) {
+      bad = needle ? String((e.stdout || "") + (e.stderr || "")).includes(needle) : true;
+    }
+    check(label, bad);
+  };
+  p2Run(["init", "--board", p2Board]);
+  p2Run(["register", "--from", "boss"]); // first -> admin
+  const p2GrantA = p2Run(["register", "--from", "boss", "--for", "aud1", "--role", "auditor"]);
+  const p2gmA = p2GrantA.match(/token (abt-[0-9a-f]+)/);
+  if (p2gmA) p2Tok["aud1"] = p2gmA[1];
+  const p2GrantW = p2Run(["register", "--from", "boss", "--for", "work1", "--role", "worker"]);
+  const p2gmW = p2GrantW.match(/token (abt-[0-9a-f]+)/);
+  if (p2gmW) p2Tok["work1"] = p2gmW[1];
+  // signed envelope: every record carries v:1 + sig + prevHash + role/auth
+  p2Run(["send", "--from", "boss", "--to", "work1", "--body", "p2a hello"]);
+  const p2ChainLines = fs.readFileSync(path.join(p2Board, "logs", "chain.jsonl"), "utf8").trim().split("\n");
+  const p2ChainRecs = p2ChainLines.map((l) => JSON.parse(l));
+  check("2a audit envelope is v:1 with sig chain", p2ChainRecs.length > 0 && p2ChainRecs.every((r) => r.v === 1 && typeof r.sig === "string" && r.sig.length === 64 && r.prevHash === r.prev && typeof r.role === "string" && typeof r.authMethod === "string"));
+  check("2a chain verify passes with sigs", p2Run(["log", "--verify"]).includes("chain OK"));
+  // tamper: copy the board, flip one sig hex char in the copy, verify names the seq
+  const p2Copy = fs.mkdtempSync(path.join(os.tmpdir(), "ab-p2a-copy-"));
+  fs.cpSync(p2Board, p2Copy, { recursive: true });
+  const p2CopyChain = path.join(p2Copy, "logs", "chain.jsonl");
+  const p2CopyLines = fs.readFileSync(p2CopyChain, "utf8").split("\n");
+  const p2VictimIdx = p2CopyLines.findIndex((l) => l.includes('"sig":"'));
+  const p2SigChar = (p2CopyLines[p2VictimIdx].match(/"sig":"([0-9a-f])/) || [])[1];
+  p2CopyLines[p2VictimIdx] = p2CopyLines[p2VictimIdx].replace(/"sig":"[0-9a-f]/, `"sig":"${p2SigChar === "a" ? "b" : "a"}`);
+  fs.writeFileSync(p2CopyChain, p2CopyLines.join("\n"));
+  const p2VictimSeq = JSON.parse(p2ChainLines[p2VictimIdx]).seq;
+  let p2TamperMsg = "";
+  try {
+    execFileSync("node", [CLI, "log", "--board", p2Copy, "--verify"], { env: p2Env, stdio: "pipe" });
+  } catch (e) {
+    p2TamperMsg = String((e.stdout || "") + (e.stderr || ""));
+  }
+  check("2a chain verify catches tampered event at its seq", p2TamperMsg.includes("INVALID") && p2TamperMsg.includes(`first-broken-seq ${p2VictimSeq}`) && p2TamperMsg.includes("bad sig"));
+  fs.rmSync(p2Copy, { recursive: true, force: true });
+  // legal hold: status/place/prune-refusal/lift/unblock + RBAC
+  check("2a hold status idle", p2Run(["hold", "status"]).includes("no active legal hold"));
+  p2MustFail("2a worker cannot place hold", ["hold", "place", "--from", "work1", "--reason", "x"], "need admin");
+  p2MustFail("2a auditor cannot place hold", ["hold", "place", "--from", "aud1", "--reason", "x"], "need admin");
+  check("2a hold place", p2Run(["hold", "place", "--from", "boss", "--reason", "litigation XYZ"]).includes("PLACED"));
+  check("2a auditor reads hold status", p2Run(["hold", "status", "--from", "aud1"]).includes("litigation XYZ"));
+  check("2a hold record written", JSON.parse(fs.readFileSync(path.join(p2Board, "holds", "legal.json"), "utf8")).active === true);
+  p2MustFail("2a hold blocks prune", ["prune", "--from", "boss", "--older-than", "0s"], "legal hold ACTIVE");
+  p2MustFail("2a hold blocks prune dry-run", ["prune", "--from", "boss", "--older-than", "7d", "--dry-run"], "legal hold ACTIVE");
+  check("2a hold lift", p2Run(["hold", "lift", "--from", "boss"]).includes("LIFTED"));
+  check("2a prune unblocked after lift", p2Run(["prune", "--from", "boss", "--older-than", "7d", "--dry-run"]).includes("would prune"));
+  check("2a hold place/lift in audit trail", p2Run(["log", "--json", "--limit", "10"]).includes("hold-lift"));
+  fs.rmSync(p2Board, { recursive: true, force: true });
+}
+// ---- END Phase 2a audit export + legal hold ----
 
 if (failures > 0) {
   console.error(`\n${failures} failure(s)`);
