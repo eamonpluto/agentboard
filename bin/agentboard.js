@@ -1480,6 +1480,156 @@ function mergeCursorHooks(file, hookAbs, boardExtra) {
   return changed;
 }
 
+// Permission pre-approvals (init --harness): narrow bus-I/O-only allowlists so
+// spawned workers never stall on the bus itself (agentboard MCP server,
+// hook/CLI commands mentioning agentboard, board-path reads). Additive JSON
+// merges only (same pattern as mergeHookGroups/mergeMcpServers above): never
+// overwrite user config, idempotent re-runs (write only when changed).
+// Deliberately NOT widened: edits/writes outside the board, network access,
+// unrelated commands/tools. Per-harness surface (researched 2026-10-05):
+// - claude: `.claude/settings.json` permissions.allow — stable, VERIFIED
+//   (code.claude.com/docs/en/permissions: `mcp__<server>__*` allow globs must
+//   name one literal server; `Bash(...)` globs; `Read(...)` paths).
+// - opencode: `opencode.json` project `permission` object (v1 line; tool-name
+//   keys + wildcards, bash/read pattern objects, last match wins) — VERIFIED
+//   (opencode.ai/docs/permissions; repo pins opencode 1.18.x). The v2
+//   `permissions` array format is NOT written (UNVERIFIED here).
+// - cursor: `.cursor/permissions.json` mcpAllowlist/terminalAllowlist —
+//   VERIFIED (cursor.com/docs/reference/permissions: `server:tool` entries,
+//   `:` separates base command from args glob).
+// - codex: SKIPPED — MCP/tool approval lives in TOML user config
+//   (approval_policy, mcp_servers.<name>.tools.<tool>.approval_mode) and
+//   project .codex/config.toml loads only after folder trust; no stable
+//   project-local JSON allowlist surface to merge.
+// - grok: SKIPPED — allow/ask/deny rules live in TOML (.grok/config.toml
+//   `[permission]` rules); no zero-dep-safe TOML merge exists here (would
+//   risk corrupting user config). Grok also reads Claude-compat
+//   `.claude/settings.json`, covered under --harness claude.
+// - antigravity: SKIPPED — permissions live in GLOBAL
+//   ~/.gemini/antigravity-cli/settings.json (permissions.allow with
+//   `mcp(server/*)`, `command(...)`); .agents/ has no documented
+//   project-local permissions allowlist.
+// - copilot: SKIPPED — not an init --harness adapter in this repo.
+// - generic: SKIPPED — no config surface.
+const CLAUDE_BOARD_ALLOW = [
+  "mcp__agentboard__*",
+  "Bash(node *agentboard* *)",
+  "Bash(agentboard* *)",
+  "Read(./.agentboard/**)",
+];
+const CURSOR_MCP_ALLOW = ["agentboard:*"];
+const CURSOR_TERMINAL_ALLOW = ["node:*agentboard*", "agentboard"];
+const OPENCODE_BOARD_BASH_PATTERN = "*agentboard*";
+const OPENCODE_BOARD_READ_PATTERN = "**/.agentboard/**";
+
+// Merge Claude Code permissions.allow entries additively. Returns changed?
+function mergeClaudeApprovals(file, entries) {
+  const obj = readJsonFile(file, {});
+  if (typeof obj !== "object" || obj === null || Array.isArray(obj)) {
+    fail(`cannot merge approvals: ${file} is not a JSON object (edit it by hand)`);
+  }
+  if (obj.permissions === undefined) obj.permissions = {};
+  if (typeof obj.permissions !== "object" || obj.permissions === null || Array.isArray(obj.permissions)) {
+    fail(`cannot merge approvals: ${file} "permissions" is not an object (edit it by hand)`);
+  }
+  const cur = Array.isArray(obj.permissions.allow) ? obj.permissions.allow : [];
+  let changed = !Array.isArray(obj.permissions.allow);
+  for (const e of entries) {
+    if (!cur.includes(e)) {
+      cur.push(e);
+      changed = true;
+    }
+  }
+  obj.permissions.allow = cur;
+  if (changed) {
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    writeJson(file, obj);
+  }
+  return changed;
+}
+
+// Merge Cursor .cursor/permissions.json allowlists additively. Returns changed?
+function mergeCursorPermissions(file, mcpEntries, terminalEntries) {
+  const obj = readJsonFile(file, {});
+  if (typeof obj !== "object" || obj === null || Array.isArray(obj)) {
+    fail(`cannot merge permissions: ${file} is not a JSON object (edit it by hand)`);
+  }
+  let changed = false;
+  for (const [key, entries] of [["mcpAllowlist", mcpEntries], ["terminalAllowlist", terminalEntries]]) {
+    const cur = Array.isArray(obj[key]) ? obj[key] : [];
+    for (const e of entries) {
+      if (!cur.includes(e)) {
+        cur.push(e);
+        changed = true;
+      }
+    }
+    if (!Array.isArray(obj[key])) {
+      obj[key] = cur;
+      changed = true;
+    }
+  }
+  if (changed) {
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    writeJson(file, obj);
+  }
+  return changed;
+}
+
+// Merge opencode.json project `permission` (v1 object form) additively:
+// set only absent keys/patterns, never overwrite user values. A shorthand
+// string (e.g. "bash": "allow") is already at least as broad, so it is left
+// alone. Refuses to clobber unparsable files (e.g. JSONC with comments).
+// Returns changed?
+function mergeOpencodePermissions(file) {
+  if (fs.existsSync(file)) {
+    try {
+      JSON.parse(fs.readFileSync(file, "utf8"));
+    } catch {
+      fail(`cannot merge permissions: ${file} is not valid JSON (edit it by hand)`);
+    }
+  }
+  const obj = readJsonFile(file, {});
+  if (typeof obj !== "object" || obj === null || Array.isArray(obj)) {
+    fail(`cannot merge permissions: ${file} is not a JSON object (edit it by hand)`);
+  }
+  if (obj.permission !== undefined && typeof obj.permission === "string") return false; // already fully permissive
+  if (obj.permission !== undefined && (typeof obj.permission !== "object" || obj.permission === null || Array.isArray(obj.permission))) {
+    fail(`cannot merge permissions: ${file} "permission" is not an object (edit it by hand)`);
+  }
+  let changed = false;
+  if (obj.permission === undefined) {
+    obj.permission = {};
+    changed = true;
+  }
+  const perm = obj.permission;
+  if (perm["dm-send"] === undefined) {
+    perm["dm-send"] = "allow";
+    changed = true;
+  }
+  for (const [key, pattern] of [["bash", OPENCODE_BOARD_BASH_PATTERN], ["read", OPENCODE_BOARD_READ_PATTERN]]) {
+    const v = perm[key];
+    if (v === undefined) {
+      perm[key] = { [pattern]: "allow" };
+      changed = true;
+    } else if (typeof v === "string") {
+      // shorthand already broad — leave alone
+    } else if (typeof v === "object" && v !== null && !Array.isArray(v)) {
+      if (v[pattern] === undefined) {
+        v[pattern] = "allow";
+        changed = true;
+      }
+    } else {
+      fail(`cannot merge permissions: ${file} "permission.${key}" is not usable (edit it by hand)`);
+    }
+  }
+  if (changed) {
+    if (obj.$schema === undefined) obj.$schema = "https://opencode.ai/config.json";
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    writeJson(file, obj);
+  }
+  return changed;
+}
+
 // Merge {mcpServers:{agentboard: entry}} (Claude .mcp.json, Antigravity mcp_config.json, Cursor .cursor/mcp.json). Returns changed?
 function mergeMcpServers(file, entry) {
   const obj = readJsonFile(file, {});
@@ -1574,7 +1724,11 @@ function applyHarness(cwd, h, ctx) {
   switch (h) {
     case "opencode":
       installOpencodeFiles(cwd, force);
-      return [];
+      {
+        const changedPerms = mergeOpencodePermissions(path.join(cwd, "opencode.json"));
+        console.log(changedPerms ? "Wired opencode pre-approvals: opencode.json permission (dm-send + *agentboard* shell + board reads)" : "opencode pre-approvals already wired: opencode.json");
+      }
+      return ["pre-approved board-only bus I/O in opencode.json permission (dm-send tool + *agentboard* shell + board reads); nothing else widened"];
     case "claude": {
       const claudeHooksFile = path.join(cwd, ".claude", "settings.json");
       const changedHooks = mergeHookGroups(claudeHooksFile, hookAbs, boardExtra, {
@@ -1586,9 +1740,15 @@ function applyHarness(cwd, h, ctx) {
       const entry = mcpEntry(ctx, mcpAbs);
       const changedMcp = mergeMcpServers(path.join(cwd, ".mcp.json"), entry);
       console.log(changedMcp ? "Wired Claude MCP: .mcp.json (agentboard stdio)" : "Claude MCP already wired: .mcp.json");
-      return ["approve .mcp.json when Claude prompts (project MCP servers need approval)", "set AGENTBOARD_AGENT=<you> once per terminal for the hooks"];
+      const changedApprovals = mergeClaudeApprovals(claudeHooksFile, CLAUDE_BOARD_ALLOW);
+      console.log(changedApprovals ? "Wired Claude pre-approvals: .claude/settings.json permissions.allow (agentboard MCP + agentboard commands + board reads)" : "Claude pre-approvals already wired: .claude/settings.json");
+      return ["approve .mcp.json when Claude prompts (project MCP servers need approval)", "set AGENTBOARD_AGENT=<you> once per terminal for the hooks", "pre-approved board-only bus I/O in .claude/settings.json permissions.allow (agentboard MCP + agentboard commands + board reads); nothing else widened"];
     }
     case "codex": {
+      // No approval wiring: Codex MCP/tool approval lives in TOML user
+      // config (approval_policy, mcp_servers.<name> approval_mode) and
+      // project .codex/config.toml applies only after folder trust — no
+      // stable project-local JSON allowlist surface to merge here.
       const changedHooks = mergeHookGroups(path.join(cwd, ".codex", "hooks.json"), hookAbs, boardExtra, {
         SessionStart: "session-start",
         Stop: "codex",
@@ -1601,6 +1761,10 @@ function applyHarness(cwd, h, ctx) {
       ];
     }
     case "antigravity": {
+      // No approval wiring: Antigravity permissions live in GLOBAL
+      // ~/.gemini/antigravity-cli/settings.json (permissions.allow with
+      // mcp(server/*), command(...)); .agents/ has no documented
+      // project-local permissions allowlist, so init writes nothing here.
       const changedHooks = mergeAntigravityHooks(path.join(cwd, ".agents", "hooks.json"), hookAbs, boardExtra);
       console.log(changedHooks ? "Wired Antigravity hooks: .agents/hooks.json (Stop + PreInvocation)" : "Antigravity hooks already wired: .agents/hooks.json");
       const entry = mcpEntry(ctx, mcpAbs);
@@ -1609,6 +1773,10 @@ function applyHarness(cwd, h, ctx) {
       return ["set AGENTBOARD_AGENT=<you> once per terminal for the hooks"];
     }
     case "grok": {
+      // No approval wiring: grok allow/ask/deny rules live in TOML
+      // (.grok/config.toml [permission] rules) with no zero-dep-safe merge
+      // here; grok also reads Claude-compat .claude/settings.json, which is
+      // covered under --harness claude.
       const changedHooks = mergeHookGroups(path.join(cwd, ".grok", "hooks", "agentboard.json"), hookAbs, boardExtra, {
         SessionStart: "session-start",
         Stop: "grok",
@@ -1629,9 +1797,12 @@ function applyHarness(cwd, h, ctx) {
       const entry = mcpEntry(ctx, mcpAbs);
       const changedMcp = mergeMcpServers(path.join(cwd, ".cursor", "mcp.json"), entry);
       console.log(changedMcp ? "Wired Cursor MCP: .cursor/mcp.json (agentboard stdio)" : "Cursor MCP already wired: .cursor/mcp.json");
+      const changedPerms = mergeCursorPermissions(path.join(cwd, ".cursor", "permissions.json"), CURSOR_MCP_ALLOW, CURSOR_TERMINAL_ALLOW);
+      console.log(changedPerms ? "Wired Cursor pre-approvals: .cursor/permissions.json (agentboard MCP + terminal bus commands)" : "Cursor pre-approvals already wired: .cursor/permissions.json");
       return [
         "approve/enable the agentboard MCP server in Cursor settings (Tools & Integrations)",
         "set AGENTBOARD_AGENT=<you> once per terminal for the hooks",
+        "pre-approved board-only bus I/O in .cursor/permissions.json (agentboard MCP + terminal bus commands); nothing else widened",
       ];
     }
     default:
@@ -5189,6 +5360,11 @@ Setup:
     create board in ./.agentboard, write AGENTS.md block, install harness
     wiring (hooks + MCP config + notes). Without --harness, init applies the
     union of detected markers (.opencode/.claude/.codex/.agents/.grok/.cursor).
+    init also pre-approves board-only bus I/O (agentboard MCP server +
+    agentboard commands + board reads) in harness allowlists with a stable
+    project-local surface (claude/opencode/cursor); codex/grok/antigravity
+    are skipped (TOML or global-only surfaces — see docs/COMPATIBILITY.md).
+    Nothing else is widened.
 
 Identity (first claim wins, token after that):
   agentboard register --from <you> [--session <opencode-session-id>] [--token <t>] [--expires-in <dur>] [--service]

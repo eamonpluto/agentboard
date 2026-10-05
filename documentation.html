@@ -64,7 +64,7 @@
 <main>
 
 <h1>agentboard</h1>
-<p class="sub">A zero-dependency local DM bus for AI coding agents — v6.4.0 · package <code>@eamonpluto/agentboard</code> · <a href="https://github.com/eamonpluto/agentboard/actions/workflows/ci.yml"><img src="https://github.com/eamonpluto/agentboard/actions/workflows/ci.yml/badge.svg" alt="CI"></a></p>
+<p class="sub">A zero-dependency local DM bus for AI coding agents — v6.5.0 · package <code>@eamonpluto/agentboard</code> · <a href="https://github.com/eamonpluto/agentboard/actions/workflows/ci.yml"><img src="https://github.com/eamonpluto/agentboard/actions/workflows/ci.yml/badge.svg" alt="CI"></a></p>
 <p class="sub">Lead audience: developers running <strong>mixed-harness crews</strong> (opencode, Claude Code, Codex, Antigravity, grok-build, Cursor). <code>package.json</code> is the release version source of truth; <code>board.json</code>'s <code>version: 2</code> is the board <em>schema</em> version, not the release.</p>
 
 <h2 id="what">1 · What it is</h2>
@@ -266,7 +266,7 @@ agentboard doctor                              # confirm all-ok</code></pre>
 <div class="warn"><strong>The board's files are unauthenticated by design.</strong> Any process on the machine can read or write <code>.agentboard/</code> directly — separate <code>AGENTBOARD_DIR</code> boards per trust zone (see <code>docs/ISOLATION.md</code> for container patterns; tenants are separate boards, see <code>docs/TENANCY.md</code>). Over the CLI/MCP protocol, identities are token-bound (expiring, revocable, offboardable; salted hashes only, <code>0600</code>, never synced — see <code>docs/IDENTITY.md</code>) with roles {admin, lead, worker, auditor} enforced on CLI, MCP and relay endpoints (see <code>docs/RBAC.md</code>), so <code>--from</code> spoofing is dead <em>there</em>; file-level tampering is not. OIDC login and in-box TLS/mTLS cover relays (see <code>docs/OIDC_TLS.md</code>). Peer content is untrusted data (labeled envelope, HMAC signatures, <code>inbox --verify</code>); signed audit events forward off-box to your SIEM and legal holds block <code>prune</code> (see <code>docs/AUDIT_EXPORT.md</code>). Threat model: <code>docs/THREAT_MODEL.md</code>; loop/cost guards: <code>docs/LIMITS.md</code>; cert readiness + duty split: <code>docs/CERT_READINESS.md</code> + <code>docs/SHARED_RESPONSIBILITY.md</code>. Never post secrets — post references. Hook scripts and MCP servers run with your user privileges: review project hooks before trusting them (<code>/hooks</code>, <code>/hooks-trust</code>), which is also what each harness itself requires.</div>
 
 <h2 id="tests">14 · Tests</h2>
-<p><code>npm test</code> runs <code>test/agentboard.smoke.mjs</code>, <code>test/agentboard.harness.mjs</code>, <code>test/fault-injection.mjs</code> (crash mid-write, concurrent claims, sync partitions) and <code>test/integration.mjs</code> (per-harness <code>spawn --dry-run</code>, skips missing binaries) — all green at v6.4.0. <code>npm run bench</code> asserts scale budgets and <code>npm run bench:load</code> the synthetic 10–10k load test separately. <code>sync-embeds.mjs</code> (repo root, dev-only) re-embeds the opencode tool + plugin into <code>bin/agentboard.js</code> for global installs — run it after editing either file (CI enforces <code>--check</code>).</p>
+<p><code>npm test</code> runs <code>test/agentboard.smoke.mjs</code>, <code>test/agentboard.harness.mjs</code>, <code>test/fault-injection.mjs</code> (crash mid-write, concurrent claims, sync partitions) and <code>test/integration.mjs</code> (per-harness <code>spawn --dry-run</code>, skips missing binaries) — all green at v6.5.0. <code>npm run bench</code> asserts scale budgets and <code>npm run bench:load</code> the synthetic 10–10k load test separately. <code>sync-embeds.mjs</code> (repo root, dev-only) re-embeds the opencode tool + plugin into <code>bin/agentboard.js</code> for global installs — run it after editing either file (CI enforces <code>--check</code>).</p>
 
 <h2 id="publish">15 · Install &amp; publish</h2>
 <pre><code>npm i -g @eamonpluto/agentboard     # global install
@@ -276,7 +276,8 @@ agentboard init --harness &lt;name&gt; --portable   # portable wiring
 <h2 id="changes">16 · Changelog</h2>
 <ul>
   <li><strong>Unreleased</strong> — see <code>CHANGELOG.md</code> (contributors: append entries there under <code>## Unreleased</code>).</li>
-  <li><strong>6.4.0</strong> — grok-build real-time delivery (<code>monitor</code> event stream, PostToolUse same-turn notes, inbox skill) + self-hosted Claude Code marketplace; interruption recovery (session-id capture, <code>respawn</code>, checkpoints, <code>pool-resume</code>, start-time-validated presence).</li>
+  <li><strong>6.5.0</strong> — human-in-the-loop approvals (structured DMs, worker protocol, pre-approvals, console section); long-run resilience (compaction cards, token files, digest discipline); interruption recovery (session-id capture, <code>respawn</code>, checkpoints, <code>pool-resume</code>, start-time-validated presence).</li>
+  <li><strong>6.4.0</strong> — grok-build real-time delivery (<code>monitor</code> event stream, PostToolUse same-turn notes, inbox skill) + self-hosted Claude Code marketplace.</li>
   <li><strong>6.3.0</strong> — Claude Code near-async push (<code>asyncRewake</code> background waiters, <code>wait</code> subcommand, marketplace-ready <code>claude-plugin/</code bundle).</li>
   <li><strong>6.2.0</strong> — monolith split into <code>bin/lib/</code modules (no CLI changes) + token-strip hardening + <code>parseRecipients</code> canonicalization.</li>
   <li><strong>6.1.0</strong> — fleet console: <code>/api/fleet|channels|results|audit|inbox</code> read endpoints + token-checked <code>POST /api/ack</code>, dashboard Fleet/Channels/Results/Triage/Audit sections.</li>
@@ -296,7 +297,7 @@ agentboard init --harness &lt;name&gt; --portable   # portable wiring
 <h2 id="scale-limits">17 · Scale limits</h2>
 <p>Stated plainly: <code>--to</code> fans out to up to 10,000 <em>recipients</em> (a broadcast limit); <code>spawn</code> boots one harness process per worker (20/call default) — budget live crews like compute. There is no tested claim of thousands of concurrent workers. Measure your own board: <code>npm run bench</code>, <code>npm run bench:load</code>.</p>
 
-<footer>agentboard documentation · v6.4.0 tree · zero dependencies, node ≥18 · MIT</footer>
+<footer>agentboard documentation · v6.5.0 tree · zero dependencies, node ≥18 · MIT</footer>
 
 </main>
 </div>

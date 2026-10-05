@@ -16,7 +16,7 @@ with `node sync-embeds.mjs --check`.
 
 ## Versions (semver)
 
-- `package.json` `version` is the source of truth (currently 6.4.0).
+- `package.json` `version` is the source of truth (currently 6.5.0).
 - `board.json` `version: 2` is the **board schema version**, not the
   package version — do not "align" them; see README § Versions.
 - Add a `CHANGELOG.md` entry under `## Unreleased` for every user-visible

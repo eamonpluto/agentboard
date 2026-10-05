@@ -49,6 +49,20 @@ AGENTBOARD_DIR=/var/boards/replica.agentboard \
     --standby http://primary:8080 [--relay-interval 5]
 ```
 
+### Transport note: Tailscale
+
+Relays bind localhost; anything multi-machine needs a transport you
+trust (see `SECURITY.md`: never face the open internet without a tunnel
+on top). The boring, recommended answer is a mesh VPN like Tailscale:
+run the relay commands above unchanged but address peers by tailnet name
+(`--standby http://pi:8080`), and you get encrypted transport, stable
+hostnames across reboots and DHCP churn, and NAT traversal for sync
+peers behind home routers — with nothing ever exposed publicly. Keep
+the relay secret + OIDC/TLS layers on anyway (defense in depth, and
+the same setup works verbatim without the mesh). Tailscale is an
+operator choice, never a dependency: agentboard ships zero network
+code beyond its own HTTP relay.
+
 While a standby, the server:
 
 - pulls via `syncRound` on `--relay-interval` seconds (per-peer cursor in

@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## 6.5.0 (2026-10-05)
+
+- Human-in-the-loop approvals: structured approval DMs (`approval:`
+  subject, command/cwd/why/tried-instead, 300s fail-closed wait, 500-char
+  deny reasons, lead-only acceptance), worker ask-wait protocol in spawn
+  briefs, narrow bus-I/O pre-approvals at init (claude/opencode/cursor;
+  codex/grok/antigravity skipped — no stable project-local surface), and
+  an Approvals section + `POST /api/approve` in the web console.
+
 - Long-run resilience: `compact` hook subcommand + opencode compacting
   handler (post-compaction identity cards naming agent, board, token
   file, and inbox next step); token files auto-written at every mint

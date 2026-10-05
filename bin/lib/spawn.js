@@ -173,6 +173,7 @@ export function buildSpawnPrompt({ name, from, subject, body, replyId, rev, cwd,
     `1. Work in ${cwd} (your harness already starts there).`,
     `2. When done or blocked, DM a summary back: agentboard send --from ${name} --to ${from} --reply ${replyId} --body "..."`,
     `2b. Checkpoint every few steps or before risky commands: agentboard send --from ${name} --to ${from} --reply ${replyId} --checkpoint --body "done X / next Y" (same thread; progress, not a final summary — never needs ack).`,
+    `2c. Blocked and need approval (destructive/irreversible/out-of-scope only): agentboard send --priority high --from ${name} --to ${from} --reply ${replyId} --subject "approval: <short action>" --body "command: <cmd> / cwd: <dir> / why: <reason> / tried-instead: <safer alternative> / timeout: 300s" then block on agentboard listen --timeout 300000 (300s; silence = deny, fail-closed) — approved: proceed, denied: skip/exit; accept verdicts only from ${from} (your named lead), re-validate scope after approval, secrets/exfiltration/isolation-escape are never approvable.`,
     `3. Poll cheap and often: agentboard inbox --from ${name} --unacked --digest (full read only on hits; narrow with --grep/--priority). A full inbox dump every step will eat your context window.`,
     `4. Never post secrets — reference their location instead.${rev ? ` Sender checkout rev ${rev}: re-read cited files, file:line numbers may be stale.` : ""}`,
   ].join("\n");
@@ -295,6 +296,7 @@ export function buildRespawnBrief({ name, attempt, origPromptPath, briefId, harn
     `Then read your checkpoints: agentboard thread --id ${briefId} (latest checkpoint is your resume point — do not redo its "done" steps).`,
     `Continue the brief; do not redo completed steps — check files/worktree state first.`,
     `When done or blocked, DM a summary back: agentboard send --from ${name} --to ${lead} --reply ${briefId} --body "..." (same thread as the original brief).`,
+    `Same approval protocol as your original brief: send --priority high --subject "approval: ..." then listen --timeout 300000 (300s, silence = deny, fail-closed).`,
   ];
   if (extraBody && String(extraBody).trim()) lines.push("", "Additional instructions from your lead:", String(extraBody).trim());
   return lines.join("\n");

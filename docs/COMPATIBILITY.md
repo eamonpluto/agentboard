@@ -98,3 +98,29 @@ automatically via `experimental.session.compacting`.
 | codex (Codex CLI) | `PreCompact` / `PostCompact` in hooks config, matcher on `trigger` = `manual`/`auto` (plain stdout ignored; JSON common-output fields) | 2026-10-05 (vendor docs: developers.openai.com/codex/hooks, codex-rs hooks source) |
 | cursor (`cursor-agent`) | `preCompact` (lowercase c) in `.cursor/hooks.json` — observational only (`user_message` output; cannot block or follow up). Claude-format `PreCompact` also maps via third-party hooks | 2026-10-05 (vendor docs: cursor.com/docs/hooks, third-party-hooks) |
 | grok-build (`grok`) | UNVERIFIED — no `PreCompact`/`PostCompact` event found in vendor hook examples or custom-hooks docs as of 2026-10-05 (only community scripts). Fallback: run `agentboard-hook compact --from <you>` as the first post-compaction step, or surface it via the `monitor` stream | unverified |
+
+## Permission pre-approvals
+
+`init --harness` pre-approves *board-only bus I/O* so spawned workers never
+stall on the bus itself (agentboard MCP server, hook/CLI commands mentioning
+agentboard, board-path reads). All writes are additive JSON merges (same
+pattern as hooks/MCP merges): user config is never overwritten, re-runs are
+byte-identical. Harness permissions otherwise stay the user's — init
+deliberately does NOT widen edits/writes outside the board, network access,
+or unrelated commands/tools.
+
+| Harness | Allowlist surface | What `init` writes | Deliberately NOT widened | Status |
+|---|---|---|---|---|
+| claude (Claude Code) | `.claude/settings.json` `permissions.allow` | `mcp__agentboard__*`, `Bash(node *agentboard* *)`, `Bash(agentboard* *)`, `Read(./.agentboard/**)` | everything else (edits, network, other Bash/Read) | verified 2026-10-05 (vendor docs: code.claude.com permissions) |
+| opencode 1.18.x (v1 line) | `opencode.json` project `permission` object | `dm-send: allow`, `bash: {"*agentboard*": allow}`, `read: {"**/.agentboard/**": allow}` (absent keys/patterns only; shorthand strings left alone) | `edit`, `write`, other tools; v2 `permissions` array format not written | verified 2026-10-05 (vendor docs: opencode.ai permissions) |
+| cursor (`cursor-agent`) | `.cursor/permissions.json` | `mcpAllowlist: ["agentboard:*"]`, `terminalAllowlist: ["node:*agentboard*", "agentboard"]` | `autoRun` classifier, in-app terminal allowlist beyond bus commands | verified 2026-10-05 (vendor docs: cursor.com permissions reference) |
+| codex (Codex CLI) | none (project-local) — skipped | nothing (code comment in `applyHarness`) | `approval_policy`, `mcp_servers.*.approval_mode` (TOML user config; project `.codex/config.toml` needs folder trust first) | unverified for project-local pre-approval (vendor docs: developers.openai.com codex config-reference) |
+| grok-build (`grok`) | none (project-local JSON) — skipped | nothing (code comment in `applyHarness`) | `[permission]` rules in `.grok/config.toml` (TOML — no zero-dep-safe merge); note grok reads Claude-compat `.claude/settings.json`, covered under `--harness claude` | unverified (vendor docs: docs.x.ai permissions; community config reference) |
+| antigravity (`agy`) | none (project-local) — skipped | nothing (code comment in `applyHarness`) | `permissions.allow` with `mcp(server/*)`, `command(...)` lives in GLOBAL `~/.gemini/antigravity-cli/settings.json`, which init never touches | unverified for project-local (vendor docs: antigravity.google permissions) |
+| copilot | n/a — skipped | nothing (not an `init --harness` adapter) | all copilot approval policy | unverified (no adapter in this repo) |
+| generic | n/a — skipped | nothing (no config surface) | n/a | n/a |
+
+Verification: `node test/agentboard.approvals-init.mjs` asserts the three
+wired harnesses (entries written, re-run byte-identical, user config
+preserved) and that the skipped harnesses gain no approval files. Re-verify
+a row when its vendor changes the allowlist format.

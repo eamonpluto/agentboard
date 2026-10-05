@@ -17,7 +17,7 @@ import path from "node:path";
 import http from "node:http";
 import { boardDir, requireBoard, getFlag, fail, writeJson, listJson, cleanWebName } from "./store.js";
 import { readAgent, agentTokenMatches, authorizeCheck } from "./identity.js";
-import { readDMs, readVisible, ackedIds } from "./mail.js";
+import { readDMs, readVisible, ackedIds, findMessageById, deliverDMs } from "./mail.js";
 import { workerStatus, pidAlive, killWorkers } from "./spawn.js";
 import { groupTelemetryData } from "./groups.js";
 import { httpJson } from "./sync.js";
@@ -288,6 +288,41 @@ export async function handleApiAck(d, body) {
   return { status: 200, payload: { results } };
 }
 
+// Approval verdicts from the console (mirrors /api/ack: JSON-only,
+// token-checked POST handler). Any valid identity may answer — the
+// worker-side sender check (verdicts only from the named lead) is the real
+// gate, NOT here. The verdict is posted as a DM reply (replyTo=request id,
+// to=requester) so it lands in the requester's inbox.
+export async function handleApiApprove(d, body) {
+  const from = cleanWebName(body && body.from);
+  const token = body && body.token !== undefined && body.token !== null && String(body.token) !== "" ? String(body.token) : undefined;
+  if (!from) return { status: 400, payload: { error: "missing from (your agent name)" } };
+  const rec = readAgent(d, from);
+  if (!rec || !(rec.tokenHash || rec.token) || !agentTokenMatches(rec, token)) return { status: 403, payload: { error: "bad token" } };
+  const rawId = body && body.id !== undefined ? body.id : undefined;
+  if (!rawId || String(rawId) === "") return { status: 400, payload: { error: "pass id <request-msg-id>" } };
+  const id = String(rawId);
+  const verdict = body && body.verdict !== undefined ? String(body.verdict).toLowerCase() : "";
+  if (verdict !== "approved" && verdict !== "denied") return { status: 400, payload: { error: "pass verdict approved|denied" } };
+  const req = findMessageById(d, id);
+  if (!req || !req.from) return { status: 404, payload: { error: `unknown message "${id}"` } };
+  const requester = req.from;
+  let reason = body && body.reason !== undefined && body.reason !== null ? String(body.reason) : "";
+  let truncated = false;
+  if (reason.length > 500) {
+    reason = reason.slice(0, 500);
+    truncated = true;
+  }
+  const note = truncated ? " [truncated to 500 chars]" : "";
+  const replyBody = verdict === "approved"
+    ? (reason ? `approved: ${reason}${note}` : "approved")
+    : (reason ? `denied: ${reason}${note}` : "denied");
+  const at = new Date().toISOString();
+  const res = deliverDMs(d, { from, recipients: [requester], body: replyBody, replyTo: id, at });
+  const replyId = res && res.items && res.items[0] ? res.items[0].id : undefined;
+  return { status: 200, payload: { ok: true, verdict, replyTo: id, reply: replyId, to: requester, truncated, results: [{ id, result: verdict, reply: replyId }] } };
+}
+
 // Interactive shell: tables render client-side from /api/board every 5s
 // (a meta-refresh page would wipe the identity form). Kill posts JSON to
 // /api/kill with the stored from+token. Embedded JS avoids backticks and
@@ -309,7 +344,8 @@ export function renderBoardHtml(boardPath) {
 <h2>Fleet <span class="dim">every relay this board syncs with, live /healthz</span></h2><table><tr><th>relay</th><th>role</th><th>weight</th><th>workers</th><th>lag</th><th>last sync</th></tr><tbody id="fleet"></tbody></table>
 <h2>Channels <span class="dim">shared append-only logs, latest heads</span></h2><div id="channels"></div>
 <h2>Results &amp; races <span class="dim">verified outcomes + live runners (kill closes losers out)</span></h2><table><tr><th>group</th><th>telemetry</th><th>verified result</th><th>running</th><th></th></tr><tbody id="results"></tbody></table>
-<h2>Triage <span class="dim">unacked mail for the identity above</span> <button id="ackall">ack all</button></h2><table><tr><th>id</th><th>from</th><th>message</th><th></th></tr><tbody id="triage"></tbody></table>
+ <h2>Triage <span class="dim">unacked mail for the identity above</span> <button id="ackall">ack all</button></h2><table><tr><th>id</th><th>from</th><th>message</th><th></th></tr><tbody id="triage"></tbody></table>
+ <h2>Approvals <span class="dim">unacked approval: requests for the identity above</span></h2><table><tr><th>id</th><th>from</th><th>request</th><th>reason</th><th></th></tr><tbody id="approvals"></tbody></table>
 <h2>Broadcasts</h2><table><tr><th>id</th><th>from</th><th>to</th><th>subject</th><th>body</th></tr><tbody id="bcast"></tbody></table>
 <h2>Recent activity</h2><table><tr><th>id</th><th>route</th><th>message</th></tr><tbody id="recent"></tbody></table>
 <h2>Audit <span class="dim">tamper-evident chain + recent events (payloads never leave the server)</span></h2><div id="auditver" class="dim"></div><table><tr><th>seq</th><th>at</th><th>actor</th><th>event</th><th>target</th><th>result</th></tr><tbody id="audit"></tbody></table>
@@ -433,8 +469,13 @@ async function refresh(){
         document.getElementById('triage').innerHTML=(tj.items||[]).map(function(m){
           return '<tr><td>'+esc(m.id)+'</td><td>'+esc(m.from)+'</td><td>'+(m.subject?'<b>'+esc(m.subject)+'</b><br>':'')+esc(m.head)+'</td><td><button data-ack=\''+esc(m.id)+'\'>ack</button></td></tr>';
         }).join('')||'<tr><td colspan=\'4\' class=\'dim\'>inbox zero for '+esc(c.from)+'</td></tr>';
+        var ap=(tj.items||[]).filter(function(m){return m.subject&&m.subject.indexOf('approval: ')===0;});
+        document.getElementById('approvals').innerHTML=ap.map(function(m){
+          return '<tr><td>'+esc(m.id)+'</td><td>'+esc(m.from)+'</td><td>'+(m.subject?'<b>'+esc(m.subject)+'</b><br>':'')+esc(m.head)+'</td><td><input data-reason=\''+esc(m.id)+'\' maxlength=\'500\' size=\'18\' placeholder=\'optional reason\'></td><td><button data-approve=\''+esc(m.id)+'\'>approve</button> <button class=\'danger\' data-deny=\''+esc(m.id)+'\'>deny</button></td></tr>';
+        }).join('')||'<tr><td colspan=\'5\' class=\'dim\'>no approval requests for '+esc(c.from)+'</td></tr>';
       }else{
         document.getElementById('triage').innerHTML='<tr><td colspan=\'4\' class=\'dim\'>set identity above to triage</td></tr>';
+        document.getElementById('approvals').innerHTML='<tr><td colspan=\'5\' class=\'dim\'>set identity above to review approvals</td></tr>';
       }
     }catch(e){}
     try{
@@ -449,6 +490,8 @@ async function refresh(){
     }catch(e){}
     Array.prototype.forEach.call(document.querySelectorAll('[data-kill]'),function(b){b.onclick=function(){kill([b.getAttribute('data-kill')]);};});
     Array.prototype.forEach.call(document.querySelectorAll('[data-ack]'),function(b){b.onclick=function(){ackOne(b.getAttribute('data-ack'));};});
+    Array.prototype.forEach.call(document.querySelectorAll('[data-approve]'),function(b){b.onclick=function(){decide(b.getAttribute('data-approve'),'approved');};});
+    Array.prototype.forEach.call(document.querySelectorAll('[data-deny]'),function(b){b.onclick=function(){decide(b.getAttribute('data-deny'),'denied');};});
   }catch(e){say('refresh failed: '+e.message);}
 }
 async function ackOne(id){
@@ -460,6 +503,19 @@ async function ackOne(id){
     var j=await r.json();
     say((r.ok?'':'HTTP '+r.status+' ')+JSON.stringify((j.results||[]).map(function(x){return x.id+': '+x.result;})));
   }catch(e){say('ack failed: '+e.message);}
+  refresh();
+}
+async function decide(id,verdict){
+  var c=creds();
+  if(!c.from||!c.token){say('set identity + token first');return;}
+  var inp=document.querySelector('[data-reason="'+id+'"]');
+  var reason=inp?inp.value:'';
+  say(verdict+' '+id+' …');
+  try{
+    var r=await fetch('/api/approve',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({from:c.from,token:c.token,id:id,verdict:verdict,reason:reason})});
+    var j=await r.json();
+    say((r.ok?'':'HTTP '+r.status+' ')+JSON.stringify(j));
+  }catch(e){say('approve failed: '+e.message);}
   refresh();
 }
 refresh();
@@ -572,6 +628,26 @@ export async function cmdWeb(args) {
             return;
           }
           const out = await handleApiAck(d, body);
+          res.writeHead(out.status, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+          res.end(JSON.stringify(out.payload));
+          return;
+        }
+        if (req.method === "POST" && url.pathname === "/api/approve") {
+          // JSON-only like /api/ack (plain browser forms can't reach it),
+          // token-checked like the CLI. Any valid identity may answer; the
+          // worker-side sender check is the real gate.
+          if (!String(req.headers["content-type"] || "").includes("application/json")) {
+            res.writeHead(415, { "content-type": "application/json; charset=utf-8" });
+            res.end(JSON.stringify({ error: "content-type must be application/json" }));
+            return;
+          }
+          const { body, error } = await readKillBody(req);
+          if (error) {
+            res.writeHead(error[0], { "content-type": "application/json; charset=utf-8" });
+            res.end(JSON.stringify({ error: error[1] }));
+            return;
+          }
+          const out = await handleApiApprove(d, body);
           res.writeHead(out.status, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
           res.end(JSON.stringify(out.payload));
           return;

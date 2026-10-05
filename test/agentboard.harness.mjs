@@ -729,17 +729,41 @@ const stopBg = (h) => {
   try { h.child.kill(); } catch {}
   try { fs.closeSync(h.fd); } catch {}
 };
-// Pool A (schema): background supervisor boots instant workers; read state
-// mid-run — no finish assertions (natural exits linger on detached shells).
-const supA = bgCli(["pool", "--from", "plboss", "--count", "3", "--pool-size", "2", "--harness", "generic", "--cmd", 'node -e "process.exit(0)"', "--prefix", "plw", "--body", "pool brief", "--json"], "supA.log");
-await new Promise((r) => setTimeout(r, 5000));
-const poolFiles = fs.readdirSync(path.join(pl.p, ".agentboard", "pool-state")).filter((f) => f.endsWith(".json"));
-check("pool: one state file", poolFiles.length === 1);
-const poolId = poolFiles[0].replace(/\.json$/, "");
-const pst = JSON.parse(fs.readFileSync(path.join(pl.p, ".agentboard", "pool-state", poolFiles[0]), "utf8"));
-check("pool: resumable schema", Array.isArray(pst.queue) && pst.queue.length === 3 && pst.cursor === 2 && pst.idByName && Object.keys(pst.idByName).length === 3 && !!pst.spawnOpts && pst.body === "pool brief");
-check("pool: results carry prompt", (pst.results || []).every((r) => r.error || r.promptPath));
-check("pool: launched pair", pst.launched === 2);
+const readPoolState = (id) => {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(pl.p, ".agentboard", "pool-state", id + ".json"), "utf8"));
+  } catch {
+    return null;
+  }
+};
+const waitPoolState = async (id, pred, tries = 120) => {
+  for (let i = 0; i < tries; i++) {
+    const st = readPoolState(id);
+    if (st && pred(st)) return st;
+    await new Promise((r) => setTimeout(r, 500));
+  }
+  return readPoolState(id);
+};
+const waitPoolFile = async (exclude = [], tries = 60) => {
+  for (let i = 0; i < tries; i++) {
+    const files = fs.readdirSync(path.join(pl.p, ".agentboard", "pool-state")).filter((f) => f.endsWith(".json") && !exclude.includes(f));
+    if (files.length > 0) return files[0].replace(/\.json$/, "");
+    await new Promise((r) => setTimeout(r, 500));
+  }
+  return null;
+};
+// Pool A (schema): background supervisor boots 60s sleepers so the pool is
+// still mid-run when read — instant-exit workers would already be finished
+// on fast boxes (and linger ~60s on Windows detached shells), making any
+// mid-run snapshot assertion platform-flaky either way.
+const supA = bgCli(["pool", "--from", "plboss", "--count", "3", "--pool-size", "2", "--harness", "generic", "--cmd", 'node -e "setTimeout(()=>{},60000)"', "--prefix", "plw", "--body", "pool brief", "--json"], "supA.log");
+const poolId = await waitPoolFile();
+check("pool: one state file", !!poolId);
+const poolFiles = poolId ? [poolId + ".json"] : [];
+const pst = await waitPoolState(poolId, (st) => st.launched === 2);
+check("pool: resumable schema", !!pst && Array.isArray(pst.queue) && pst.queue.length === 3 && pst.cursor === 2 && pst.idByName && Object.keys(pst.idByName).length === 3 && !!pst.spawnOpts && pst.body === "pool brief");
+check("pool: results carry prompt", !!pst && (pst.results || []).every((r) => r.error || r.promptPath));
+check("pool: launched pair", !!pst && pst.launched === 2);
 stopBg(supA);
 const plMustFail = (label, args) => {
   let bad = false;
@@ -763,8 +787,10 @@ fs.rmSync(lockFile, { force: true });
 // Pool B (reconcile-finish): supervisor dies, both replies land, resume
 // finishes immediately — no launches, no waiting on exits.
 const supB = bgCli(["pool", "--from", "plboss", "--count", "2", "--pool-size", "2", "--harness", "generic", "--cmd", 'node -e "setTimeout(()=>{},60000)"', "--prefix", "plq", "--body", "sleep pair"], "supB.log");
-await new Promise((r) => setTimeout(r, 4000));
-const resumeIdB = fs.readdirSync(path.join(pl.p, ".agentboard", "pool-state")).filter((f) => f.endsWith(".json") && f !== poolFiles[0])[0].replace(/\.json$/, "");
+const resumeIdB = await waitPoolFile([poolFiles[0]]);
+check("pool B: state file appears", !!resumeIdB);
+const bBooted = resumeIdB ? await waitPoolState(resumeIdB, (st) => st.launched === 2) : null;
+check("pool B: workers booted", !!bBooted);
 stopBg(supB);
 const qState = JSON.parse(fs.readFileSync(path.join(pl.p, ".agentboard", "pool-state", resumeIdB + ".json"), "utf8"));
 for (const w of ["plq-1", "plq-2"]) {
@@ -780,8 +806,10 @@ plMustFail("pool-resume: finished refused", ["pool-resume", "--from", "plboss", 
 // adopts it, then a kill triggers the second boot — all transitions forced,
 // no natural-exit waits.
 const supC = bgCli(["pool", "--from", "plboss", "--count", "2", "--pool-size", "1", "--harness", "generic", "--cmd", 'node -e "setTimeout(()=>{},60000)"', "--prefix", "plr", "--body", "sleep crew"], "supC.log");
-await new Promise((r) => setTimeout(r, 4000));
-const resumeId = fs.readdirSync(path.join(pl.p, ".agentboard", "pool-state")).filter((f) => f.endsWith(".json") && f !== poolFiles[0] && f !== resumeIdB + ".json")[0].replace(/\.json$/, "");
+const resumeId = await waitPoolFile([poolFiles[0], resumeIdB + ".json"]);
+check("pool C: state file appears", !!resumeId);
+const cBooted = resumeId ? await waitPoolState(resumeId, (st) => st.launched >= 1) : null;
+check("pool C: first worker booted", !!cBooted);
 stopBg(supC);
 const supR = bgCli(["pool-resume", "--from", "plboss", "--id", resumeId], "supR.log");
 check("pool-resume: adopts live worker", await waitForLog("supR.log", "adopted live plr-1"));
