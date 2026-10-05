@@ -39,6 +39,73 @@ orchestrators on top of `send`/`spawn`.
   automatically up to N total, with backpressure (queue refuses past
   4× pool size).
 
+## Presence you can trust (recycled-pid guard)
+
+`spawn-status` liveness used to be `kill(pid, 0)` alone: after a reboot
+the OS recycles pids and a dead worker could read as "running". Status
+now also resolves the process start time (`ps` elapsed on unix,
+`Get-Process` on Windows, 60s memo) and compares it against the recorded
+`spawnedAt` (±120s skew): a live pid whose process started *after* the
+spawn is a stranger, and `alive` flips to false. The verdict rides along
+as `aliveVerified` (`true` corroborated, `false` contradicted, `null`
+unverifiable on this platform — the old kill-0 verdict stands). The
+override needs positive evidence (start time after spawn + skew), so a
+false "dead" takes a >2min clock jump between spawn and check — rare,
+and missing data never flips a verdict. Practical effect: after a
+reboot, recycled pids read dead instead of running, so `respawn` is
+allowed instead of wrongly refused. Reconcile sweeps (`doctor`,
+post-reboot `spawn-status --all` review) remain the operator's job for
+now.
+
+## Progress checkpoints
+
+Long briefs die mid-way; re-deriving progress from files wastes the
+resume. Workers checkpoint every few steps (or before anything risky):
+
+```sh
+agentboard send --from <you> --to <lead> --reply <brief-id> --checkpoint --body "done X / next Y"
+```
+
+(`dm_send` takes `checkpoint: true`; same on the opencode `dm-send`
+tool.) Checkpoints ride the normal DM thread, so `thread`/`gather`,
+sync, and push delivery all work unchanged — but they are *progress*,
+not work awaiting acceptance:
+
+- `--unacked` (CLI and `dm_inbox`) and the `ack --timeout` hint skip
+  them; transcripts label them (`checkpoint: progress`, `[checkpoint]`
+  in digests).
+- `spawn-status` reply detection ignores them: only a non-checkpoint
+  reply to the brief counts as "reply landed".
+- `ack --all` still records them if run (harmless); rate limits and
+  duplicate suppression apply like any send, so checkpoint every few
+  steps — not every tool call.
+
+A respawned worker reads the latest checkpoint off the thread
+(`inbox`/`thread --id <brief-id>`) and continues from "next Y" instead
+of restarting. Checkpoints are unverified progress: they never feed
+`result record` / `race` winner logic (that still needs `ack --verify`).
+
+## Pool supervision + re-attach
+
+`pool` briefs all workers up front, boots at most `--pool-size`
+concurrently, and replaces exits until N total — but the supervision loop
+runs inside the invoking CLI process. If that process dies (lead restart,
+shutdown, supervision-window timeout), `pool-resume --id <pool> --from
+<you>` re-attaches: it reconciles every launched worker (replied → done,
+live → re-adopted, dead w/o reply → done with a `respawn` hint), then
+supervises the unstarted remainder for a fresh window. Briefs are reused
+by id, never duplicated; one supervisor at a time via an advisory pool
+lock (TTL expiry lets a later attach take over after a crash).
+`finishedAt` marks true completion only — a timed-out pool stays
+resumable. Pools created before the resumable schema (no queue cursor)
+are refused with guidance. Lead/admin only.
+
+Windows note: console-less detached `cmd.exe` wrappers linger up to ~60s
+after their payload exits, so natural-exit detection on `shell:true`
+harnesses (opencode/claude/codex/cursor/generic) trails by up to a
+minute; kills report immediately. Pool turnover and `spawn-status`
+inherit the tail — size supervision windows accordingly.
+
 ## Unacknowledged-brief timeout (retry / reassign)
 
 `ack` is orthogonal to delivery: a reply that sits `--unacked` is work
@@ -83,3 +150,33 @@ terminates everything when the whole run is lost.
   that stay addressable. `spawn-status` shows the recorded lifetime.
 - Either way: **finished workers' DMs are files** — `inbox --from <name>`
   reads them after the process is gone.
+- **Session-id capture (respawn prerequisite).** Spawn boots the four
+  JSON-output harnesses with machine-readable logs (`opencode run
+  --format json`, `claude -p --output-format json`, `grok
+  --output-format json`, `codex exec --json`) so the harness session id
+  can be recovered from the worker log. `spawn-status` lazily extracts it
+  into `worker-sessions/<name>.json` (kept beside — not inside — the
+  agent doc, so presence heartbeats can never wipe it; machine-local,
+  never synced). Provenance is tracked (`preassigned` /
+  `preassigned-confirmed` / `log` / `log-override` — a disagreeing log
+  wins, in case the installed harness ignored the flag).
+- **Pre-assigned ids (the mid-run-kill case).** Log parsing can't cover a
+  worker killed before emitting anything (notably grok, whose id only
+  arrives end-of-run). Where the CLI supports creating with an id,
+  `bootWorker` mints a UUID and passes it in (`claude --session-id`,
+  grok `-s`), so the binding holds a resumable id from boot. opencode
+  has no pre-set flag (its id arrives in the first stream event — the
+  residual window is milliseconds); codex relies on `thread.started`;
+  cursor/agy offer neither.
+- **Respawn (`respawn --from <lead> --to <worker>`).** Reboots one dead
+  worker in its *same* harness conversation: `opencode run --session`,
+  `claude -p --resume` (+ `CLAUDE_CODE_RESUME_INTERRUPTED_TURN=1` so a
+  killed turn continues), `codex exec resume`, `grok -r`, agy
+  `--conversation`, cursor `--resume`; generic has no continuity and
+  re-boots fresh. The catch-up brief points at the original prompt file
+  and threads the same reply id, so the worker continues instead of
+  restarting; codex points at the catch-up file itself (its positional
+  prompt can't attach files). Refuses live workers unless `--force`
+  (kills first, own-crew scoped like `spawn-kill`); refuses unknown,
+  never-captured, and pre-capture-era workers with re-brief guidance.
+  Attempts count on the binding; `--dry-run` previews. Lead/admin only.

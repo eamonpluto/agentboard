@@ -244,8 +244,9 @@ export function ensureSender(d, agent, token) { // line 387
 // Permission matrix (minimal):
 //   - admin: all, incl. role grants / offboard / prune / acl set /
 //     group restrict / serve --allow-remote-spawn.
-//   - lead: send / spawn / pool / spawn-kill (OWN crew only: target.spawnedBy
-//     must equal caller, or target never spawned) / group manage /
+//   - lead: send / spawn / respawn / pool / spawn-kill (OWN crew only:
+//     target.spawnedBy must equal caller, or target never spawned;
+//     respawn --force reuses the spawn-kill scope check) / group manage /
 //     result record / race close / channel post / lock / inbox / ack /
 //     redeliver + all reads.
 //   - worker: send / inbox / ack / redeliver / lock (scoped: release still
@@ -328,7 +329,7 @@ export function authorizeCheck(d, agent, action, scope) { // line 537
   const role = getRole(d, agent);
   const act = String(action || "");
   const ADMIN_ONLY = new Set(["prune", "acl-set", "role-grant", "offboard", "group-restrict", "serve-remote", "import", "snapshot-schedule", "quota-set", "hold-place", "hold-lift", "pairing"]);
-  const LEAD_PLUS = new Set(["spawn", "pool", "group-manage", "channel-post", "result-record", "race-close"]);
+  const LEAD_PLUS = new Set(["spawn", "respawn", "pool", "group-manage", "channel-post", "result-record", "race-close"]);
   const WORKER_WRITES = new Set(["send", "ack", "redeliver", "lock"]);
   const EXPORT_ROLES = new Set(["admin", "auditor"]);
   if (act === "export") {

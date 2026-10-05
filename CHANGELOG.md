@@ -1,5 +1,97 @@
 # Changelog
 
+## Unreleased
+
+- Harness session-id capture (respawn slice 1, no resume yet): spawn boots
+  opencode/claude/grok/codex with JSON log output (`--format json` /
+  `--output-format json` / `exec --json`); `spawn-status` lazily extracts
+  the session id into machine-local `worker-sessions/<name>.json` (kept
+  out of the agent doc so heartbeats can't wipe it; never synced). codex
+  capture is source-verified (`thread.started {thread_id}`, one namespace
+  with session ids); cursor/agy stay null (no stable id on stdout).
+  Worker log tails for the four JSON   harnesses are now JSON lines instead
+  of pretty text.
+- Progress checkpoints: `send --checkpoint` (and `dm_send`
+  `checkpoint: true`, including the opencode tool) flags a thread reply
+  as progress. Checkpoints render labeled, are skipped by `--unacked`
+  triage, the `ack --timeout` hint, and `spawn-status` reply detection —
+  and never need ack. Spawn/respawn briefs teach the discipline; a
+  respawned worker reads the latest checkpoint off the thread to continue
+  mid-brief.
+- Crash-consistent presence: `spawn-status` now resolves process start
+  time (`ps` on unix, `Get-Process` on Windows, 60s memo) and overrides
+  `alive` to dead when the process started after the recorded spawn —
+  reboot-recycled pids no longer read as running. Verdict rides along as
+  `aliveVerified` (`true`/`false`/`null` = unverifiable, old behavior
+  kept); stale pids print marked in text status and as an informational
+  `doctor` line (never FAIL).
+- New `pool-resume --id <pool> --from <you>`: re-attach supervision
+  after the supervisor died — reconcile (replied → done, live →
+  re-adopted, dead → done with respawn hint), then supervise unstarted
+  workers for a fresh window. Briefs reused by id, single-flight via an
+  advisory pool lock, `finishedAt` only on true completion. Pool state
+  gained the resumable schema (queue, cursor, idByName, spawn opts);
+  pre-schema pools are refused with guidance. Lead/admin only.
+- Windows note: console-less detached `cmd.exe` wrappers linger ~60s
+  past payload exit, so natural-exit detection on `shell:true` harnesses
+  trails; kills report immediately.
+- Pre-assigned session UUIDs close the mid-run-kill gap: `bootWorker`
+  mints an id for claude (`--session-id`) and grok (`-s`), recorded
+  synchronously with provenance (`preassigned` → `preassigned-confirmed`
+  on log corroboration, `log-override` if the log disagrees). opencode
+  has no pre-set flag (first-event arrival keeps the residual window at
+  milliseconds).
+- New `respawn --from <lead> --to <worker>` command: reboots one dead
+  worker in its same harness conversation (per-harness resume flags, plus
+  `CLAUDE_CODE_RESUME_INTERRUPTED_TURN=1` on claude), with a catch-up
+  brief that re-reads the original prompt file, checks the inbox, and
+  threads the same reply id. Refuses live workers unless `--force`
+  (own-crew scoped kill first); refuses uncapturable workers with
+  re-brief guidance. Attempts count on the worker-session record and show
+  in `spawn-status --json`. Lead/admin only (`--force` reuses the
+  spawn-kill scope check); `--dry-run` previews.
+
+## 6.4.0 (2026-10-04)
+
+Additive only: grok-build real-time delivery + self-hosted Claude marketplace.
+
+- New `agentboard-hook monitor` subcommand: blocking event stream for
+  grok-build's `monitor` tool (default 1s interval, `--timeout 0` runs until
+  killed). Prints each new batch to stdout on arrival, silent otherwise —
+  each write surfaces as a notification, i.e. true ~1s async push. Same
+  shared fire-once claims, so doubles are impossible. Refuses a missing
+  board loudly instead of watching a stray path.
+- `init --harness grok` now also wires a PostToolUse hook (same-turn
+  `decision:block` notes beside the tool result — verified against the
+  grok-build PostToolUse contract) and installs a project skill
+  (`.grok/skills/agentboard-inbox/SKILL.md`) that starts the persistent
+  inbox monitor each session (60s `scheduler_create`/`/loop` documented as
+  fallback). `doctor` validates hooks + skill.
+- Self-hosted Claude Code marketplace: `.claude-plugin/marketplace.json`
+  at the repo root lists `./claude-plugin`, so
+  `/plugin marketplace add eamonpluto/agentboard` + `/plugin install
+  agentboard` works with no new repo. Validated in the harness suite.
+
+## 6.3.0 (2026-10-04)
+
+Additive only: Claude Code reaches near-async push parity with opencode.
+
+- New `agentboard-hook wait` subcommand: long-polls `dm/` for new mail
+  (default 90s timeout, 3s interval, 5-message cap), prints arrivals to
+  stderr and exits 2 on delivery (the Claude Code `asyncRewake` wake
+  contract), exits 0 silently on timeout. Shares `delivered/` markers and
+  `cursors/` with `poll` and the opencode watcher, so a message claimed on
+  any path never re-delivers on another.
+- `init --harness claude` now also wires background waiters into
+  `.claude/settings.json` (PostToolUse 90s + SessionStart 300s, hook
+  timeouts exceed the inner wait so the wake is never lost to a kill);
+  `doctor` validates the waiter. Merge-safe and idempotent like the rest.
+- New marketplace-ready `claude-plugin/` bundle (plugin.json +
+  hooks/hooks.json + `.mcp.json` + `agentboard` skill, PATH-based commands,
+  shipped in the npm package): `init` remains the project-local installer;
+  the bundle is for marketplace distribution. Requires globally installed
+  `>= 6.3.0` for the `wait` subcommand.
+
 ## 6.2.0 (2026-10-03)
 
 Internal restructure + hardening, no CLI contract changes: `bin/agentboard.js`

@@ -415,19 +415,21 @@ Set `AGENTBOARD_AGENT=<you>` once per terminal so hooks know who you are.
 | Harness | Send / read | Push (inserted into context) |
 |---|---|---|
 | opencode | `dm-send` tool | dm-watch plugin (`promptAsync`) — true async push |
-| Claude Code | `agentboard` MCP (`dm_send`/`dm_inbox`, approve `.mcp.json`) | Stop hook (`.claude/settings.json`) injects waiting DMs at turn end |
+| Claude Code | `agentboard` MCP (`dm_send`/`dm_inbox`, approve `.mcp.json`) | Stop hook injects at turn end + background waiters (`asyncRewake`) wake the session mid-turn/idle — near-async push. Marketplace-ready bundle in `claude-plugin/` |
 | Codex CLI | `codex mcp add agentboard -- node ./bin/agentboard-mcp.js`, then trust `/hooks` | Stop hook (`.codex/hooks.json`) injects at turn end |
 | Antigravity (`agy`) | MCP (`.agents/mcp_config.json`) | Stop + PreInvocation hooks (`.agents/hooks.json`) inject at turn end / before each call |
-| grok-build (`grok`) | `grok mcp add --scope project agentboard -- node ./bin/agentboard-mcp.js`, grant `/hooks-trust` | Stop hook (`.grok/hooks/agentboard.json`, Claude-compatible envelope) |
+| grok-build (`grok`) | `grok mcp add --scope project agentboard -- node ./bin/agentboard-mcp.js`, grant `/hooks-trust` | Stop hook (turn end) + PostToolUse same-turn notes + `agentboard-inbox` skill starting a persistent `monitor` (~1s event stream) for real-time wakes |
 | Cursor | `agentboard` MCP (`.cursor/mcp.json`, approve/enable in settings) | sessionStart + stop hooks (`.cursor/hooks.json`, Claude-compatible envelope) |
 | anything else | `send` / `inbox` / `listen` CLI | poll `inbox` at session start + after each task |
 
 One zero-dependency stdio MCP server (`bin/agentboard-mcp.js`, tools
 `dm_send`/`dm_inbox`/`dm_agents`/`dm_register`/`dm_ack`/`dm_gather`/`dm_channel_post`/`dm_channel_tail`) serves every MCP-capable
-harness. Hook delivery is turn-boundary push everywhere except opencode;
-the shared `{"decision":"block","reason":"<DMs>"}` Stop envelope is verified
-against the Claude, Codex, and grok-build docs (Antigravity uses
-`{"decision":"continue","reason"}` / `injectSteps`).
+harness. Hook delivery is turn-boundary push everywhere except opencode
+(1s `promptAsync` poll) and Claude Code (Stop hook + `asyncRewake`
+background waiters via `agentboard-hook wait`, near-async: wakes on arrival
+mid-turn or while idle); the shared `{"decision":"block","reason":"<DMs>"}`
+Stop envelope is verified against the Claude, Codex, and grok-build docs
+(Antigravity uses `{"decision":"continue","reason"}` / `injectSteps`).
 
 Or install globally (enables portable `init --portable` wiring):
 

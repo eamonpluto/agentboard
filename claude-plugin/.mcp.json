@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "agentboard": {
+      "command": "agentboard-mcp",
+      "args": []
+    }
+  }
+}

@@ -113,6 +113,7 @@ export function dirs(root) { // line 122
     results: path.join(root, "results"),
     tombstones: path.join(root, "tombstones"),
     poolState: path.join(root, "pool-state"),
+    workerSessions: path.join(root, "worker-sessions"),
     index: path.join(root, "index"),
     cursors: path.join(root, "cursors"),
     revoked: path.join(root, "revoked"),
@@ -122,7 +123,7 @@ export function dirs(root) { // line 122
 
 export function ensureBoard(root) { // line 142
   const d = dirs(root);
-  for (const p of [d.root, d.agents, d.dm, d.delivered, d.broadcast, d.groups, d.channels, d.locks, d.results, d.tombstones, d.poolState, d.index, d.cursors, d.revoked, d.holds]) {
+  for (const p of [d.root, d.agents, d.dm, d.delivered, d.broadcast, d.groups, d.channels, d.locks, d.results, d.tombstones, d.poolState, d.workerSessions, d.index, d.cursors, d.revoked, d.holds]) {
     fs.mkdirSync(p, { recursive: true });
   }
   const metaPath = path.join(d.root, "board.json");

@@ -1,4 +1,5 @@
 import { execFileSync, spawn } from "node:child_process";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -8,6 +9,8 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const CLI = fileURLToPath(new URL("../bin/agentboard.js", import.meta.url));
 const HOOK = fileURLToPath(new URL("../bin/agentboard-hook.js", import.meta.url));
 const MCP = fileURLToPath(new URL("../bin/agentboard-mcp.js", import.meta.url));
+import { buildSpawnTarget, buildSpawnPrompt, buildRespawnTarget, buildRespawnBrief, extractHarnessSessionId, isPidStale, readWorkerSession, syncWorkerSession, workerStatus, bootWorker, pidStartTime, parsePsEtime } from "../bin/lib/spawn.js";
+import { ensureBoard } from "../bin/lib/store.js";
 
 let failures = 0;
 const check = (label, cond) => {
@@ -291,6 +294,49 @@ const batch2 = JSON.parse(run(["hook", "poll", "--from", "bob", "--style", "grok
 check("hook: remainder follows next poll", (batch2.reason.match(/batch mail/g) || []).length === 2 && batch2.reason.includes("batch mail 7"));
 check("hook: quiet after drain", run(["hook", "poll", "--from", "bob", "--style", "grok"], henv).trim() === "");
 
+// wait: long-poll exit contract (Claude Code asyncRewake — exit 2 wakes,
+// stderr carries the DMs, exit 0 is silent)
+const runWait = (args, env) => {
+  try {
+    const out = execFileSync("node", [HOOK, ...args], { env });
+    return { status: 0, stdout: out.toString(), stderr: "" };
+  } catch (e) {
+    return { status: e.status, stdout: (e.stdout || "").toString(), stderr: (e.stderr || "").toString() };
+  }
+};
+run(["cli", "send", "--from", "alice", "--to", "bob", "--body", "wait mail one"], henv);
+const w1 = runWait(["wait", "--from", "bob", "--timeout", "5", "--interval", "1"], henv);
+check("hook: wait exits 2 with mail on stderr", w1.status === 2 && w1.stderr.includes("wait mail one") && !w1.stdout.includes("wait mail one"));
+check("hook: poll silent after wait delivery", run(["hook", "poll", "--from", "bob", "--style", "grok"], henv).trim() === "");
+const w2 = runWait(["wait", "--from", "bob", "--timeout", "1", "--interval", "1"], henv);
+check("hook: wait exits 0 silent on timeout", w2.status === 0 && w2.stdout.trim() === "" && w2.stderr.trim() === "");
+run(["cli", "send", "--from", "alice", "--to", "bob", "--body", "wait cap A"], henv);
+run(["cli", "send", "--from", "alice", "--to", "bob", "--body", "wait cap B"], henv);
+const w3 = runWait(["wait", "--from", "bob", "--timeout", "5", "--interval", "1", "--max", "1"], henv);
+check("hook: wait --max caps delivery", w3.status === 2 && (w3.stderr.includes("wait cap A") !== w3.stderr.includes("wait cap B")));
+check("hook: remainder follows wait via poll", run(["hook", "poll", "--from", "bob", "--style", "grok"], henv).includes("wait cap"));
+check("hook: wait rejects bad timeout", runWait(["wait", "--from", "bob", "--timeout", "-1"], henv).status === 1);
+
+// monitor: blocking event stream for grok's monitor tool (prints on
+// arrival, silent otherwise, exits 0 on timeout)
+const runMonitor = (args, env) =>
+  new Promise((resolve) => {
+    const child = spawn("node", [HOOK, ...args], { env });
+    let out = "";
+    let err = "";
+    child.stdout.on("data", (d) => { out += d.toString(); });
+    child.stderr.on("data", (d) => { err += d.toString(); });
+    child.on("close", (code) => resolve({ code, out, err }));
+  });
+run(["cli", "send", "--from", "alice", "--to", "bob", "--body", "monitor mail one"], henv);
+const m1 = await runMonitor(["monitor", "--from", "bob", "--timeout", "6", "--interval", "1"], henv);
+check("hook: monitor prints arrival then exits 0", m1.code === 0 && m1.out.includes("monitor mail one"));
+check("hook: poll silent after monitor delivery", run(["hook", "poll", "--from", "bob", "--style", "grok"], henv).trim() === "");
+const m2 = await runMonitor(["monitor", "--from", "bob", "--timeout", "2", "--interval", "1"], henv);
+check("hook: monitor exits 0 silent on timeout", m2.code === 0 && m2.out.trim() === "");
+const m3 = await runMonitor(["monitor", "--from", "bob", "--timeout", "2"], { ...henv, AGENTBOARD_DIR: path.join(henv.AGENTBOARD_DIR, "nope") });
+check("hook: monitor refuses missing board", m3.code === 1 && (m3.out + m3.err).includes("no board"));
+
 // unified tracking: hook-delivered mail is skipped by marker-aware readers,
 // and a foreign delivered marker suppresses re-delivery
 run(["cli", "send", "--from", "alice", "--to", "bob", "--body", "already seen elsewhere"], henv);
@@ -336,6 +382,87 @@ if (savedBoardDir === undefined) delete process.env.AGENTBOARD_DIR;
 else process.env.AGENTBOARD_DIR = savedBoardDir;
 fs.rmSync(xBoard, { recursive: true, force: true });
 
+// ------------------------------------------------------- harness session-id capture (respawn slice 1)
+const tO = buildSpawnTarget({ harness: "opencode", cwd: "/tmp", name: "w", promptPath: "/tmp/x.md", prompt: "p" });
+check("capture: opencode --format json", tO.args.includes("--format") && tO.args[tO.args.indexOf("--format") + 1] === "json");
+const tC = buildSpawnTarget({ harness: "claude", cwd: "/tmp", name: "w", promptPath: "/tmp/x.md", prompt: "p" });
+check("capture: claude --output-format json", tC.args.includes("--output-format") && tC.args[tC.args.indexOf("--output-format") + 1] === "json");
+const tG = buildSpawnTarget({ harness: "grok", cwd: "/tmp", name: "w", promptPath: "/tmp/x.md", prompt: "p" });
+check("capture: grok --output-format json", tG.args.includes("--output-format") && tG.args[tG.args.indexOf("--output-format") + 1] === "json");
+const tX = buildSpawnTarget({ harness: "codex", cwd: "/tmp", name: "w", promptPath: "/tmp/x.md", prompt: "p" });
+check("capture: codex exec --json", tX.args.includes("--json"));
+check("capture: codex thread.started", extractHarnessSessionId("codex", JSON.stringify({ type: "thread.started", thread_id: "thread-abc" })) === "thread-abc");
+check("capture: claude session_id", extractHarnessSessionId("claude", JSON.stringify({ type: "result", session_id: "abc-123" })) === "abc-123");
+check("capture: opencode step_start", extractHarnessSessionId("opencode", "junk line\n" + JSON.stringify({ type: "step_start", sessionID: "ses_abc" })) === "ses_abc");
+check("capture: grok sessionId", extractHarnessSessionId("grok", JSON.stringify({ sessionId: "xyz", foo: 1 })) === "xyz");
+check("capture: nested session.id", extractHarnessSessionId("opencode", JSON.stringify({ session: { id: "nested-1" } })) === "nested-1");
+const PRE_UUID = "11111111-2222-4333-8444-555555555555";
+const tCp = buildSpawnTarget({ harness: "claude", cwd: "/tmp", name: "w", promptPath: "/tmp/x.md", prompt: "p", sessionId: PRE_UUID });
+check("capture: claude --session-id preassign", tCp.args.includes("--session-id") && tCp.args[tCp.args.indexOf("--session-id") + 1] === PRE_UUID);
+const tGp = buildSpawnTarget({ harness: "grok", cwd: "/tmp", name: "w", promptPath: "/tmp/x.md", prompt: "p", sessionId: PRE_UUID });
+check("capture: grok -s preassign", tGp.args.includes("-s") && tGp.args[tGp.args.indexOf("-s") + 1] === PRE_UUID);
+check("capture: no preassign without id", !buildSpawnTarget({ harness: "claude", cwd: "/tmp", name: "w", promptPath: "/tmp/x.md", prompt: "p" }).args.includes("--session-id"));
+check("capture: junk null", extractHarnessSessionId("codex", "plain text\nnot json") === null);
+check("capture: empty null", extractHarnessSessionId("claude", "") === null && extractHarnessSessionId("claude", null) === null);
+check("capture: non-string ignored", extractHarnessSessionId("claude", JSON.stringify({ session_id: 42 })) === null);
+const capBoard = fs.mkdtempSync(path.join(os.tmpdir(), "ab-cap-"));
+const capD = ensureBoard(capBoard);
+check("capture: board has worker-sessions dir", fs.existsSync(path.join(capBoard, "worker-sessions")));
+fs.writeFileSync(path.join(capBoard, "agents", "cap1.json"), JSON.stringify({ name: "cap1", spawnedPid: 999999999, spawnedBy: "lead", briefId: "msg-x" }));
+fs.mkdirSync(path.join(capBoard, "logs"), { recursive: true });
+fs.writeFileSync(path.join(capBoard, "logs", "cap1-261004-000000.log"), "booting\n" + JSON.stringify({ type: "result", session_id: "sess-cap-1" }) + "\n");
+const synced = syncWorkerSession(capD, "cap1");
+check("capture: sync extracts id from log", !!synced && synced.harnessSessionId === "sess-cap-1");
+check("capture: doc persists", readWorkerSession(capD, "cap1").harnessSessionId === "sess-cap-1");
+check("capture: workerStatus carries id", workerStatus(capD, "cap1", 5).harnessSessionId === "sess-cap-1");
+fs.writeFileSync(path.join(capBoard, "agents", "cap2.json"), JSON.stringify({ name: "cap2", spawnedPid: 999999998, spawnedBy: "lead", briefId: "msg-y" }));
+fs.writeFileSync(path.join(capBoard, "logs", "cap2-261004-000000.log"), "plain text, no json here\n");
+check("capture: null when no id", (syncWorkerSession(capD, "cap2") || {}).harnessSessionId === undefined);
+const cap2doc = readWorkerSession(capD, "cap2");
+check("capture: guard recorded", !!cap2doc && typeof cap2doc.checkedSize === "number");
+bootWorker(capD, { harness: "generic", cmd: 'node -e "process.exit(0)"', cwd: capBoard, root: capD.root }, { to: "cap3", id: "msg-z", from: "lead", body: "b", logDir: path.join(capBoard, "logs") });
+check("capture: boot writes binding doc", readWorkerSession(capD, "cap3").harness === "generic");
+bootWorker(capD, { harness: "generic", cmd: 'node -e "process.exit(0)"', cwd: capBoard, root: capD.root }, { to: "cap4", id: "msg-w", from: "lead", body: "b", logDir: path.join(capBoard, "logs"), sessionId: PRE_UUID });
+const cap4doc = readWorkerSession(capD, "cap4");
+check("capture: boot records preassigned id", cap4doc.harnessSessionId === PRE_UUID && cap4doc.idSource === "preassigned");
+fs.appendFileSync(cap4doc.logPath, JSON.stringify({ type: "result", session_id: PRE_UUID }) + "\n");
+check("capture: log corroboration confirms", syncWorkerSession(capD, "cap4").idSource === "preassigned-confirmed");
+bootWorker(capD, { harness: "generic", cmd: 'node -e "process.exit(0)"', cwd: capBoard, root: capD.root }, { to: "cap5", id: "msg-v", from: "lead", body: "b", logDir: path.join(capBoard, "logs"), sessionId: PRE_UUID });
+const cap5doc = readWorkerSession(capD, "cap5");
+fs.appendFileSync(cap5doc.logPath, JSON.stringify({ session_id: "other-id-9" }) + "\n");
+const cap5synced = syncWorkerSession(capD, "cap5");
+check("capture: log disagreement overrides", cap5synced.harnessSessionId === "other-id-9" && cap5synced.idSource === "log-override");
+// the detached boot child can hold its log file briefly on Windows — retry
+for (let i = 0; i < 10; i++) {
+  try {
+    fs.rmSync(capBoard, { recursive: true, force: true });
+    break;
+  } catch {
+    await new Promise((r) => setTimeout(r, 200));
+  }
+}
+
+// ------------------------------------------------------- respawn targets (slice 2)
+const rtO = buildRespawnTarget({ harness: "opencode", cwd: "/tmp", name: "w", promptPath: "/p.md", prompt: "c", sessionId: "SID" });
+check("respawn: opencode --session", rtO.args.includes("--session") && rtO.args[rtO.args.indexOf("--session") + 1] === "SID" && rtO.args.includes("--file"));
+const rtC = buildRespawnTarget({ harness: "claude", cwd: "/tmp", name: "w", promptPath: "/p.md", prompt: "c", sessionId: "SID" });
+check("respawn: claude --resume, no --session-id", rtC.args.includes("--resume") && rtC.args[rtC.args.indexOf("--resume") + 1] === "SID" && !rtC.args.includes("--session-id") && rtC.stdinPath === "/p.md");
+const rtX = buildRespawnTarget({ harness: "codex", cwd: "/tmp", name: "w", promptPath: "/p.md", prompt: "hello", sessionId: "SID" });
+const rxi = rtX.args.indexOf("resume");
+check("respawn: codex resume placement", rxi !== -1 && rtX.args[rxi + 1] === "SID" && rtX.args[rtX.args.length - 1].includes("catch-up brief at /p.md") && rtX.args.indexOf("--sandbox") < rxi);
+const rtG = buildRespawnTarget({ harness: "grok", cwd: "/tmp", name: "w", promptPath: "/p.md", prompt: "c", sessionId: "SID" });
+check("respawn: grok -r", rtG.args.includes("-r") && rtG.args[rtG.args.indexOf("-r") + 1] === "SID");
+const rtA = buildRespawnTarget({ harness: "antigravity", cwd: "/tmp", name: "w", promptPath: "/p.md", prompt: "c", sessionId: "SID" });
+check("respawn: agy --conversation", rtA.args.includes("--conversation") && rtA.args[rtA.args.indexOf("--conversation") + 1] === "SID");
+const rtCu = buildRespawnTarget({ harness: "cursor", cwd: "/tmp", name: "w", promptPath: "/p.md", prompt: "c", sessionId: "SID" });
+check("respawn: cursor --resume", rtCu.args.includes("--resume") && rtCu.args[rtCu.args.indexOf("--resume") + 1] === "SID");
+const rtN = buildRespawnTarget({ harness: "generic", cmd: "do-work", cwd: "/tmp", name: "w", promptPath: "/p.md", prompt: "c", sessionId: null });
+check("respawn: generic fresh (no resume flags)", !rtN.args.join(" ").includes("resume") && !rtN.args.join(" ").includes("session"));
+const brief = buildRespawnBrief({ name: "w", attempt: 2, origPromptPath: "/l/w.prompt.md", briefId: "msg-1", harnessSessionId: "SID", harness: "claude", lead: "boss", extraBody: "hurry" });
+check("respawn: brief threads + attempt", brief.includes("attempt 2") && brief.includes("/l/w.prompt.md") && brief.includes("--reply msg-1") && brief.includes("hurry") && brief.includes("SID"));
+const briefG = buildRespawnBrief({ name: "w", attempt: 1, origPromptPath: "/l/w.prompt.md", briefId: "msg-1", harnessSessionId: null, harness: "generic", lead: "boss" });
+check("respawn: generic brief fresh", briefG.includes("fresh session"));
+
 // ------------------------------------------------------- init adapters
 const mkproj = () => {
   const p = fs.mkdtempSync(path.join(os.tmpdir(), "ab-proj-"));
@@ -352,8 +479,14 @@ for (const f of [".claude/settings.json", ".codex/hooks.json", ".agents/hooks.js
 }
 const claudeHooks = JSON.parse(fs.readFileSync(path.join(full.p, ".claude", "settings.json"), "utf8"));
 check("init: claude SessionStart+Stop", !!claudeHooks.hooks.SessionStart && !!claudeHooks.hooks.Stop);
+const claudeWaiter = (claudeHooks.hooks.PostToolUse || []).flatMap((g) => g.hooks || []).find((h) => String(h.command || "").includes("agentboard-hook") && String(h.command || "").includes(" wait "));
+check("init: claude PostToolUse asyncRewake waiter", !!claudeWaiter && claudeWaiter.asyncRewake === true && claudeWaiter.timeout === 150);
+check("init: claude SessionStart waiter", (claudeHooks.hooks.SessionStart || []).flatMap((g) => g.hooks || []).some((h) => String(h.command || "").includes(" wait ")));
 const agHooks = JSON.parse(fs.readFileSync(path.join(full.p, ".agents", "hooks.json"), "utf8"));
 check("init: antigravity keyed block", !!agHooks["agentboard-dm"].Stop && !!agHooks["agentboard-dm"].PreInvocation);
+const grokHooks = JSON.parse(fs.readFileSync(path.join(full.p, ".grok", "hooks", "agentboard.json"), "utf8"));
+check("init: grok SessionStart+Stop+PostToolUse", !!grokHooks.hooks.SessionStart && !!grokHooks.hooks.Stop && !!grokHooks.hooks.PostToolUse);
+check("init: grok inbox skill", fs.existsSync(path.join(full.p, ".grok", "skills", "agentboard-inbox", "SKILL.md")));
 const curHooks = JSON.parse(fs.readFileSync(path.join(full.p, ".cursor", "hooks.json"), "utf8"));
 check("init: cursor flat hooks", curHooks.version === 1 && Array.isArray(curHooks.hooks.sessionStart) && Array.isArray(curHooks.hooks.stop));
 const curMcp = JSON.parse(fs.readFileSync(path.join(full.p, ".cursor", "mcp.json"), "utf8"));
@@ -364,13 +497,18 @@ check("init: AGENTS harness notes", md.includes("agentboard:harness:claude") && 
 // idempotent re-init, preserves user hooks
 const before = fs.readFileSync(path.join(full.p, ".claude", "settings.json"), "utf8");
 const beforeCur = fs.readFileSync(path.join(full.p, ".cursor", "hooks.json"), "utf8");
+const beforeGrok = fs.readFileSync(path.join(full.p, ".grok", "hooks", "agentboard.json"), "utf8");
+const beforeSkill = fs.readFileSync(path.join(full.p, ".grok", "skills", "agentboard-inbox", "SKILL.md"), "utf8");
 run(["cli", "init", "--harness", "claude,codex,antigravity,grok,cursor"], full.e, full.p);
 check("init: re-run byte-identical cursor hooks", fs.readFileSync(path.join(full.p, ".cursor", "hooks.json"), "utf8") === beforeCur);
 check("init: re-run byte-identical hooks", fs.readFileSync(path.join(full.p, ".claude", "settings.json"), "utf8") === before);
-fs.writeFileSync(path.join(full.p, ".claude", "settings.json"), JSON.stringify({ hooks: { PostToolUse: [{ matcher: "Edit", hooks: [{ type: "command", command: "prettier" }] }], ...claudeHooks.hooks } }));
+check("init: re-run byte-identical grok hooks", fs.readFileSync(path.join(full.p, ".grok", "hooks", "agentboard.json"), "utf8") === beforeGrok);
+check("init: re-run keeps grok skill", fs.readFileSync(path.join(full.p, ".grok", "skills", "agentboard-inbox", "SKILL.md"), "utf8") === beforeSkill);
+fs.writeFileSync(path.join(full.p, ".claude", "settings.json"), JSON.stringify({ hooks: { ...claudeHooks.hooks, PostToolUse: [{ matcher: "Edit", hooks: [{ type: "command", command: "prettier" }] }, ...(claudeHooks.hooks.PostToolUse || [])] } }));
 run(["cli", "init", "--harness", "claude"], full.e, full.p);
 const merged = JSON.parse(fs.readFileSync(path.join(full.p, ".claude", "settings.json"), "utf8"));
-check("init: preserves user hooks", !!merged.hooks.PostToolUse && !!merged.hooks.Stop);
+const mergedCmds = (merged.hooks.PostToolUse || []).flatMap((g) => g.hooks || []).map((h) => h.command || "");
+check("init: preserves user hooks", !!merged.hooks.Stop && mergedCmds.some((c) => c === "prettier") && mergedCmds.some((c) => c.includes("agentboard-hook") && c.includes(" wait ")));
 fs.rmSync(full.p, { recursive: true, force: true });
 
 // auto-detect: .agents marker -> antigravity only
@@ -395,6 +533,286 @@ check(
   JSON.parse(fs.readFileSync(path.join(port.p, ".mcp.json"), "utf8")).mcpServers.agentboard.command === "agentboard-mcp"
 );
 fs.rmSync(port.p, { recursive: true, force: true });
+
+// claude-plugin bundle: marketplace-ready, PATH-based (no absolute paths)
+const plugDir = path.join(HERE, "..", "claude-plugin");
+const plugJson = JSON.parse(fs.readFileSync(path.join(plugDir, ".claude-plugin", "plugin.json"), "utf8"));
+check("plugin: manifest name/version", plugJson.name === "agentboard" && !!plugJson.version);
+const plugHooks = JSON.parse(fs.readFileSync(path.join(plugDir, "hooks", "hooks.json"), "utf8"));
+check("plugin: hooks events", !!plugHooks.hooks.SessionStart && !!plugHooks.hooks.Stop && !!plugHooks.hooks.PostToolUse);
+const plugWaiters = ["SessionStart", "PostToolUse"].every((ev) =>
+  (plugHooks.hooks[ev] || []).flatMap((g) => g.hooks || []).some((h) => h.asyncRewake === true && String(h.command || "").includes("agentboard-hook wait"))
+);
+check("plugin: asyncRewake waiters", plugWaiters);
+const plugCmds = ["SessionStart", "Stop", "PostToolUse"].flatMap((ev) => (plugHooks.hooks[ev] || []).flatMap((g) => g.hooks || []).map((h) => h.command || ""));
+check("plugin: no absolute paths", plugCmds.length > 0 && plugCmds.every((c) => !path.isAbsolute(c) && !c.includes("C:/") && !c.startsWith("/")));
+const plugMcp = JSON.parse(fs.readFileSync(path.join(plugDir, ".mcp.json"), "utf8"));
+check("plugin: MCP server", !!(plugMcp.mcpServers && plugMcp.mcpServers.agentboard && plugMcp.mcpServers.agentboard.command));
+check("plugin: skill", fs.existsSync(path.join(plugDir, "skills", "agentboard", "SKILL.md")));
+
+// respawn e2e (generic harness — real processes, no vendor binary needed)
+const rsp = mkproj();
+run(["cli", "init", "--harness", "generic"], rsp.e, rsp.p);
+run(["cli", "register", "--from", "boss"], rsp.e, rsp.p);
+run(["cli", "register", "--from", "work1"], rsp.e, rsp.p);
+run(["cli", "spawn", "--from", "boss", "--harness", "generic", "--cmd", 'node -e "setTimeout(()=>{},60000)"', "--to", "rs1", "--body", "sleep brief"], rsp.e, rsp.p);
+const mustFail = (label, args) => {
+  let bad = false;
+  try {
+    run(["cli", ...args], rsp.e, rsp.p);
+  } catch {
+    bad = true;
+  }
+  check(label, bad);
+};
+mustFail("respawn: refuses live worker", ["respawn", "--from", "boss", "--to", "rs1"]);
+mustFail("respawn: worker role refused", ["respawn", "--from", "work1", "--to", "rs1"]);
+mustFail("respawn: unknown worker refused", ["respawn", "--from", "boss", "--to", "ghost-rs"]);
+mustFail("respawn: multi --to refused", ["respawn", "--from", "boss", "--to", "rs1,rs2"]);
+const dryRs = run(["cli", "respawn", "--from", "boss", "--to", "rs1", "--dry-run"], rsp.e, rsp.p);
+check("respawn: dry-run previews", dryRs.includes("would respawn rs1") && dryRs.includes("catch-up brief"));
+run(["cli", "spawn-kill", "--from", "boss", "--to", "rs1"], rsp.e, rsp.p);
+const r1 = run(["cli", "respawn", "--from", "boss", "--to", "rs1"], rsp.e, rsp.p);
+check("respawn: reboots dead generic", r1.includes("respawned rs1") && r1.includes("attempt 1") && r1.includes("fresh boot"));
+const rdoc = JSON.parse(fs.readFileSync(path.join(rsp.p, ".agentboard", "worker-sessions", "rs1.json"), "utf8"));
+check("respawn: binding attempt counted", rdoc.respawnCount === 1 && typeof rdoc.spawnedPid === "number" && !!rdoc.lastRespawnAt);
+check("respawn: status carries respawns", JSON.parse(run(["cli", "spawn-status", "--to", "rs1", "--json"], rsp.e, rsp.p))[0].respawnCount === 1);
+run(["cli", "spawn-kill", "--from", "boss", "--to", "rs1"], rsp.e, rsp.p);
+const r2 = run(["cli", "respawn", "--from", "boss", "--to", "rs1", "--body", "extra nudge"], rsp.e, rsp.p);
+check("respawn: attempt increments", r2.includes("attempt 2"));
+// no-id harness worker: crafted binding without a captured session id
+fs.writeFileSync(path.join(rsp.p, ".agentboard", "agents", "rs2.json"), JSON.stringify({ name: "rs2", spawnedPid: 999999997, spawnedBy: "boss", briefId: "msg-rs2" }));
+fs.writeFileSync(path.join(rsp.p, ".agentboard", "worker-sessions", "rs2.json"), JSON.stringify({ name: "rs2", harness: "claude", spawnedPid: 999999997, briefId: "msg-rs2", logPath: path.join(rsp.p, ".agentboard", "logs", "rs2-x.log") }));
+mustFail("respawn: no-id refused with guidance", ["respawn", "--from", "boss", "--to", "rs2"]);
+// cleanup: kill sleepers (Windows holds log handles briefly — retry rm)
+run(["cli", "spawn-kill", "--from", "boss", "--to", "rs1"], rsp.e, rsp.p);
+for (let i = 0; i < 10; i++) {
+  try {
+    fs.rmSync(rsp.p, { recursive: true, force: true });
+    break;
+  } catch {
+    await new Promise((r) => setTimeout(r, 200));
+  }
+}
+
+// presence (item 1: recycled-pid guard)
+const meStart = pidStartTime(process.pid);
+check("presence: own start time sane", typeof meStart === "number" && meStart > 0 && meStart <= Date.now());
+check("presence: dead pid null", pidStartTime(999999999) === null);
+check("presence: invalid null", pidStartTime(0) === null && pidStartTime(-1) === null && pidStartTime("x") === null);
+check("presence: etime mm:ss", parsePsEtime("10:23") === 623000);
+check("presence: etime hh:mm:ss", parsePsEtime("02:03:04") === 7384000);
+check("presence: etime dd-hh:mm:ss", parsePsEtime("1-02:03:04") === 93784000);
+check("presence: etime junk null", parsePsEtime("bogus") === null && parsePsEtime("") === null);
+const pv = mkproj();
+run(["cli", "init", "--harness", "generic"], pv.e, pv.p);
+run(["cli", "register", "--from", "pvboss"], pv.e, pv.p);
+run(["cli", "spawn", "--from", "pvboss", "--harness", "generic", "--cmd", 'node -e "setTimeout(()=>{},60000)"', "--to", "pv1", "--body", "presence probe"], pv.e, pv.p);
+const pvLive = JSON.parse(run(["cli", "spawn-status", "--to", "pv1", "--json"], pv.e, pv.p))[0];
+check("presence: live worker verified", pvLive.alive === true && pvLive.aliveVerified === true);
+run(["cli", "spawn-kill", "--from", "pvboss", "--to", "pv1"], pv.e, pv.p);
+const pvDead = JSON.parse(run(["cli", "spawn-status", "--to", "pv1", "--json"], pv.e, pv.p))[0];
+check("presence: dead worker unverified", pvDead.alive === false && pvDead.aliveVerified === null);
+for (let i = 0; i < 10; i++) {
+  try {
+    fs.rmSync(pv.p, { recursive: true, force: true });
+    break;
+  } catch {
+    await new Promise((r) => setTimeout(r, 200));
+  }
+}
+
+// checkpoints (item 3: flagged thread replies, progress not work)
+const cpj = mkproj();
+run(["cli", "init", "--harness", "generic"], cpj.e, cpj.p);
+run(["cli", "register", "--from", "cplead"], cpj.e, cpj.p);
+run(["cli", "register", "--from", "cpw"], cpj.e, cpj.p);
+const cpBrief = run(["cli", "send", "--from", "cpw", "--to", "cplead", "--body", "work brief"], cpj.e, cpj.p).match(/sent (\S+) ->/)[1];
+run(["cli", "send", "--from", "cpw", "--to", "cplead", "--reply", cpBrief, "--checkpoint", "--body", "done X / next Y"], cpj.e, cpj.p);
+const cpInbox = JSON.parse(run(["cli", "inbox", "--from", "cplead", "--json"], cpj.e, cpj.p));
+check("checkpoint: stored flag", cpInbox.some((m) => m.replyTo === cpBrief && m.checkpoint === true));
+check("checkpoint: labeled in text", run(["cli", "inbox", "--from", "cplead"], cpj.e, cpj.p).includes("checkpoint: progress"));
+check("checkpoint: digest labeled", run(["cli", "inbox", "--from", "cplead", "--digest"], cpj.e, cpj.p).includes("[checkpoint]"));
+const cpUnacked = run(["cli", "inbox", "--from", "cplead", "--unacked"], cpj.e, cpj.p);
+check("checkpoint: unacked excludes", cpUnacked.includes("work brief") && !cpUnacked.includes("done X"));
+await new Promise((r) => setTimeout(r, 1100));
+const cpStale = run(["cli", "ack", "--from", "cplead", "--timeout", "1s"], cpj.e, cpj.p);
+check("checkpoint: ack-timeout excludes", cpStale.includes("1 message(s)") && cpStale.includes(cpBrief) && !cpStale.includes("done X"));
+check("checkpoint: thread shows", run(["cli", "thread", "--id", cpBrief], cpj.e, cpj.p).includes("done X"));
+check("checkpoint: prompt discipline", buildSpawnPrompt({ name: "w", from: "lead", body: "b", replyId: "msg-1", cwd: "/tmp", root: "/tmp/.agentboard" }).includes("--checkpoint"));
+// spawn-status reply detection ignores checkpoints (lib-level, no binary needed)
+const cpD = ensureBoard(path.join(cpj.p, ".agentboard"));
+fs.writeFileSync(path.join(cpj.p, ".agentboard", "agents", "cpw2.json"), JSON.stringify({ name: "cpw2", spawnedPid: 999999995, spawnedBy: "cplead", briefId: "b-ck" }));
+run(["cli", "send", "--from", "cpw2", "--to", "cplead", "--reply", "b-ck", "--checkpoint", "--body", "still working"], cpj.e, cpj.p);
+check("checkpoint: no false reply", workerStatus(cpD, "cpw2", 5).reply === null);
+run(["cli", "send", "--from", "cpw2", "--to", "cplead", "--reply", "b-ck", "--body", "final summary"], cpj.e, cpj.p);
+check("checkpoint: real reply detected", (workerStatus(cpD, "cpw2", 5).reply || {}).head.includes("final summary"));
+for (let i = 0; i < 10; i++) {
+  try {
+    fs.rmSync(cpj.p, { recursive: true, force: true });
+    break;
+  } catch {
+    await new Promise((r) => setTimeout(r, 200));
+  }
+}
+// MCP: dm_send checkpoint + unacked exclusion + label (dedicated server —
+// the top-level one is killed after the MCP section)
+const cpMcpBoard = fs.mkdtempSync(path.join(os.tmpdir(), "ab-cpmcp-"));
+const cpSrv = spawn("node", [MCP], { env: { ...process.env, AGENTBOARD_DIR: cpMcpBoard }, stdio: ["pipe", "pipe", "inherit"] });
+let cpBuf = "";
+const cpPending = [];
+cpSrv.stdout.on("data", (d) => {
+  cpBuf += d.toString();
+  let i;
+  while ((i = cpBuf.indexOf("\n")) !== -1) {
+    const line = cpBuf.slice(0, i).trim();
+    cpBuf = cpBuf.slice(i + 1);
+    if (!line) continue;
+    const msg = JSON.parse(line);
+    const w = cpPending.find((p) => p.id === msg.id);
+    if (w) {
+      cpPending.splice(cpPending.indexOf(w), 1);
+      w.res(msg);
+    }
+  }
+});
+let cpId = 1;
+const cpReq = (method, params) =>
+  new Promise((res) => {
+    const id = cpId++;
+    cpPending.push({ id, res });
+    cpSrv.stdin.write(JSON.stringify({ jsonrpc: "2.0", id, method, params }) + "\n");
+  });
+await cpReq("initialize", { protocolVersion: "2024-11-05", capabilities: {}, clientInfo: { name: "t", version: "0" } });
+const eveReg = await cpReq("tools/call", { name: "dm_register", arguments: { agent: "eve" } });
+const eveTok = eveReg.result.content[0].text.match(/token (abt-[0-9a-f]+)/)[1];
+const aliceReg = await cpReq("tools/call", { name: "dm_register", arguments: { agent: "alice" } });
+const cpAliceTok = aliceReg.result.content[0].text.match(/token (abt-[0-9a-f]+)/)[1];
+await cpReq("tools/call", { name: "dm_send", arguments: { from: "alice", to: "eve", body: "eve brief", token: cpAliceTok } });
+const mcpCk = await cpReq("tools/call", { name: "dm_send", arguments: { from: "alice", to: "eve", body: "eve progress", checkpoint: true, token: cpAliceTok } });
+check("checkpoint: mcp send ok", /sent \S+ -> eve/.test(mcpCk.result.content[0].text));
+const eveUnacked = await cpReq("tools/call", { name: "dm_inbox", arguments: { agent: "eve", token: eveTok, unacked: true } });
+check("checkpoint: mcp unacked excludes", eveUnacked.result.content[0].text.includes("eve brief") && !eveUnacked.result.content[0].text.includes("eve progress"));
+const eveFull = await cpReq("tools/call", { name: "dm_inbox", arguments: { agent: "eve", token: eveTok } });
+check("checkpoint: mcp labeled", eveFull.result.content[0].text.includes("[checkpoint: progress"));
+cpSrv.kill();
+for (let i = 0; i < 10; i++) {
+  try {
+    fs.rmSync(cpMcpBoard, { recursive: true, force: true });
+    break;
+  } catch {
+    await new Promise((r) => setTimeout(r, 200));
+  }
+}
+
+// pool resume (supervisor re-attach) + reconcile wiring
+const pl = mkproj();
+run(["cli", "init", "--harness", "generic"], pl.e, pl.p);
+const plBossTok = run(["cli", "register", "--from", "plboss"], pl.e, pl.p).match(/token (abt-[0-9a-f]+)/)[1];
+const supEnv = { ...pl.e, AGENTBOARD_TOKEN: plBossTok };
+const bgCli = (args, outName) => {
+  const fd = fs.openSync(path.join(pl.p, outName), "a");
+  const child = spawn("node", [CLI, ...args], { env: supEnv, cwd: pl.p, stdio: ["ignore", fd, fd], detached: true });
+  child.unref();
+  return { child, fd, outName };
+};
+const waitForLog = async (name, needle, tries = 40) => {
+  for (let i = 0; i < tries; i++) {
+    await new Promise((r) => setTimeout(r, 500));
+    try {
+      if (fs.readFileSync(path.join(pl.p, name), "utf8").includes(needle)) return true;
+    } catch {}
+  }
+  return false;
+};
+const stopBg = (h) => {
+  try { h.child.kill(); } catch {}
+  try { fs.closeSync(h.fd); } catch {}
+};
+// Pool A (schema): background supervisor boots instant workers; read state
+// mid-run — no finish assertions (natural exits linger on detached shells).
+const supA = bgCli(["pool", "--from", "plboss", "--count", "3", "--pool-size", "2", "--harness", "generic", "--cmd", 'node -e "process.exit(0)"', "--prefix", "plw", "--body", "pool brief", "--json"], "supA.log");
+await new Promise((r) => setTimeout(r, 5000));
+const poolFiles = fs.readdirSync(path.join(pl.p, ".agentboard", "pool-state")).filter((f) => f.endsWith(".json"));
+check("pool: one state file", poolFiles.length === 1);
+const poolId = poolFiles[0].replace(/\.json$/, "");
+const pst = JSON.parse(fs.readFileSync(path.join(pl.p, ".agentboard", "pool-state", poolFiles[0]), "utf8"));
+check("pool: resumable schema", Array.isArray(pst.queue) && pst.queue.length === 3 && pst.cursor === 2 && pst.idByName && Object.keys(pst.idByName).length === 3 && !!pst.spawnOpts && pst.body === "pool brief");
+check("pool: results carry prompt", (pst.results || []).every((r) => r.error || r.promptPath));
+check("pool: launched pair", pst.launched === 2);
+stopBg(supA);
+const plMustFail = (label, args) => {
+  let bad = false;
+  try {
+    run(["cli", ...args], pl.e, pl.p);
+  } catch {
+    bad = true;
+  }
+  check(label, bad);
+};
+plMustFail("pool-resume: unknown refused", ["pool-resume", "--from", "plboss", "--id", "pool-nope"]);
+fs.writeFileSync(path.join(pl.p, ".agentboard", "pool-state", "legacy.json"), JSON.stringify({ id: "legacy", from: "plboss", total: 1, poolSize: 1, harness: "generic", done: 0, active: {}, results: [] }));
+plMustFail("pool-resume: legacy refused", ["pool-resume", "--from", "plboss", "--id", "legacy"]);
+fs.rmSync(path.join(pl.p, ".agentboard", "pool-state", "legacy.json"));
+// single-flight: crafted live lock refuses a second supervisor
+const lockFile = path.join(pl.p, ".agentboard", "locks", crypto.createHash("sha256").update(`pool/${poolId}`).digest("hex").slice(0, 16) + ".json");
+fs.mkdirSync(path.join(pl.p, ".agentboard", "locks"), { recursive: true });
+fs.writeFileSync(lockFile, JSON.stringify({ scope: `pool/${poolId}`, owner: "someone-else", createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 60000).toISOString() }) + "\n");
+plMustFail("pool-resume: locked refused", ["pool-resume", "--from", "plboss", "--id", poolId]);
+fs.rmSync(lockFile, { force: true });
+// Pool B (reconcile-finish): supervisor dies, both replies land, resume
+// finishes immediately — no launches, no waiting on exits.
+const supB = bgCli(["pool", "--from", "plboss", "--count", "2", "--pool-size", "2", "--harness", "generic", "--cmd", 'node -e "setTimeout(()=>{},60000)"', "--prefix", "plq", "--body", "sleep pair"], "supB.log");
+await new Promise((r) => setTimeout(r, 4000));
+const resumeIdB = fs.readdirSync(path.join(pl.p, ".agentboard", "pool-state")).filter((f) => f.endsWith(".json") && f !== poolFiles[0])[0].replace(/\.json$/, "");
+stopBg(supB);
+const qState = JSON.parse(fs.readFileSync(path.join(pl.p, ".agentboard", "pool-state", resumeIdB + ".json"), "utf8"));
+for (const w of ["plq-1", "plq-2"]) {
+  run(["cli", "register", "--from", w], pl.e, pl.p);
+  run(["cli", "send", "--from", w, "--to", "plboss", "--reply", qState.idByName[w], "--body", `done ${w}`], pl.e, pl.p);
+}
+const finOut = run(["cli", "pool-resume", "--from", "plboss", "--id", resumeIdB], supEnv, pl.p);
+check("pool-resume: replied counted, none relaunched", finOut.includes("already replied") && finOut.includes("done 2"));
+const fst = JSON.parse(fs.readFileSync(path.join(pl.p, ".agentboard", "pool-state", resumeIdB + ".json"), "utf8"));
+check("pool-resume: finished + lock released", !!fst.finishedAt && fst.done === 2 && fst.results.length === 2 && !fs.existsSync(path.join(pl.p, ".agentboard", "locks", crypto.createHash("sha256").update(`pool/${resumeIdB}`).digest("hex").slice(0, 16) + ".json")));
+plMustFail("pool-resume: finished refused", ["pool-resume", "--from", "plboss", "--id", resumeIdB]);
+// Pool C (adopt + relaunch): supervisor dies with one live worker; resume
+// adopts it, then a kill triggers the second boot — all transitions forced,
+// no natural-exit waits.
+const supC = bgCli(["pool", "--from", "plboss", "--count", "2", "--pool-size", "1", "--harness", "generic", "--cmd", 'node -e "setTimeout(()=>{},60000)"', "--prefix", "plr", "--body", "sleep crew"], "supC.log");
+await new Promise((r) => setTimeout(r, 4000));
+const resumeId = fs.readdirSync(path.join(pl.p, ".agentboard", "pool-state")).filter((f) => f.endsWith(".json") && f !== poolFiles[0] && f !== resumeIdB + ".json")[0].replace(/\.json$/, "");
+stopBg(supC);
+const supR = bgCli(["pool-resume", "--from", "plboss", "--id", resumeId], "supR.log");
+check("pool-resume: adopts live worker", await waitForLog("supR.log", "adopted live plr-1"));
+run(["cli", "spawn-kill", "--from", "plboss", "--to", "plr-1"], pl.e, pl.p);
+check("pool-resume: relaunches after kill", await waitForLog("supR.log", "spawned plr-2"));
+stopBg(supR);
+const rst = JSON.parse(fs.readFileSync(path.join(pl.p, ".agentboard", "pool-state", resumeId + ".json"), "utf8"));
+check("pool-resume: adopted once, second booted", rst.results.filter((r) => r.to === "plr-1").length === 1 && rst.results.filter((r) => r.to === "plr-2").length === 1 && rst.results.some((r) => r.to === "plr-2" && r.resumed === true) && !rst.finishedAt && rst.done === 1);
+check("pool-resume: killed supervisor holds lock", fs.existsSync(path.join(pl.p, ".agentboard", "locks", crypto.createHash("sha256").update(`pool/${resumeId}`).digest("hex").slice(0, 16) + ".json")));
+// reconcile: stale pid (live test-process pid + ancient spawn) reads dead
+fs.writeFileSync(path.join(pl.p, ".agentboard", "agents", "stalew.json"), JSON.stringify({ name: "stalew", spawnedPid: process.pid, spawnedBy: "plboss", spawnedAt: "2020-01-01T00:00:00.000Z", briefId: "b-s" }));
+check("reconcile: isPidStale unit", isPidStale(process.pid, "2020-01-01T00:00:00.000Z") === true && isPidStale(process.pid, new Date().toISOString()) === false && isPidStale(999999999, "2020-01-01T00:00:00.000Z") === false);
+const plD = ensureBoard(path.join(pl.p, ".agentboard"));
+check("reconcile: stale reads dead", workerStatus(plD, "stalew", 1).alive === false && workerStatus(plD, "stalew", 1).pidStale === true);
+check("reconcile: text marks stale", run(["cli", "spawn-status", "--to", "stalew"], pl.e, pl.p).includes("stale pid"));
+const plDoc = run(["cli", "doctor"], pl.e, pl.p);
+check("reconcile: doctor notes stale, stays healthy", plDoc.includes("stale pids") && plDoc.includes("doctor: healthy"));
+run(["cli", "spawn-kill", "--from", "plboss", "--to", "plw-1,plw-2,plw-3,plq-1,plq-2,plr-1,plr-2"], pl.e, pl.p);
+for (let i = 0; i < 15; i++) {
+  try {
+    fs.rmSync(pl.p, { recursive: true, force: true });
+    break;
+  } catch {
+    await new Promise((r) => setTimeout(r, 200));
+  }
+}
+
+// self-hosted Claude marketplace: repo root marketplace.json -> ./claude-plugin
+const market = JSON.parse(fs.readFileSync(path.join(HERE, "..", ".claude-plugin", "marketplace.json"), "utf8"));
+check("marketplace: lists agentboard plugin", market.name === "agentboard" && Array.isArray(market.plugins) && market.plugins.some((p) => p.name === "agentboard" && p.source === "./claude-plugin"));
+check("marketplace: source dir resolves", market.plugins.every((p) => fs.existsSync(path.join(HERE, "..", p.source, ".claude-plugin", "plugin.json"))));
 
 // unknown harness fails
 const bad = mkproj();

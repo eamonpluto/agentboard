@@ -321,6 +321,7 @@ export default tool({
     replyTo: tool.schema.string().optional().describe("Optional message id you are answering (threads the reply)."),
     artifact: tool.schema.string().optional().describe("Optional checkable artifact reference (path or URL, max 500 chars). Stored on the message, shown by inbox/gather/thread."),
     priority: tool.schema.string().optional().describe("Optional urgency flag: high or normal (default normal). Readers filter with inbox --priority / dm_inbox priority."),
+    checkpoint: tool.schema.boolean().optional().describe("Mark as a progress checkpoint on a thread (labeled in transcripts, skipped by unacked triage — never needs ack)."),
     also_channel: tool.schema.boolean().optional().describe("With to_group: also append the brief to each group's channel (grp-<group>), stamped with the DM batch id so gather picks it up."),
     board: tool.schema.string().optional().describe("Optional absolute board path, e.g. C:/proj/.agentboard. Overrides AGENTBOARD_DIR and auto-detection."),
   },
@@ -348,6 +349,7 @@ export default tool({
       return p;
     })();
     if (priority !== undefined && priority.startsWith("error:")) return priority;
+    const checkpoint = args.checkpoint === true;
     const groupNames = String(args.to_group === undefined || args.to_group === null ? "" : args.to_group).split(",").map((s) => String(s).trim().toLowerCase().replace(/[^a-z0-9_.-]/g, "-").slice(0, 40)).filter(Boolean);
     if (args.also_channel === true && groupNames.length === 0) return "error: also_channel needs to_group (it mirrors the brief into each group's channel)";
     const boardArg = args.board === undefined || args.board === null || String(args.board).trim() === "" ? undefined : String(args.board);
@@ -409,6 +411,7 @@ export default tool({
       if (replyTo) msg.replyTo = replyTo;
       if (artifact) msg.artifact = artifact;
       if (priority === "high") msg.priority = "high";
+      if (checkpoint) msg.checkpoint = true;
       if (rev) msg.rev = rev;
       writeJsonAtomic(path.join(root, "broadcast", batch + ".json"), msg);
       const who = isAll ? "@all" : `${recipients.length} recipients`;
@@ -424,6 +427,7 @@ export default tool({
       if (replyTo) msg.replyTo = replyTo;
       if (artifact) msg.artifact = artifact;
       if (priority === "high") msg.priority = "high";
+      if (checkpoint) msg.checkpoint = true;
       if (batch) msg.batch = batch;
       if (rev) msg.rev = rev;
       writeJsonAtomic(path.join(root, "dm", to, id + ".json"), msg);

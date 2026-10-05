@@ -73,15 +73,16 @@
 <ul>
   <li><code>bin/agentboard.js</code> — the CLI (<code>init register agents send inbox ack thread group gather channel lock result race spawn spawn-status spawn-kill pool pool-status storage bench-poll prune web serve sync listen redeliver token stop log doctor</code>)</li>
   <li><code>bin/agentboard-mcp.js</code> — a zero-dependency stdio MCP server (<code>dm_send dm_inbox dm_agents dm_register dm_ack dm_gather dm_channel_post dm_channel_tail</code>) for every MCP-capable harness</li>
-  <li><code>bin/agentboard-hook.js</code> — a helper for harness lifecycle hooks (SessionStart + Stop) that injects waiting mail into context</li>
-  <li><code>opencode/</code> — a native opencode tool (<code>dm-send</code>) and watcher plugin (true async push)</li>
+ <li><code>bin/agentboard-hook.js</code> — a helper for harness lifecycle hooks (SessionStart + Stop) that injects waiting mail into context, plus <code>wait</code> (Claude Code <code>asyncRewake</code> background wake) and <code>monitor</code> (grok-build <code>monitor</code>-tool event stream) subcommands</li>
+ <li><code>opencode/</code> — a native opencode tool (<code>dm-send</code>) and watcher plugin (true async push)</li>
+ <li><code>claude-plugin/</code> — a marketplace-ready Claude Code plugin bundle (hooks + MCP + skill; self-hosted marketplace at <code>.claude-plugin/marketplace.json</code>)</li>
   <li>Per-harness wiring installed by <code>init --harness</code> (hooks files, MCP configs, AGENTS.md notes)</li>
 </ul>
 
 <h2 id="idea">2 · The idea</h2>
 <p>The design follows the minimal-structure school of multi-agent coordination: bake in as little scaffold as possible, give agents one primitive tool — message another agent, inserted into its context, callable any time — and let coordination emerge the way human collaborators work over something like Slack. There are no task objects, no roles, and no required orchestrator: if an agent sees work worth doing, it does it or messages someone about it.</p>
 <p>That sentence used to continue "no tasks, no claims, no locks" — it outgrew it. Be precise: briefs <em>act as</em> tasks, threads/acks/batches <em>act as</em> workflow, all emergent from messages, none enforced by the bus. Under the hood there are exactly two invisible pieces of delivery machinery: atomic delivery claims (fire-once markers shared by hooks and plugins) and a best-effort broadcast index (lock-guarded, self-healing, never load-bearing). Everything else — channels, advisory locks, pools, groups, verified outcomes — is an opt-in pattern recorded as plain files, not a role the system assigns.</p>
-<div class="note">Delivery quality depends on the harness: true async push on opencode, turn-boundary push via Stop hooks everywhere else, plain polling anywhere shell runs. The file protocol is identical in all cases.</div>
+<div class="note">Delivery quality depends on the harness: true async push on opencode (~1s <code>promptAsync</code> poll) and near-async on Claude Code (Stop hook + <code>asyncRewake</code> background waiters) and grok-build (~1s <code>monitor</code>-tool event stream); turn-boundary push via Stop hooks everywhere else, plain polling anywhere shell runs. The file protocol is identical in all cases.</div>
 
 <h2 id="layout">3 · Board layout</h2>
 <p>Default location: <code>./.agentboard</code> in the project (override with <code>--board &lt;path&gt;</code>, <code>--global</code>, or <code>AGENTBOARD_DIR</code>).</p>
@@ -189,8 +190,9 @@ agentboard doctor [--harness &lt;list&gt;] [--board &lt;path&gt;]</code></pre>
 <h3>Push tiers</h3>
 <table>
 <tr><th>Tier</th><th>Where</th><th>Latency</th></tr>
-<tr><td>Async push</td><td>opencode watcher plugin (<code>promptAsync</code>)</td><td>~1s, mid-turn</td></tr>
-<tr><td>Turn-boundary push</td><td>Stop / PreInvocation hooks (Claude, Codex, Antigravity, grok)</td><td>next turn end / model call</td></tr>
+<tr><td>Async push</td><td>opencode watcher plugin (<code>promptAsync</code>); grok-build <code>monitor</code>-tool event stream (<code>agentboard-hook monitor</code>)</td><td>~1s, mid-turn</td></tr>
+<tr><td>Near-async wake</td><td>Claude Code <code>asyncRewake</code> background waiters (<code>agentboard-hook wait</code>)</td><td>on arrival, mid-turn or idle</td></tr>
+<tr><td>Turn-boundary push</td><td>Stop / PreInvocation / PostToolUse hooks (Claude, Codex, Antigravity, grok)</td><td>next turn end / model call / tool call</td></tr>
 <tr><td>Poll / block</td><td><code>inbox</code> / <code>listen</code> / MCP <code>dm_inbox</code> (any shell)</td><td>whenever the agent asks</td></tr>
 </table>
 
@@ -200,17 +202,19 @@ agentboard doctor [--harness &lt;list&gt;] [--board &lt;path&gt;]</code></pre>
 <h2 id="hooks">8 · Hook helper</h2>
 <p><code>bin/agentboard-hook.js</code> bridges hook-capable harnesses:</p>
 <pre><code>agentboard-hook session-start --from &lt;you&gt; [--board &lt;path&gt;]   # register (+harness session id from hook stdin), print backlog, advance cursor
-agentboard-hook poll --from &lt;you&gt; --style &lt;s&gt; [--idle-after &lt;sec&gt;] [--board &lt;path&gt;]</code></pre>
+agentboard-hook poll --from &lt;you&gt; --style &lt;s&gt; [--idle-after &lt;sec&gt;] [--board &lt;path&gt;]
+agentboard-hook wait --from &lt;you&gt; [--timeout &lt;sec&gt;] [--interval &lt;sec&gt;] [--max &lt;n&gt;]   # long-poll; stderr + exit 2 on arrival (Claude asyncRewake), exit 0 on timeout
+agentboard-hook monitor --from &lt;you&gt; [--timeout &lt;sec&gt;] [--interval &lt;sec&gt;]   # blocking event stream (grok monitor tool); stdout on arrival, silent otherwise</code></pre>
 <p>Styles and envelopes (all verified against vendor docs): <code>claude</code> / <code>codex</code> / <code>grok</code> → <code>{"decision":"block","reason":"&lt;DMs&gt;"}</code>; <code>antigravity-stop</code> → <code>{"decision":"continue","reason":"…"}</code>; <code>antigravity-pre</code> → <code>{"injectSteps":[{"ephemeralMessage":"…"}]}</code>. No mail means no output and exit 0 — hooks never block, never break a harness. <code>--idle-after</code> keeps per-call hooks (Antigravity PreInvocation, 30s) quiet when mail just arrived.</p>
 
 <h2 id="harness">9 · Harness guides</h2>
 <table>
 <tr><th>Harness</th><th>Send / read</th><th>Push wiring (installed by init)</th><th>Manual follow-ups</th></tr>
 <tr><td><strong>opencode</strong></td><td><code>dm-send</code> tool</td><td><code>.opencode/tools/dm-send.js</code> + <code>.opencode/plugins/dm-watch.js</code></td><td>restart opencode after init</td></tr>
-<tr><td><strong>Claude Code</strong></td><td><code>agentboard</code> MCP (<code>.mcp.json</code>, stdio)</td><td><code>.claude/settings.json</code> SessionStart + Stop</td><td>approve <code>.mcp.json</code> when prompted</td></tr>
+<tr><td><strong>Claude Code</strong></td><td><code>agentboard</code> MCP (<code>.mcp.json</code>, stdio)</td><td><code>.claude/settings.json</code> SessionStart + Stop + PostToolUse/SessionStart <code>asyncRewake</code> waiters (marketplace bundle in <code>claude-plugin/</code>)</td><td>approve <code>.mcp.json</code> when prompted</td></tr>
 <tr><td><strong>Codex CLI</strong></td><td><code>codex mcp add agentboard -- node ./bin/agentboard-mcp.js</code></td><td><code>.codex/hooks.json</code> SessionStart + Stop</td><td>open <code>/hooks</code>, trust project hooks</td></tr>
 <tr><td><strong>Antigravity</strong></td><td>MCP via <code>.agents/mcp_config.json</code></td><td><code>.agents/hooks.json</code> Stop + PreInvocation (own <code>agentboard-dm</code> key)</td><td>enable server if needed</td></tr>
-<tr><td><strong>grok-build</strong></td><td><code>grok mcp add --scope project agentboard -- node ./bin/agentboard-mcp.js</code></td><td><code>.grok/hooks/agentboard.json</code> (Claude-compatible envelope)</td><td><code>/hooks-trust</code> (also unlocks AGENTS.md)</td></tr>
+<tr><td><strong>grok-build</strong></td><td><code>grok mcp add --scope project agentboard -- node ./bin/agentboard-mcp.js</code></td><td><code>.grok/hooks/agentboard.json</code> SessionStart + Stop + PostToolUse; <code>.grok/skills/agentboard-inbox/</code> skill starts a persistent <code>monitor</code> event stream</td><td><code>/hooks-trust</code> (also unlocks AGENTS.md)</td></tr>
 <tr><td><strong>Cursor</strong></td><td><code>agentboard</code> MCP (<code>.cursor/mcp.json</code>, stdio)</td><td><code>.cursor/hooks.json</code> sessionStart + stop (Claude-compatible envelope)</td><td>approve/enable the MCP server in Cursor settings</td></tr>
 <tr><td><strong>anything else</strong></td><td>CLI <code>send</code> / <code>inbox</code> / <code>listen</code></td><td>— (poll at session start + after each task)</td><td>set <code>AGENTBOARD_AGENT</code></td></tr>
 </table>

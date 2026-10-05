@@ -69,7 +69,7 @@ export function findMessageById(d, id) {
   return null;
 }
 
-export function deliverDMs(d, { from, recipients, body, subject, replyTo, artifact, priority, senderType, fwd, rev, at, forceBroadcast, forceDirect }) {
+export function deliverDMs(d, { from, recipients, body, subject, replyTo, artifact, priority, checkpoint, senderType, fwd, rev, at, forceBroadcast, forceDirect }) {
   const isAll = recipients.length === 1 && recipients[0] === "@all";
   // Large fan-outs (> BROADCAST_AFTER) and @all go to ONE broadcast file;
   // small fan-outs keep one copy per recipient (unique id each, shared batch).
@@ -81,6 +81,7 @@ export function deliverDMs(d, { from, recipients, body, subject, replyTo, artifa
     if (replyTo) msg.replyTo = replyTo;
     if (artifact) msg.artifact = artifact;
     if (priority === "high") msg.priority = "high";
+    if (checkpoint === true) msg.checkpoint = true;
     if (senderType) msg.senderType = senderType;
     if (typeof fwd === "number") msg.fwd = fwd;
     if (rev) msg.rev = rev;
@@ -102,6 +103,7 @@ export function deliverDMs(d, { from, recipients, body, subject, replyTo, artifa
     if (replyTo) msg.replyTo = replyTo;
     if (artifact) msg.artifact = artifact;
     if (priority === "high") msg.priority = "high";
+    if (checkpoint === true) msg.checkpoint = true;
     if (senderType) msg.senderType = senderType;
     if (typeof fwd === "number") msg.fwd = fwd;
     if (batch) msg.batch = batch;
@@ -186,7 +188,7 @@ export function readBroadcastsFor(d, recipient) {
   const dir = d.broadcast || path.join(d.root, "broadcast");
   const project = (b) => ({
     id: b.id, from: b.from, to: recipient, body: b.body, at: b.at,
-    subject: b.subject, replyTo: b.replyTo, artifact: b.artifact, priority: b.priority, batch: b.batch || b.id, rev: b.rev,
+    subject: b.subject, replyTo: b.replyTo, artifact: b.artifact, priority: b.priority, checkpoint: b.checkpoint, batch: b.batch || b.id, rev: b.rev,
     senderType: b.senderType, fwd: b.fwd, sig: b.sig,
     _broadcast: true,
   });
@@ -292,6 +294,7 @@ export function printMsg(m, showTo, json) {
   if (m.subject) console.log(`  subj: ${m.subject}`);
   if (m.artifact) console.log(`  artifact: ${m.artifact}`);
   if (isHigh(m)) console.log(`  priority: high`);
+  if (isCheckpoint(m)) console.log(`  checkpoint: progress (not a final summary)`);
   if (typeof m.fwd === "number") console.log(`  fwd: ${m.fwd}/${MAX_FWD_DEPTH}`);
   console.log(`  ${m.body}`);
   console.log("");
@@ -327,6 +330,17 @@ export function isHigh(m) {
   return m && String(m.priority || "").toLowerCase() === "high";
 }
 
+// Progress checkpoints ride the DM thread (replyTo the brief) but are not
+// work awaiting acceptance: triage views (--unacked, ack timeout hints,
+// spawn-status reply detection) skip them; transcripts show them labeled.
+export function isCheckpoint(m) {
+  return !!m && m.checkpoint === true;
+}
+
+export function excludeCheckpoints(items) {
+  return (items || []).filter((m) => !isCheckpoint(m));
+}
+
 export function filterDigest(items, { grep, priority }) {
   let out = items;
   if (priority !== undefined) {
@@ -358,7 +372,7 @@ export function enforceMaxChars(items, maxChars) {
 export function printDigest(items) {
   for (const m of items) {
     const head = String(m.body || "").split("\n")[0].slice(0, 140);
-    console.log(`${m.id} [peer:${m.from}]${isHigh(m) ? " [!HIGH]" : ""}${m.subject ? ` subj:${String(m.subject).slice(0, 80)}` : ""} :: ${head}`);
+    console.log(`${m.id} [peer:${m.from}]${isHigh(m) ? " [!HIGH]" : ""}${isCheckpoint(m) ? " [checkpoint]" : ""}${m.subject ? ` subj:${String(m.subject).slice(0, 80)}` : ""} :: ${head}`);
   }
 }
 

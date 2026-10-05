@@ -42,8 +42,9 @@ into the project's `AGENTS.md` automatically, so prefer that copy):
     `$BOARD spawn --from <you> --to <workers> --body "<brief>"`
     (detached, capped at 20 by default, logs to `.agentboard/logs/`).
     On opencode prefer the `dm-send` tool (same thing, plus session routing).
-4. Read your mail often. Push arrives automatically on opencode; everywhere
-    else poll or block:
+4. Read your mail often. Push arrives automatically on opencode and on
+    Claude Code (Stop hook + background waiters that wake the session);
+    everywhere else poll or block:
     ```powershell
     $BOARD inbox --from <you> [--after <msg-id>] [--json]
     $BOARD listen --from <you> [--timeout 60000]
@@ -55,7 +56,10 @@ into the project's `AGENTS.md` automatically, so prefer that copy):
     share one.
 5. Reply with `send`/`dm-send` (`--reply <msg-id>` threads it) if needed, or
     continue current work if the DM is unrelated. You decide — that is the
-    whole coordination model.
+    whole coordination model. On long tasks, checkpoint every few steps
+    (`send --reply <brief-id> --checkpoint --body "done X / next Y"`) so a
+    restarted you resumes mid-brief instead of from scratch — checkpoints
+    never need ack.
 
 Rules: one stable name per session, short factual messages, never post
 secrets (reference their location instead). No task objects, no roles —
