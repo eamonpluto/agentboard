@@ -5,7 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const HOOK = path.join(HERE, "..", "bin", "agentboard-hook.js");
+const HOOK = path.join(HERE, "..", "bin", "crewbus-hook.js");
 const DMWATCH = path.join(HERE, "..", "opencode", "plugins", "dm-watch.js");
 
 let failures = 0;
@@ -18,7 +18,7 @@ const runHook = (args, env) =>
   execFileSync("node", [HOOK, ...args], { env: { ...process.env, ...env } }).toString();
 
 // identity card on a plain registered agent
-const board = fs.mkdtempSync(path.join(os.tmpdir(), "ab-compact-"));
+const board = fs.mkdtempSync(path.join(os.tmpdir(), "cb-compact-"));
 fs.mkdirSync(path.join(board, "agents"), { recursive: true });
 fs.writeFileSync(path.join(board, "agents", "cara.json"), JSON.stringify({ name: "cara" }));
 const out = runHook(["compact", "--from", "cara", "--board", board], {});
@@ -27,8 +27,8 @@ check(
   out.includes("context refreshed after compaction") && out.includes("'cara'") && out.includes(board)
 );
 check(
-  "compact prints token path + AGENTBOARD_TOKEN",
-  out.includes(path.join(board, "logs", "cara.token")) && out.includes("AGENTBOARD_TOKEN")
+  "compact prints token path + CREWBUS_TOKEN",
+  out.includes(path.join(board, "logs", "cara.token")) && out.includes("CREWBUS_TOKEN")
 );
 check("compact prints inbox next step", out.includes("inbox --from cara --unacked --digest"));
 check("compact: no brief line for plain agent", !out.includes("Your brief:"));
@@ -59,7 +59,7 @@ try {
 check("compact briefId without worker-session degrades gracefully", !threw3 && out3.includes("'w2'"));
 
 // empty board dir (exists, no agents): no throw, exit 0, prints what is known
-const emptyBoard = fs.mkdtempSync(path.join(os.tmpdir(), "ab-compact-empty-"));
+const emptyBoard = fs.mkdtempSync(path.join(os.tmpdir(), "cb-compact-empty-"));
 let emptyOut = "";
 let emptyThrew = false;
 try {
@@ -70,7 +70,7 @@ try {
 check("compact on empty board degrades gracefully", !emptyThrew && emptyOut.includes("'ghost'"));
 
 // missing board dir (nothing on disk): no throw, exit 0, plants nothing
-const missingBoard = path.join(os.tmpdir(), `ab-compact-missing-${Date.now()}`);
+const missingBoard = path.join(os.tmpdir(), `cb-compact-missing-${Date.now()}`);
 let missingOut = "";
 let missingThrew = false;
 try {
@@ -86,7 +86,7 @@ check(
 // misuse still fails loudly: missing --from
 let misuseFails = false;
 try {
-  runHook(["compact", "--board", board], { AGENTBOARD_AGENT: "" });
+  runHook(["compact", "--board", board], { CREWBUS_AGENT: "" });
 } catch {
   misuseFails = true;
 }

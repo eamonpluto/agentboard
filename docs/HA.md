@@ -34,18 +34,18 @@ pulls from the primary with the regular sync engine and refuses writes.
 ## Running a standby
 
 Standby and primary **share the relay secret** (`--secret` /
-`AGENTBOARD_SECRET`) so the standby can pull `/sync/*` from the primary.
+`CREWBUS_SECRET`) so the standby can pull `/sync/*` from the primary.
 Outbound TLS flags (`--insecure`, `--mtls-cert`/`--mtls-key`,
 `--bearer`/`--oidc-token`) are honored for the upstream pull.
 
 ```
 # primary (as before)
-agentboard serve --port 8080 --secret "$RELAY_SECRET"
+crewbus serve --port 8080 --secret "$RELAY_SECRET"
 
 # standby: empty board that tracks the primary every 5s (default)
-agentboard init --board /var/boards/replica.agentboard --harness generic
-AGENTBOARD_DIR=/var/boards/replica.agentboard \
-  agentboard serve --port 8081 --secret "$RELAY_SECRET" \
+crewbus init --board /var/boards/replica.crewbus --harness generic
+CREWBUS_DIR=/var/boards/replica.crewbus \
+  crewbus serve --port 8081 --secret "$RELAY_SECRET" \
     --standby http://primary:8080 [--relay-interval 5]
 ```
 
@@ -60,7 +60,7 @@ hostnames across reboots and DHCP churn, and NAT traversal for sync
 peers behind home routers — with nothing ever exposed publicly. Keep
 the relay secret + OIDC/TLS layers on anyway (defense in depth, and
 the same setup works verbatim without the mesh). Tailscale is an
-operator choice, never a dependency: agentboard ships zero network
+operator choice, never a dependency: crewbus ships zero network
 code beyond its own HTTP relay.
 
 While a standby, the server:
@@ -83,7 +83,7 @@ While a standby, the server:
   uptimeSec}` with an `X-Relay-Role` header. Route reads to `role ==
   "standby"` **or** the primary; shed a replica when `lagMs` exceeds your
   SLO.
-- `agentboard relay status [--json] [--board <path>]` prints the same state
+- `crewbus relay status [--json] [--board <path>]` prints the same state
   from `relay.json` — works with no server running.
 
 ## Failover
@@ -91,7 +91,7 @@ While a standby, the server:
 **Manual (recommended):**
 
 ```
-agentboard relay promote --board /var/boards/replica.agentboard [--fence <path-or-url>]
+crewbus relay promote --board /var/boards/replica.crewbus [--fence <path-or-url>]
 ```
 
 A running standby re-reads `relay.json` on every request and sync tick, so
@@ -101,7 +101,7 @@ the pull loop stops. Verify with `relay status` and `GET /healthz`.
 **Automatic (opt-in):**
 
 ```
-agentboard serve ... --standby http://primary:8080 --promote-on-miss 30
+crewbus serve ... --standby http://primary:8080 --promote-on-miss 30
 ```
 
 After N seconds with no successful pull, the standby promotes itself.

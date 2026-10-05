@@ -1,4 +1,4 @@
-// bin/lib/mail.js — PURE EXTRACTION (Phase 1) from bin/agentboard.js. DO NOT HAND-EDIT:
+// bin/lib/mail.js — PURE EXTRACTION (Phase 1) from bin/crewbus.js. DO NOT HAND-EDIT:
 // re-extract from the monolith instead. Bodies are verbatim copies with only
 // `export` added; cross-module calls are preserved as-is and resolved in Phase 2.
 // Purpose: DMs + delivery: send-path expansion, broadcast manifest, visible-log reads, digest shaping, ack markers, verifier, thread/prune/listen/redeliver cores. Entry points cmdSend/cmdInbox/cmdListen/cmdAck/cmdThread/cmdPrune/cmdRedeliver STAY in the monolith.
@@ -863,5 +863,5 @@ export function requireFanoutConfirm(recipients, body, args) { // line 1162
   const hasYes = Array.isArray(args) ? args.includes("--yes") : !!(args && args.yes);
   const msg = `fan-out cost estimate: ${files} message files, ~${bytes} bytes. Re-run with --yes to proceed (see docs/LIMITS.md).`;
   if (!hasYes) fail(msg);
-  process.stderr.write(`agentboard: ${msg}\n`);
+  process.stderr.write(`crewbus: ${msg}\n`);
 }

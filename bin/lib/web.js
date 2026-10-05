@@ -1,6 +1,6 @@
-// bin/lib/web.js — dashboard + API (Phase 1 pure extraction from bin/agentboard.js).
+// bin/lib/web.js — dashboard + API (Phase 1 pure extraction from bin/crewbus.js).
 // Moved VERBATIM (only `export` added; cross-module refs via imports below).
-// Source lines in bin/agentboard.js (9856-line file):
+// Source lines in bin/crewbus.js (9856-line file):
 //   escapeHtml 5963-5967, boardSnapshot 5969-6040, fleetSnapshot 6047-6075,
 //   channelsSnapshot 6079-6110, resultsSnapshot 6114-6162, auditSnapshot 6166-6190,
 //   handleApiAck 6195-6226, renderBoardHtml 6232-6406,
@@ -331,10 +331,10 @@ export function renderBoardHtml(boardPath) {
   const e = escapeHtml;
   return `<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>agentboard — ${e(boardPath)}</title>
+<title>crewbus — ${e(boardPath)}</title>
 <style>body{margin:0;background:#0f1419;color:#d7dee6;font:14px/1.5 system-ui,sans-serif}main{max-width:1100px;margin:0 auto;padding:24px 18px 80px}h1{font-size:1.4em}h2{margin-top:2em;color:#4cc38a;font-size:1.05em}.dim{color:#8b98a5;font-size:.85em}table{border-collapse:collapse;width:100%;margin:.5em 0;font-size:.9em}th,td{border:1px solid #2a343e;padding:6px 8px;text-align:left;vertical-align:top}th{background:#182028}.log{font-family:monospace;font-size:.82em;white-space:pre-wrap}.cards{display:flex;gap:12px;flex-wrap:wrap}.card{background:#182028;border:1px solid #2a343e;border-radius:8px;padding:10px 16px}.card b{font-size:1.5em;color:#4cc38a}input{background:#0b0f14;border:1px solid #2a343e;color:#d7dee6;border-radius:5px;padding:4px 8px;font-size:.9em}button{background:#182028;border:1px solid #4cc38a;color:#4cc38a;border-radius:5px;padding:4px 12px;font-size:.9em;cursor:pointer}button.danger{border-color:#e5534b;color:#e5534b}button:disabled{opacity:.4;cursor:default}#result{margin-top:1em;white-space:pre-wrap;font-family:monospace;font-size:.85em}@media (max-width:700px){main{padding:16px 12px 60px}h1{font-size:1.15em}table{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch}input{margin:2px 0}}</style>
 </head><body><main>
-<h1>agentboard <span class="dim">${e(boardPath)}</span></h1>
+<h1>crewbus <span class="dim">${e(boardPath)}</span></h1>
 <div class="card" style="margin-bottom:1em">acting as <input id="who" size="12" placeholder="agent name"> token <input id="tok" type="password" size="28" placeholder="abt-…"> <button id="save">save</button> <span id="ident" class="dim"></span></div>
 <div class="cards"><div class="card"><b id="c-agents">–</b><br>agents (<span id="c-active">–</span> active)</div><div class="card"><b id="c-workers">–</b><br>workers</div><div class="card"><b id="c-unacked">–</b><br>unacked</div><div class="card"><b id="c-bcast">–</b><br>broadcasts</div><div class="card"><b id="c-groups">–</b><br>groups</div><div class="card"><b id="c-peers">–</b><br>peers</div></div>
 <h2>Workers <button id="killall" class="danger">kill all</button></h2><table><tr><th>worker</th><th>state</th><th>pid</th><th>reply</th><th>log tail</th><th></th></tr><tbody id="workers"></tbody></table>
@@ -531,7 +531,7 @@ export async function cmdWeb(args) {
   const port = Number(getFlag(args, "--port") || 0);
   if (!(port >= 0 && port < 65536)) fail("--port must be 0-65535 (0 = random)");
   if (host !== "127.0.0.1" && host !== "localhost" && host !== "::1") {
-    process.stderr.write(`agentboard: warning: binding non-local ${host} — the dashboard has no auth, anyone who can reach it can read the board\n`);
+    process.stderr.write(`crewbus: warning: binding non-local ${host} — the dashboard has no auth, anyone who can reach it can read the board\n`);
   }
 // Reads the JSON kill request without fail() (which would exit the server).
   const readKillBody = (req) =>
@@ -692,7 +692,7 @@ export async function cmdWeb(args) {
     server.listen(port, host, () => {
       const a = server.address();
       const shown = a && typeof a === "object" ? `${a.address}:${a.port}` : `${host}:${port}`;
-      console.log(`agentboard web at http://${shown} [board ${d.root}]`);
+      console.log(`crewbus web at http://${shown} [board ${d.root}]`);
       resolve();
     });
   });

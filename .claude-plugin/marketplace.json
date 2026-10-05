@@ -1,11 +1,11 @@
 {
-  "name": "agentboard",
+  "name": "crewbus",
   "owner": {
     "name": "eamonpluto"
   },
   "plugins": [
     {
-      "name": "agentboard",
+      "name": "crewbus",
       "source": "./claude-plugin",
       "description": "Zero-dependency message bus for AI coding-agent crews: DM peers via MCP tools, Stop-hook delivery plus background waiters that wake the session when mail lands."
     }

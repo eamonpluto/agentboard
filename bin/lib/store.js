@@ -1,7 +1,7 @@
-// Phase 1 pure extraction from bin/agentboard.js — board filesystem layer.
+// Phase 1 pure extraction from bin/crewbus.js — board filesystem layer.
 // Verbatim copies (only `export` added). Do NOT edit the monolith yet;
 // Phase 2 will cut the originals and wire imports.
-// Source: bin/agentboard.js (see line numbers in comments).
+// Source: bin/crewbus.js (see line numbers in comments).
 
 import fs from "node:fs";
 import os from "node:os";
@@ -32,7 +32,7 @@ export const DEDUPE_WINDOW_MS = 10 * 1000;
 // ---------------------------------------------------------------------------
 
 export function fail(msg, code = 1) { // line 53
-  process.stderr.write(`agentboard: ${msg}\n`);
+  process.stderr.write(`crewbus: ${msg}\n`);
   process.exit(code);
 }
 
@@ -41,22 +41,22 @@ export function boardDir(args) { // line 58
   if (flagIdx !== -1 && args[flagIdx + 1] && !args[flagIdx + 1].startsWith("--"))
     return path.resolve(args[flagIdx + 1]);
   if (args.includes("--global")) {
-    return path.join(os.homedir(), ".agentboard", "boards", "default");
+    return path.join(os.homedir(), ".crewbus", "boards", "default");
   }
-  if (process.env.AGENTBOARD_DIR) return path.resolve(process.env.AGENTBOARD_DIR);
+  if (process.env.CREWBUS_DIR) return path.resolve(process.env.CREWBUS_DIR);
   // init always plants a board where you stand; every other command walks up
   // so agents running from a subdirectory land on the project board instead
   // of silently creating a stray one.
-  if (process.argv[2] === "init") return path.join(process.cwd(), ".agentboard");
-  return findBoardUpward(process.cwd()) || path.join(process.cwd(), ".agentboard");
+  if (process.argv[2] === "init") return path.join(process.cwd(), ".crewbus");
+  return findBoardUpward(process.cwd()) || path.join(process.cwd(), ".crewbus");
 }
 
-// Nearest ancestor (incl. start) containing a .agentboard dir, or null.
+// Nearest ancestor (incl. start) containing a .crewbus dir, or null.
 export function findBoardUpward(start) { // line 74
   let dir = path.resolve(start);
   for (;;) {
     try {
-      if (fs.statSync(path.join(dir, ".agentboard")).isDirectory()) return path.join(dir, ".agentboard");
+      if (fs.statSync(path.join(dir, ".crewbus")).isDirectory()) return path.join(dir, ".crewbus");
     } catch {}
     const parent = path.dirname(dir);
     if (parent === dir) return null;
@@ -64,11 +64,11 @@ export function findBoardUpward(start) { // line 74
   }
 }
 
-// Never silently plant a board at a drive root (e.g. C:\.agentboard): that
+// Never silently plant a board at a drive root (e.g. C:\.crewbus): that
 // means cwd resolution failed (detached harness worktree). Fail loudly so
-// the agent sets --board/AGENTBOARD_DIR instead of talking to a stray board.
+// the agent sets --board/CREWBUS_DIR instead of talking to a stray board.
 export function isExplicitBoard(args) { // line 89
-  return args.includes("--board") || args.includes("--global") || !!process.env.AGENTBOARD_DIR;
+  return args.includes("--board") || args.includes("--global") || !!process.env.CREWBUS_DIR;
 }
 
 export function refuseDriveRootBoard(root, args) { // line 93
@@ -82,7 +82,7 @@ export function refuseDriveRootBoard(root, args) { // line 93
     const cwd = process.cwd();
     fail(
       `refusing to create a board at drive root ${root} — no project board found above cwd "${cwd}". ` +
-        `Run from your project (the dir containing .agentboard/), pass --board <absolute path to .agentboard>, or set AGENTBOARD_DIR. ` +
+        `Run from your project (the dir containing .crewbus/), pass --board <absolute path to .crewbus>, or set CREWBUS_DIR. ` +
         `Every send echoes [board <path>] — if two agents see different boards, point them at the same one.`
     );
   }
@@ -187,7 +187,7 @@ export function newId(prefix) { // line 192
 }
 
 export function sanitizeName(name, what) { // line 207
-  if (!name) fail(`missing --${what === "recipient" ? "to" : "from"} <agent-name> (${what}); or set env AGENTBOARD_AGENT=<name>`);
+  if (!name) fail(`missing --${what === "recipient" ? "to" : "from"} <agent-name> (${what}); or set env CREWBUS_AGENT=<name>`);
   // Lowercase: "Alice" and "alice" are one agent. Display case is not
   // preserved — names are addresses, and case variants must never split
   // an inbox, a token, or a pid record in two.
@@ -255,11 +255,11 @@ export function restArgs(args) { // line 1264
 }
 
 export function resolveAgent(args, what) { // line 1276
-  return sanitizeName(getFlag(args, "--from") || process.env.AGENTBOARD_AGENT, what);
+  return sanitizeName(getFlag(args, "--from") || process.env.CREWBUS_AGENT, what);
 }
 
 export function optionalAgent(args) { // line 1280
-  const raw = getFlag(args, "--from") || process.env.AGENTBOARD_AGENT;
+  const raw = getFlag(args, "--from") || process.env.CREWBUS_AGENT;
   return raw ? sanitizeName(raw, "agent") : null;
 }
 
@@ -299,7 +299,7 @@ export function requireBoard(root) { // line 3105
   if (!meta || meta.version !== BOARD_VERSION) {
     fail(
       `no board at ${root} (cwd "${process.cwd()}"). ` +
-        `Run from your project (the dir containing .agentboard/), pass --board <absolute path to .agentboard>, or set AGENTBOARD_DIR. ` +
+        `Run from your project (the dir containing .crewbus/), pass --board <absolute path to .crewbus>, or set CREWBUS_DIR. ` +
         `If you just created one elsewhere, every send echoes [board <path>] — point all agents at the same one.`
     );
   }

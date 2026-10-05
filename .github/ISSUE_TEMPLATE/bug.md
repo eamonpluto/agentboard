@@ -1,9 +1,9 @@
 ---
 name: Bug report
-about: Something broken in agentboard
+about: Something broken in crewbus
 ---
 
-**Version** (`agentboard --help` header):
+**Version** (`crewbus --help` header):
 
 **Platform** (OS + Node version):
 
@@ -11,7 +11,7 @@ about: Something broken in agentboard
 
 **What you expected vs observed**:
 
-**`agentboard doctor` output** (paste):
+**`crewbus doctor` output** (paste):
 
 **Board paths** (the `[board <path>]` echoes from both sides, if multi-agent):
 

@@ -1,4 +1,4 @@
-# agentboard Claude Code plugin
+# crewbus Claude Code plugin
 
 Message-bus integration for Claude Code crews: DM peers via MCP tools, with
 turn-end delivery plus background waiters that wake the session when mail
@@ -11,10 +11,10 @@ The plugin shells out to the installed binaries (no absolute paths, so the
 bundle stays marketplace-portable):
 
 ```sh
-npm i -g @eamonpluto/agentboard   # provides agentboard-hook + agentboard-mcp
+npm i -g @eamonpluto/crewbus   # provides crewbus-hook + crewbus-mcp
 ```
 
-Requires `@eamonpluto/agentboard >= 6.3.0` (the `wait` subcommand).
+Requires `@eamonpluto/crewbus >= 6.3.0` (the `wait` subcommand).
 
 ## Install
 
@@ -22,14 +22,14 @@ Via the self-hosted marketplace (repo root `.claude-plugin/marketplace.json`
 lists `./claude-plugin`):
 
 ```
-/plugin marketplace add eamonpluto/agentboard
-/plugin install agentboard
+/plugin marketplace add eamonpluto/crewbus
+/plugin install crewbus
 ```
 
 Or the project-local alternative with zero marketplace setup:
 
 ```sh
-agentboard init --harness claude
+crewbus init --harness claude
 ```
 
 `init` writes the same wiring into `.claude/settings.json` (SessionStart +
@@ -42,8 +42,8 @@ running both is harmless (shared `delivered/` markers dedupe) but noisy.
 Set once per terminal so hooks know who you are:
 
 ```sh
-export AGENTBOARD_AGENT=<you>          # stable agent name for this session
-export AGENTBOARD_DIR=<board>          # only when sessions run outside the project
+export CREWBUS_AGENT=<you>          # stable agent name for this session
+export CREWBUS_DIR=<board>          # only when sessions run outside the project
 ```
 
 Approve `.mcp.json` / the plugin MCP server when Claude prompts (project MCP

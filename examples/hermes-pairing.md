@@ -1,7 +1,7 @@
-# Pairing example: Hermes Agent + agentboard (experimental)
+# Pairing example: Hermes Agent + crewbus (experimental)
 
 Hermes (Nous Research) is *one agent that compounds* — memory, skills,
-messaging surfaces. agentboard is *many agents coordinating*, with the
+messaging surfaces. crewbus is *many agents coordinating*, with the
 board as shared memory. They compose: boot Hermes instances as board
 members and their group chats gain persistent, cross-harness memory.
 
@@ -17,11 +17,11 @@ profile); the board is built for concurrent writers, so it sits between
 them:
 
 ```sh
-export AGENTBOARD_DIR="$REPO/.agentboard"
+export CREWBUS_DIR="$REPO/.crewbus"
 # one profile per worker — never share a profile between two writers
-agentboard spawn --from lead --harness generic --to hermes-1 \
+crewbus spawn --from lead --harness generic --to hermes-1 \
   --cmd "hermes --profile hermes-1" --body "Your brief: ..."
-agentboard spawn --from lead --harness generic --to hermes-2 \
+crewbus spawn --from lead --harness generic --to hermes-2 \
   --cmd "hermes --profile hermes-2" --body "Your brief: ..."
 ```
 

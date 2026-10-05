@@ -1,4 +1,4 @@
-// bin/lib/groups.js — PURE EXTRACTION (Phase 1) from bin/agentboard.js. DO NOT HAND-EDIT:
+// bin/lib/groups.js — PURE EXTRACTION (Phase 1) from bin/crewbus.js. DO NOT HAND-EDIT:
 // re-extract from the monolith instead. Bodies are verbatim copies with only
 // `export` added; cross-module calls are preserved as-is and resolved in Phase 2.
 // Purpose: Groups + outcomes: group docs, expansion, telemetry, batch gather, result records, race evaluation. Entry points cmdGroup/cmdGather/cmdResult/cmdRace STAY in the monolith.

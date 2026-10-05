@@ -3,13 +3,13 @@
 // A worker's token is printed once at mint and otherwise lives in session
 // env — after compaction/restart amnesia the worker is locked out of its
 // own claimed name (first-claim-wins). Convention: the worker saves its
-// token to `.agentboard/logs/<agent-name>.token` (raw token text + trailing
+// token to `.crewbus/logs/<agent-name>.token` (raw token text + trailing
 // newline, chmod 0600 best-effort) right after register/mint, so it can
 // re-read it later.
 //
 // Standalone: node builtins only, NO local imports (avoids import-graph
 // cycles — identity.js must never import this back).
-// `root` is the board dir (the `.agentboard/` directory itself).
+// `root` is the board dir (the `.crewbus/` directory itself).
 
 import fs from "node:fs";
 import path from "node:path";

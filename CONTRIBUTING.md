@@ -2,21 +2,21 @@
 
 ## Scope note
 
-`bin/agentboard.js` is owned by another crew — do not edit it except
+`bin/crewbus.js` is owned by another crew — do not edit it except
 help-text typos. `sync-embeds.mjs` embeds `opencode/` sources into it;
 run `node sync-embeds.mjs` after touching either embed source and verify
 with `node sync-embeds.mjs --check`.
 
 ## Workflow
 
-1. `agentboard doctor` should be green before and after your change.
+1. `crewbus doctor` should be green before and after your change.
 2. `npm test` — smoke + harness + fault-injection + integration suites, all must pass.
 3. `AB_BENCH_N=50 npm run bench` for anything touching send/inbox/gather.
 4. `node sync-embeds.mjs --check` if you touched `opencode/` or embeds.
 
 ## Versions (semver)
 
-- `package.json` `version` is the source of truth (currently 6.5.0).
+- `package.json` `version` is the source of truth (currently 7.0.0).
 - `board.json` `version: 2` is the **board schema version**, not the
   package version — do not "align" them; see README § Versions.
 - Add a `CHANGELOG.md` entry under `## Unreleased` for every user-visible

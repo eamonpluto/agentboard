@@ -6,7 +6,7 @@ verify with discovery + JWKS fetch, no npm packages). Windows/Linux/macOS.
 ## OIDC login (scriptable)
 
 ```sh
-agentboard login --issuer <url> --client-id <id> --token <jwt> [--board <path>]
+crewbus login --issuer <url> --client-id <id> --token <jwt> [--board <path>]
 ```
 
 Validates your caller-provided JWT against the issuer's discovery document
@@ -21,26 +21,26 @@ ES256/384/512. The JWT is never logged.
 ## Relay accepts Bearer as a secret alternative
 
 ```sh
-agentboard serve --oidc-issuer <url> --oidc-audience <id> [...]
+crewbus serve --oidc-issuer <url> --oidc-audience <id> [...]
 ```
 
 Protected endpoints (`/sync/*`, `/api/spawn`, `/api/kill`) accept
 `Authorization: Bearer <jwt>` (verified as above) as an alternative to
-`--secret`/`AGENTBOARD_SECRET`. Identity is attached to the request
+`--secret`/`CREWBUS_SECRET`. Identity is attached to the request
 (`req.oidc = {sub, iss}`); permission checks stay in the existing gates —
 this phase authenticates only. Clients pass the JWT explicitly:
 
 ```sh
-agentboard sync --with https://peer:port --bearer <jwt> [...]
-AGENTBOARD_OIDC_TOKEN=<jwt> agentboard sync --with https://peer:port [...]
+crewbus sync --with https://peer:port --bearer <jwt> [...]
+CREWBUS_OIDC_TOKEN=<jwt> crewbus sync --with https://peer:port [...]
 ```
 
 ## In-box TLS
 
 ```sh
-agentboard serve --tls-cert <pem> --tls-key <pem> [--tls-ca <pem>]
-agentboard sync --with https://peer:port [...]
-agentboard listen --with https://peer:port [...]
+crewbus serve --tls-cert <pem> --tls-key <pem> [--tls-ca <pem>]
+crewbus sync --with https://peer:port [...]
+crewbus listen --with https://peer:port [...]
 ```
 
 `--tls-cert/--tls-key` switch the relay to `node:https` (same routes).
@@ -49,8 +49,8 @@ agentboard listen --with https://peer:port [...]
 Self-signed friendly (dev/test only):
 
 ```sh
-agentboard sync --with https://peer:port --insecure
-AGENTBOARD_INSECURE=1 agentboard sync --with https://peer:port [...]
+crewbus sync --with https://peer:port --insecure
+CREWBUS_INSECURE=1 crewbus sync --with https://peer:port [...]
 ```
 
 Skips peer-cert verification with a loud stderr warning. Never use with real
@@ -59,8 +59,8 @@ credentials.
 ## mTLS relay-to-relay (opt-in)
 
 ```sh
-agentboard serve --mtls-ca <pem> [...]        # (--tls-ca is an alias)
-agentboard sync --with https://peer:port --mtls-cert <pem> --mtls-key <pem>
+crewbus serve --mtls-ca <pem> [...]        # (--tls-ca is an alias)
+crewbus sync --with https://peer:port --mtls-cert <pem> --mtls-key <pem>
 ```
 
 With a client-verify CA configured, the relay requires a verified client

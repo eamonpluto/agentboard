@@ -1,7 +1,7 @@
-// Phase 1 pure extraction from bin/agentboard.js — tokens + RBAC.
+// Phase 1 pure extraction from bin/crewbus.js — tokens + RBAC.
 // Verbatim copies (only `export` + imports added). Do NOT edit the monolith yet;
 // Phase 2 will cut the originals and wire imports.
-// Source: bin/agentboard.js (see line numbers in comments).
+// Source: bin/crewbus.js (see line numbers in comments).
 // External refs left unresolved (stay in monolith for Phase 2):
 //   readGroup (authorizeCheck), webErr (authorizeThrow), stampSyncDoc (touchAgent).
 
@@ -13,7 +13,7 @@ import { readGroup } from "./groups.js";
 
 // Identity: first claim wins, token after that. Tokens stop CLI-level
 // --from spoofing; they do NOT stop local file tampering (anyone with shell
-// access can edit .agentboard/ directly) — separate boards per trust zone.
+// access can edit .crewbus/ directly) — separate boards per trust zone.
 // §4.4: agent files store ONLY a salted hash ({tokenHash, salt}, never
 // plaintext). Plaintext is printed once at mint. Legacy files with a
 // plaintext `token` field are accepted once, then migrated to a hash.
@@ -100,7 +100,7 @@ export function mergeSyncedAgent(local, incoming) { // line 299
 export function resolveToken(args) { // line 310
   const flag = getFlag(args, "--token");
   if (flag !== undefined) return flag;
-  const env = process.env.AGENTBOARD_TOKEN;
+  const env = process.env.CREWBUS_TOKEN;
   return env === undefined || env === "" ? undefined : env;
 }
 
@@ -155,11 +155,11 @@ export function checkToken(d, agent, token) { // line 361
   if (tokenExpired(rec)) fail(`token for "${agent}" expired at ${rec.expiresAt} — re-register to renew: register --from ${agent} --token <old-or-new> --expires-in <dur>`);
   if (rec.revokedAt || (rec.tokenHash && isHashRevoked(d, rec.tokenHash))) fail(`token for "${agent}" is revoked — re-register to mint a fresh one: register --from ${agent}`);
   if (rec.tokenHash && rec.salt) {
-    if (!agentTokenMatches(rec, token)) fail(`bad token for "${agent}" (pass --token or set AGENTBOARD_TOKEN)`);
+    if (!agentTokenMatches(rec, token)) fail(`bad token for "${agent}" (pass --token or set CREWBUS_TOKEN)`);
     return rec;
   }
   if (rec.token) {
-    if (!agentTokenMatches(rec, token)) fail(`bad token for "${agent}" (pass --token or set AGENTBOARD_TOKEN)`);
+    if (!agentTokenMatches(rec, token)) fail(`bad token for "${agent}" (pass --token or set CREWBUS_TOKEN)`);
     // Migrate: re-hash + drop plaintext now that the owner proved possession.
     const salt = newSalt();
     const migrated = { ...rec, tokenHash: hashToken(String(token), salt), salt };
@@ -191,7 +191,7 @@ export function ensureSender(d, agent, token) { // line 387
     if (!claimed) {
       const again = readAgent(d, agent);
       if (!again || (!again.token && !again.tokenHash) || !agentTokenMatches(again, token)) {
-        fail(`bad token for "${agent}" (pass --token or set AGENTBOARD_TOKEN)`);
+        fail(`bad token for "${agent}" (pass --token or set CREWBUS_TOKEN)`);
       }
       return { created: false };
     }
@@ -213,7 +213,7 @@ export function ensureSender(d, agent, token) { // line 387
   }
   if (rec.token && !rec.tokenHash) {
     // Legacy file: must present the old plaintext once; then migrate.
-    if (!agentTokenMatches(rec, token)) fail(`bad token for "${agent}" (pass --token or set AGENTBOARD_TOKEN)`);
+    if (!agentTokenMatches(rec, token)) fail(`bad token for "${agent}" (pass --token or set CREWBUS_TOKEN)`);
     const salt = newSalt();
     rec.tokenHash = hashToken(String(token), salt);
     rec.salt = salt;
@@ -221,7 +221,7 @@ export function ensureSender(d, agent, token) { // line 387
     writeAgentFile(d, agent, rec);
     return { created: false, migrated: true };
   }
-  if (!agentTokenMatches(rec, token)) fail(`bad token for "${agent}" (pass --token or set AGENTBOARD_TOKEN)`);
+  if (!agentTokenMatches(rec, token)) fail(`bad token for "${agent}" (pass --token or set CREWBUS_TOKEN)`);
   if (rec.offboarded) fail(`agent "${agent}" is offboarded — sends as that name are refused (inbox preserved for audit)`);
   if (tokenExpired(rec)) fail(`token for "${agent}" expired at ${rec.expiresAt} — re-register to renew: register --from ${agent} --token <old-or-new> --expires-in <dur>`);
   if (rec.revokedAt || (rec.tokenHash && isHashRevoked(d, rec.tokenHash))) fail(`token for "${agent}" is revoked — re-register to mint a fresh one: register --from ${agent}`);

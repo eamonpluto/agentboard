@@ -1,6 +1,6 @@
 # Experiments: does the peer-to-peer part matter?
 
-Goal: test whether agentboard's peer-to-peer messaging (vs a simple
+Goal: test whether crewbus's peer-to-peer messaging (vs a simple
 orchestrator or native subagents) changes outcomes — using public models,
 cheap tasks, and published negative results.
 
@@ -26,7 +26,7 @@ can be automatic (see review §4.2).
 - single agent (baseline)
 - native subagents of one harness (vendor baseline)
 - orchestrator script (fan-out, collect, no lateral mail)
-- agentboard DMs only
+- crewbus DMs only
 - DMs plus shared channel (`channel post` / `tail`)
 - plus consolidator (a reference reducer worker summarizing group findings)
 

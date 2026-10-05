@@ -1,4 +1,4 @@
-// .opencode/tools/dm-send.js — primitive DM tool for agent-board (DM-only v2).
+// .opencode/tools/dm-send.js — primitive DM tool for crewbus (DM-only v2).
 // Filename becomes the tool name: dm-send.
 // Loaded by opencode alongside built-in tools. Zero extra deps.
 //
@@ -11,11 +11,11 @@
 // agent owns its scope and DMs a summary back. Thread answers with `replyTo`.
 //
 // What it does:
-//   1. resolves the board (board arg, AGENTBOARD_DIR env, else walk-up from
-//      worktree/directory/cwd to the project .agentboard)
-//   2. writes .agentboard/dm/<to>/<msg-id>.json per recipient (atomic
+//   1. resolves the board (board arg, CREWBUS_DIR env, else walk-up from
+//      worktree/directory/cwd to the project .crewbus)
+//   2. writes .crewbus/dm/<to>/<msg-id>.json per recipient (atomic
 //      write-then-rename, unique id each, shared batch id on fan-out)
-//   3. upserts .agentboard/agents/<from>.json with { lastSeen, sessionId }
+//   3. upserts .crewbus/agents/<from>.json with { lastSeen, sessionId }
 //      so the watcher plugin can route pushes back to the right session.
 //   4. stamps the sender's git rev (when inside a checkout) so recipients
 //      can tell whether cited file:line numbers are stale.
@@ -35,7 +35,7 @@ function findBoardUpward(start) {
   let dir = path.resolve(start);
   for (;;) {
     try {
-      if (fs.statSync(path.join(dir, ".agentboard")).isDirectory()) return path.join(dir, ".agentboard");
+      if (fs.statSync(path.join(dir, ".crewbus")).isDirectory()) return path.join(dir, ".crewbus");
     } catch {}
     const parent = path.dirname(dir);
     if (parent === dir) return null;
@@ -46,11 +46,11 @@ function findBoardUpward(start) {
 // Try every base the harness gives us (worktree, directory, cwd): harnesses
 // sometimes run agents with a cwd below (or beside) the project, or with an
 // empty worktree. First walk-up hit wins; otherwise fall back to
-// <primary>/.agentboard so the caller gets the drive-root guard instead of a
+// <primary>/.crewbus so the caller gets the drive-root guard instead of a
 // silent stray board.
 function boardRoot(candidates, override) {
   if (override) return { root: path.resolve(String(override)), tried: [path.resolve(String(override))] };
-  if (process.env.AGENTBOARD_DIR) return { root: path.resolve(process.env.AGENTBOARD_DIR), tried: [path.resolve(process.env.AGENTBOARD_DIR)] };
+  if (process.env.CREWBUS_DIR) return { root: path.resolve(process.env.CREWBUS_DIR), tried: [path.resolve(process.env.CREWBUS_DIR)] };
   const tried = [];
   for (const base of candidates) {
     if (!base) continue;
@@ -65,7 +65,7 @@ function boardRoot(candidates, override) {
     if (hit) return { root: hit, tried };
   }
   const primary = path.resolve(String(candidates[0] || process.cwd()));
-  return { root: path.join(primary, ".agentboard"), tried };
+  return { root: path.join(primary, ".crewbus"), tried };
 }
 
 function clean(name, what) {
@@ -130,7 +130,7 @@ function readAgent(root, name) {
 
 function resolveToken(args) {
   if (args.token !== undefined && args.token !== null && String(args.token) !== "") return String(args.token);
-  const env = process.env.AGENTBOARD_TOKEN;
+  const env = process.env.CREWBUS_TOKEN;
   return env === undefined || env === "" ? undefined : env;
 }
 
@@ -155,7 +155,7 @@ function ensureSender(root, agent, token) {
     return { created: true, token: fresh };
   }
   if (rec.token && !rec.tokenHash) {
-    if (!agentTokenMatches(rec, token)) throw new Error(`bad token for "${agent}" (pass token or set AGENTBOARD_TOKEN)`);
+    if (!agentTokenMatches(rec, token)) throw new Error(`bad token for "${agent}" (pass token or set CREWBUS_TOKEN)`);
     const salt = newSalt();
     rec.tokenHash = hashToken(String(token), salt);
     rec.salt = salt;
@@ -163,7 +163,7 @@ function ensureSender(root, agent, token) {
     writeAgentHashed(path.join(root, "agents", agent + ".json"), rec);
     return { created: false };
   }
-  if (!agentTokenMatches(rec, token)) throw new Error(`bad token for "${agent}" (pass token or set AGENTBOARD_TOKEN)`);
+  if (!agentTokenMatches(rec, token)) throw new Error(`bad token for "${agent}" (pass token or set CREWBUS_TOKEN)`);
   return { created: false };
 }
 
@@ -310,12 +310,12 @@ function newId(prefix) {
 
 export default tool({
   description:
-    "Send a direct message to another AI agent via agent-board. Use whenever you want to coordinate, share a finding, or ask a peer. Fire-and-forget like Slack — the peer's session gets it injected into context. `to` accepts a comma list (broadcast: one copy each, shared batch id, up to 10000; fan-outs over 20 use one broadcast file) or @all for everyone. Args: from (your stable agent name), to (peer's agent name), body (message text), subject (optional mission line), replyTo (optional msg id you are answering), board (optional absolute board path when your session runs outside the project).",
+    "Send a direct message to another AI agent via crewbus. Use whenever you want to coordinate, share a finding, or ask a peer. Fire-and-forget like Slack — the peer's session gets it injected into context. `to` accepts a comma list (broadcast: one copy each, shared batch id, up to 10000; fan-outs over 20 use one broadcast file) or @all for everyone. Args: from (your stable agent name), to (peer's agent name), body (message text), subject (optional mission line), replyTo (optional msg id you are answering), board (optional absolute board path when your session runs outside the project).",
   args: {
     from: tool.schema.string().describe("Your stable agent name, e.g. alice. Keep it constant for the session."),
     to: tool.schema.string().describe("Recipient agent name, e.g. bob — comma list for broadcast up to 10000: alice,bob,carol — or @all for everyone. They receive it on inbox/listen even before registering."),
     to_group: tool.schema.string().optional().describe("Named group(s) to fan out to, e.g. eng-team (CLI: group create eng-team --add a,b,c). Merged with to."),
-    token: tool.schema.string().optional().describe("Your agent token from the first send (or AGENTBOARD_TOKEN env). First send as a new name mints its token."),
+    token: tool.schema.string().optional().describe("Your agent token from the first send (or CREWBUS_TOKEN env). First send as a new name mints its token."),
     body: tool.schema.string().describe("Message text, 1..8000 chars."),
     subject: tool.schema.string().optional().describe("Optional mission line, e.g. 'brief: borderless cards'. Shown above the body."),
     replyTo: tool.schema.string().optional().describe("Optional message id you are answering (threads the reply)."),
@@ -323,7 +323,7 @@ export default tool({
     priority: tool.schema.string().optional().describe("Optional urgency flag: high or normal (default normal). Readers filter with inbox --priority / dm_inbox priority."),
     checkpoint: tool.schema.boolean().optional().describe("Mark as a progress checkpoint on a thread (labeled in transcripts, skipped by unacked triage — never needs ack)."),
     also_channel: tool.schema.boolean().optional().describe("With to_group: also append the brief to each group's channel (grp-<group>), stamped with the DM batch id so gather picks it up."),
-    board: tool.schema.string().optional().describe("Optional absolute board path, e.g. C:/proj/.agentboard. Overrides AGENTBOARD_DIR and auto-detection."),
+    board: tool.schema.string().optional().describe("Optional absolute board path, e.g. C:/proj/.crewbus. Overrides CREWBUS_DIR and auto-detection."),
   },
   async execute(args, context) {
     const from = clean(args.from, "from");
@@ -355,13 +355,13 @@ export default tool({
     const boardArg = args.board === undefined || args.board === null || String(args.board).trim() === "" ? undefined : String(args.board);
     const worktree = context.worktree || context.directory || process.cwd();
     const { root, tried } = boardRoot([worktree, context.directory, process.cwd()], boardArg);
-    if (!boardArg && !process.env.AGENTBOARD_DIR) {
+    if (!boardArg && !process.env.CREWBUS_DIR) {
       let exists = false;
       try {
         exists = fs.statSync(root).isDirectory();
       } catch {}
       if (!exists && path.dirname(root) === path.parse(root).root) {
-        return `error: refusing to create a board at drive root ${root} — no project board found. Tried walk-up from: ${tried.join(" | ") || "(nothing)"}. Run from your project (the dir containing .agentboard/), pass board (absolute path to .agentboard), or set AGENTBOARD_DIR.`;
+        return `error: refusing to create a board at drive root ${root} — no project board found. Tried walk-up from: ${tried.join(" | ") || "(nothing)"}. Run from your project (the dir containing .crewbus/), pass board (absolute path to .crewbus), or set CREWBUS_DIR.`;
       }
     }
     const minted = ensureSender(root, from, resolveToken(args));
@@ -379,7 +379,7 @@ export default tool({
         } catch {}
       } catch {}
     }
-    const tokenHint = minted.created ? ` identity '${from}' claimed, token ${minted.token} (set AGENTBOARD_TOKEN=${minted.token})` : "";
+    const tokenHint = minted.created ? ` identity '${from}' claimed, token ${minted.token} (set CREWBUS_TOKEN=${minted.token})` : "";
     const rev = gitRev(root);
     const at = new Date().toISOString();
     // upsert sender with live session routing for the watcher plugin

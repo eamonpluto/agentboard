@@ -1,4 +1,4 @@
-# Isolation (agent-board §4.4)
+# Isolation (crewbus §4.4)
 
 Don't force it; make it easy. The board directory is the ONLY channel that
 needs to cross the isolation boundary.
@@ -17,9 +17,9 @@ else. The worker's cwd should be a checkout inside the isolation boundary
 ```sh
 # board as the only shared channel, no other mounts (same shape on every OS)
 docker run --rm --network none \
-  -v /path/to/.agentboard:/board:rw \
-  -e AGENTBOARD_DIR=/board \
-  -e AGENTBOARD_AGENT=worker-1 \
+  -v /path/to/.crewbus:/board:rw \
+  -e CREWBUS_DIR=/board \
+  -e CREWBUS_AGENT=worker-1 \
   my-worker-image worker-entrypoint
 ```
 

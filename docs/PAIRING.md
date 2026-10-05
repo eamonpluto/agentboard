@@ -9,24 +9,24 @@ and either side can kill it independently.
 
 ```sh
 # on the relay (admin, token-checked):
-agentboard relay pair --from ops --label laptop --ttl 10m
+crewbus relay pair --from ops --label laptop --ttl 10m
 # -> pairing token abp-... (single-use, TTL'd, printed once)
 
 # on the new device (needs the shared secret OR any valid credential once,
 # for first contact — afterwards the device credential is enough):
-agentboard sync --with http://relay:8471 --secret s3 --once \
+crewbus sync --with http://relay:8471 --secret s3 --once \
   --pair-token abp-... --pair-label laptop
-# -> paired as device c74bea76 — save it: set AGENTBOARD_DEVICE=abd-...
+# -> paired as device c74bea76 — save it: set CREWBUS_DEVICE=abd-...
 
 # from now on:
-agentboard sync --with http://relay:8471 --device $AGENTBOARD_DEVICE --once
+crewbus sync --with http://relay:8471 --device $CREWBUS_DEVICE --once
 ```
 
 ## Management (admin)
 
 ```sh
-agentboard relay devices --from ops [--json]   # id, label, by, lastSeen, revoked?
-agentboard relay revoke-device c74bea76 --from ops
+crewbus relay devices --from ops [--json]   # id, label, by, lastSeen, revoked?
+crewbus relay revoke-device c74bea76 --from ops
 ```
 
 Revocation is immediate: the next authenticated call 403s. The shared

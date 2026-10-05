@@ -1,4 +1,4 @@
-// agentboard fault-injection — crash/concurrency/partition behavior (part of npm test).
+// crewbus fault-injection — crash/concurrency/partition behavior (part of npm test).
 // Fast by design: local boards only, one short serve/sync round for partitions.
 import { execFile, execFileSync, spawn } from "node:child_process";
 import fs from "node:fs";
@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
-const CLI = fileURLToPath(new URL("../bin/agentboard.js", import.meta.url));
+const CLI = fileURLToPath(new URL("../bin/crewbus.js", import.meta.url));
 
 let failures = 0;
 const check = (label, cond) => {
@@ -18,8 +18,8 @@ const check = (label, cond) => {
 
 // -- 1. crash mid-write: partial tmp file (killed writer: wrote half, never renamed)
 {
-  const board = fs.mkdtempSync(path.join(os.tmpdir(), "ab-fault-"));
-  const env = { ...process.env, AGENTBOARD_DIR: board };
+  const board = fs.mkdtempSync(path.join(os.tmpdir(), "cb-fault-"));
+  const env = { ...process.env, CREWBUS_DIR: board };
   const run = (args, extra) =>
     execFileSync("node", [CLI, ...args], { env: { ...env, ...(extra || {}) } }).toString();
   const TOK = {};
@@ -40,8 +40,8 @@ const check = (label, cond) => {
   let inboxOk = false;
   let inboxBody = "";
   try {
-    run(["send", "--from", "alice", "--to", "bob", "--body", "real mail"], { AGENTBOARD_TOKEN: TOK.alice });
-    inboxBody = run(["inbox", "--from", "bob", "--json"], { AGENTBOARD_TOKEN: TOK.bob });
+    run(["send", "--from", "alice", "--to", "bob", "--body", "real mail"], { CREWBUS_TOKEN: TOK.alice });
+    inboxBody = run(["inbox", "--from", "bob", "--json"], { CREWBUS_TOKEN: TOK.bob });
     const msgs = JSON.parse(inboxBody);
     inboxOk = msgs.length === 1 && msgs[0].body === "real mail";
   } catch {
@@ -53,8 +53,8 @@ const check = (label, cond) => {
 
 // -- 2. concurrent claims: parallel register of the same name
 {
-  const board = fs.mkdtempSync(path.join(os.tmpdir(), "ab-race-"));
-  const env = { ...process.env, AGENTBOARD_DIR: board };
+  const board = fs.mkdtempSync(path.join(os.tmpdir(), "cb-race-"));
+  const env = { ...process.env, CREWBUS_DIR: board };
   execFileSync("node", [CLI, "init", "--harness", "generic"], { env });
   const attempts = await Promise.all(
     Array.from({ length: 6 }, () =>
@@ -71,7 +71,7 @@ const check = (label, cond) => {
   let winnerWorks = false;
   if (winner) {
     try {
-      execFileSync("node", [CLI, "inbox", "--from", "race"], { env: { ...env, AGENTBOARD_TOKEN: winner } });
+      execFileSync("node", [CLI, "inbox", "--from", "race"], { env: { ...env, CREWBUS_TOKEN: winner } });
       winnerWorks = true;
     } catch {
       winnerWorks = false;
@@ -83,16 +83,16 @@ const check = (label, cond) => {
 
 // -- 3. sync partitions: divergent boards merge to union
 {
-  const boardA = fs.mkdtempSync(path.join(os.tmpdir(), "ab-partA-"));
-  const boardB = fs.mkdtempSync(path.join(os.tmpdir(), "ab-partB-"));
-  const envA = { ...process.env, AGENTBOARD_DIR: boardA };
-  const envB = { ...process.env, AGENTBOARD_DIR: boardB };
+  const boardA = fs.mkdtempSync(path.join(os.tmpdir(), "cb-partA-"));
+  const boardB = fs.mkdtempSync(path.join(os.tmpdir(), "cb-partB-"));
+  const envA = { ...process.env, CREWBUS_DIR: boardA };
+  const envB = { ...process.env, CREWBUS_DIR: boardB };
   const TOKP = {};
   const cliP = (baseEnv, args) => {
     const merged = { ...baseEnv };
     const fi = args.indexOf("--from");
-    const who = fi !== -1 && args[fi + 1] ? `${merged.AGENTBOARD_DIR}\n${args[fi + 1]}` : null;
-    if (who && TOKP[who] && !merged.AGENTBOARD_TOKEN) merged.AGENTBOARD_TOKEN = TOKP[who];
+    const who = fi !== -1 && args[fi + 1] ? `${merged.CREWBUS_DIR}\n${args[fi + 1]}` : null;
+    if (who && TOKP[who] && !merged.CREWBUS_TOKEN) merged.CREWBUS_TOKEN = TOKP[who];
     const out = execFileSync("node", [CLI, ...args], { env: merged }).toString();
     const m = out.match(/token (abt-[0-9a-f]+)/);
     if (m && who && !TOKP[who]) TOKP[who] = m[1];

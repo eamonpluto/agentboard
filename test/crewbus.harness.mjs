@@ -6,9 +6,9 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const CLI = fileURLToPath(new URL("../bin/agentboard.js", import.meta.url));
-const HOOK = fileURLToPath(new URL("../bin/agentboard-hook.js", import.meta.url));
-const MCP = fileURLToPath(new URL("../bin/agentboard-mcp.js", import.meta.url));
+const CLI = fileURLToPath(new URL("../bin/crewbus.js", import.meta.url));
+const HOOK = fileURLToPath(new URL("../bin/crewbus-hook.js", import.meta.url));
+const MCP = fileURLToPath(new URL("../bin/crewbus-mcp.js", import.meta.url));
 import { buildSpawnTarget, buildSpawnPrompt, buildRespawnTarget, buildRespawnBrief, extractHarnessSessionId, isPidStale, readWorkerSession, syncWorkerSession, workerStatus, bootWorker, pidStartTime, parsePsEtime } from "../bin/lib/spawn.js";
 import { ensureBoard } from "../bin/lib/store.js";
 
@@ -18,12 +18,12 @@ const check = (label, cond) => {
   if (!cond) failures++;
 };
 const TOK = {};
-const tokKey = (env, who) => `${(env && env.AGENTBOARD_DIR) || ""}\n${who}`;
+const tokKey = (env, who) => `${(env && env.CREWBUS_DIR) || ""}\n${who}`;
 const run = (args, env, cwd) => {
   const merged = { ...env };
   const fi = args.indexOf("--from");
   const who = fi !== -1 && args[fi + 1] && !String(args[fi + 1]).startsWith("--") ? args[fi + 1] : null;
-  if (who && TOK[tokKey(merged, who)] && !merged.AGENTBOARD_TOKEN) merged.AGENTBOARD_TOKEN = TOK[tokKey(merged, who)];
+  if (who && TOK[tokKey(merged, who)] && !merged.CREWBUS_TOKEN) merged.CREWBUS_TOKEN = TOK[tokKey(merged, who)];
   const out = execFileSync("node", [args[0] === "hook" ? HOOK : CLI, ...args.slice(1)], {
     env: merged,
     cwd: cwd || process.cwd(),
@@ -34,8 +34,8 @@ const run = (args, env, cwd) => {
 };
 
 // ---------------------------------------------------------------- MCP server
-const mcpBoard = fs.mkdtempSync(path.join(os.tmpdir(), "ab-mcp-"));
-const srv = spawn("node", [MCP], { env: { ...process.env, AGENTBOARD_DIR: mcpBoard }, stdio: ["pipe", "pipe", "inherit"] });
+const mcpBoard = fs.mkdtempSync(path.join(os.tmpdir(), "cb-mcp-"));
+const srv = spawn("node", [MCP], { env: { ...process.env, CREWBUS_DIR: mcpBoard }, stdio: ["pipe", "pipe", "inherit"] });
 let mcpBuf = "";
 const mcpPending = [];
 srv.stdout.on("data", (d) => {
@@ -62,7 +62,7 @@ const mcpReq = (method, params) =>
   });
 
 const init1 = await mcpReq("initialize", { protocolVersion: "2024-11-05", capabilities: {}, clientInfo: { name: "t", version: "0" } });
-check("mcp: initialize negotiates", init1.result.protocolVersion === "2024-11-05" && init1.result.serverInfo.name === "agentboard");
+check("mcp: initialize negotiates", init1.result.protocolVersion === "2024-11-05" && init1.result.serverInfo.name === "crewbus");
 const init2 = await mcpReq("initialize", { protocolVersion: "9999-99-99" });
 check("mcp: unknown version falls back", init2.result.protocolVersion === "2024-11-05");
 const tools = await mcpReq("tools/list", {});
@@ -107,13 +107,13 @@ fs.rmSync(mcpBoard, { recursive: true, force: true });
 // mcp walk-up: server started in a subdirectory still uses the project board
 // (realpath: os.tmpdir() is a symlink on macOS, and the server echoes the
 // canonical path it resolved via process.cwd()).
-const mcpWalk = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "ab-mcpwalk-")));
-fs.mkdirSync(path.join(mcpWalk, ".agentboard", "dm"), { recursive: true });
-fs.writeFileSync(path.join(mcpWalk, ".agentboard", "board.json"), JSON.stringify({ name: "board", version: 2 }) + "\n");
+const mcpWalk = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "cb-mcpwalk-")));
+fs.mkdirSync(path.join(mcpWalk, ".crewbus", "dm"), { recursive: true });
+fs.writeFileSync(path.join(mcpWalk, ".crewbus", "board.json"), JSON.stringify({ name: "board", version: 2 }) + "\n");
 const mcpDeep = path.join(mcpWalk, "sub");
 fs.mkdirSync(mcpDeep, { recursive: true });
 const srv2Env = { ...process.env };
-delete srv2Env.AGENTBOARD_DIR;
+delete srv2Env.CREWBUS_DIR;
 const srv2 = spawn("node", [MCP], { env: srv2Env, cwd: mcpDeep, stdio: ["pipe", "pipe", "inherit"] });
 let buf2 = "";
 const pend2 = [];
@@ -141,10 +141,10 @@ const req2 = (method, params) =>
   });
 await req2("initialize", { protocolVersion: "2024-11-05" });
 const wsend = await req2("tools/call", { name: "dm_send", arguments: { from: "w1", to: "w2", body: "deep mail" } });
-check("mcp: subdir send echoes project board", wsend.result.content[0].text.includes(`[board ${path.join(mcpWalk, ".agentboard")}]`));
-check("mcp: subdir send lands on project board", fs.existsSync(path.join(mcpWalk, ".agentboard", "dm", "w2")) && !fs.existsSync(path.join(mcpDeep, ".agentboard")));
+check("mcp: subdir send echoes project board", wsend.result.content[0].text.includes(`[board ${path.join(mcpWalk, ".crewbus")}]`));
+check("mcp: subdir send lands on project board", fs.existsSync(path.join(mcpWalk, ".crewbus", "dm", "w2")) && !fs.existsSync(path.join(mcpDeep, ".crewbus")));
 // mcp board override: explicit absolute path wins over cwd
-const mcpOver = fs.mkdtempSync(path.join(os.tmpdir(), "ab-mcpover-"));
+const mcpOver = fs.mkdtempSync(path.join(os.tmpdir(), "cb-mcpover-"));
 const overSend = await req2("tools/call", { name: "dm_send", arguments: { from: "o1", to: "o2", body: "override mail", board: path.join(mcpOver, "custom") } });
 check("mcp: board override honored + echoed", overSend.result.content[0].text.includes(`[board ${path.join(mcpOver, "custom")}]`) && fs.existsSync(path.join(mcpOver, "custom", "dm", "o2")));
 fs.rmSync(mcpOver, { recursive: true, force: true });
@@ -158,8 +158,8 @@ check("mcp: broadcast inbox shows subject", b2.result.content[0].text.includes("
 const b3 = await req2("tools/call", { name: "dm_inbox", arguments: { agent: "b3", token: b3Tok } });
 check("mcp: broadcast reaches every recipient", b3.result.content[0].text.includes("fanout body"));
 // mcp groups + gather (group files planted directly; management is CLI-only)
-fs.mkdirSync(path.join(mcpWalk, ".agentboard", "groups"), { recursive: true });
-fs.writeFileSync(path.join(mcpWalk, ".agentboard", "groups", "mcp-team.json"), JSON.stringify({ name: "mcp-team", members: ["m1", "m2"], createdAt: new Date().toISOString() }));
+fs.mkdirSync(path.join(mcpWalk, ".crewbus", "groups"), { recursive: true });
+fs.writeFileSync(path.join(mcpWalk, ".crewbus", "groups", "mcp-team.json"), JSON.stringify({ name: "mcp-team", members: ["m1", "m2"], createdAt: new Date().toISOString() }));
 const b1Tok = bcRes.result.content[0].text.match(/token (abt-[0-9a-f]+)/)[1]; // minted by b1's first send above
 const gRes = await req2("tools/call", { name: "dm_send", arguments: { from: "b1", to_group: "mcp-team", body: "group brief", token: b1Tok } });
 check("mcp: to_group fans out", gRes.result.content[0].text.includes("sent 2 messages"));
@@ -177,7 +177,7 @@ try {
 }
 check("mcp: to_group unknown refused", gUnknown);
 // mcp read with no board: loud error, plants nothing
-const missBoard = path.join(os.tmpdir(), "ab-mcpmiss-" + Date.now());
+const missBoard = path.join(os.tmpdir(), "cb-mcpmiss-" + Date.now());
 const missRes = await req2("tools/call", { name: "dm_inbox", arguments: { agent: "ghost", board: missBoard } });
 check("mcp: inbox with no board isError", missRes.result.isError === true && missRes.result.content[0].text.includes("no board"));
 check("mcp: read planted no board", !fs.existsSync(missBoard));
@@ -192,7 +192,7 @@ await new Promise((res) => {
 fs.rmSync(mcpWalk, { recursive: true, force: true });
 
 // dm-send tool: walk-up + board echo (stub @opencode-ai/plugin SDK)
-const toolDir = fs.mkdtempSync(path.join(os.tmpdir(), "ab-tool-"));
+const toolDir = fs.mkdtempSync(path.join(os.tmpdir(), "cb-tool-"));
 const stubDir = path.join(toolDir, "node_modules", "@opencode-ai", "plugin");
 fs.mkdirSync(stubDir, { recursive: true });
 fs.writeFileSync(path.join(toolDir, "package.json"), JSON.stringify({ type: "module" }));
@@ -204,20 +204,20 @@ fs.writeFileSync(
 const toolDest = path.join(toolDir, "dm-send.js");
 fs.copyFileSync(fileURLToPath(new URL("../opencode/tools/dm-send.js", import.meta.url)), toolDest);
 const toolMod = await import(pathToFileURL(toolDest).href);
-const toolProj = fs.mkdtempSync(path.join(os.tmpdir(), "ab-toolproj-"));
-fs.mkdirSync(path.join(toolProj, ".agentboard", "dm"), { recursive: true });
-fs.writeFileSync(path.join(toolProj, ".agentboard", "board.json"), JSON.stringify({ name: "board", version: 2 }) + "\n");
+const toolProj = fs.mkdtempSync(path.join(os.tmpdir(), "cb-toolproj-"));
+fs.mkdirSync(path.join(toolProj, ".crewbus", "dm"), { recursive: true });
+fs.writeFileSync(path.join(toolProj, ".crewbus", "board.json"), JSON.stringify({ name: "board", version: 2 }) + "\n");
 const toolSub = path.join(toolProj, "sub");
 fs.mkdirSync(toolSub, { recursive: true });
 const toolOut = await toolMod.default.execute(
   { from: "t1", to: "t2", body: "tool deep mail" },
   { sessionID: "ses_t", worktree: toolSub, directory: toolSub }
 );
-check("tool: echoes project board", toolOut.includes(`[board ${path.join(toolProj, ".agentboard")}]`));
+check("tool: echoes project board", toolOut.includes(`[board ${path.join(toolProj, ".crewbus")}]`));
 check("tool: first send mints token", /token abt-[0-9a-f]+/.test(toolOut));
 const t1Tok = toolOut.match(/token (abt-[0-9a-f]+)/)[1];
-check("tool: subdir send lands on project board", fs.existsSync(path.join(toolProj, ".agentboard", "dm", "t2")));
-const toolAgent = JSON.parse(fs.readFileSync(path.join(toolProj, ".agentboard", "agents", "t1.json"), "utf8"));
+check("tool: subdir send lands on project board", fs.existsSync(path.join(toolProj, ".crewbus", "dm", "t2")));
+const toolAgent = JSON.parse(fs.readFileSync(path.join(toolProj, ".crewbus", "agents", "t1.json"), "utf8"));
 check("tool: sender session captured", toolAgent.sessionId === "ses_t");
 const toolOver = await toolMod.default.execute(
   { from: "t1", to: "t9", body: "override mail", board: path.join(toolProj, "custom"), token: t1Tok },
@@ -234,26 +234,26 @@ const readFirst = (dir) => {
   const fs0 = fs.readdirSync(dir).filter((f) => f.endsWith(".json")).sort();
   return JSON.parse(fs.readFileSync(path.join(dir, fs0[0]), "utf8"));
 };
-const t3msg = readFirst(path.join(toolProj, ".agentboard", "dm", "t3"));
-const t4msg = readFirst(path.join(toolProj, ".agentboard", "dm", "t4"));
+const t3msg = readFirst(path.join(toolProj, ".crewbus", "dm", "t3"));
+const t4msg = readFirst(path.join(toolProj, ".crewbus", "dm", "t4"));
 check(
   "tool: broadcast shared batch + subject, unique ids",
   !!t3msg.batch && t3msg.batch === t4msg.batch && t3msg.subject === "brief: x" && t3msg.id !== t4msg.id
 );
 // tool to_group: group file + to_group arg fans out (token from first send)
-fs.mkdirSync(path.join(toolProj, ".agentboard", "groups"), { recursive: true });
-fs.writeFileSync(path.join(toolProj, ".agentboard", "groups", "tg.json"), JSON.stringify({ name: "tg", members: ["t5", "t6"] }));
+fs.mkdirSync(path.join(toolProj, ".crewbus", "groups"), { recursive: true });
+fs.writeFileSync(path.join(toolProj, ".crewbus", "groups", "tg.json"), JSON.stringify({ name: "tg", members: ["t5", "t6"] }));
 const toolGrp = await toolMod.default.execute(
   { from: "t1", to_group: "tg", body: "group brief", token: t1Tok },
   { sessionID: "ses_t", worktree: toolSub, directory: toolSub }
 );
-check("tool: to_group fans out", toolGrp.includes("sent 2 messages") && fs.existsSync(path.join(toolProj, ".agentboard", "dm", "t5")));
+check("tool: to_group fans out", toolGrp.includes("sent 2 messages") && fs.existsSync(path.join(toolProj, ".crewbus", "dm", "t5")));
 fs.rmSync(toolDir, { recursive: true, force: true });
 fs.rmSync(toolProj, { recursive: true, force: true });
 
 // ------------------------------------------------------- hook helper (poll)
-const hookBoard = fs.mkdtempSync(path.join(os.tmpdir(), "ab-hook-"));
-const henv = { ...process.env, AGENTBOARD_DIR: hookBoard };
+const hookBoard = fs.mkdtempSync(path.join(os.tmpdir(), "cb-hook-"));
+const henv = { ...process.env, CREWBUS_DIR: hookBoard };
 run(["cli", "send", "--from", "alice", "--to", "bob", "--body", "hook mail one"], henv);
 const started = run(["hook", "session-start", "--from", "bob"], henv);
 check("hook: session-start registers + backlog", started.includes("registered bob") && started.includes("hook mail one"));
@@ -334,7 +334,7 @@ check("hook: monitor prints arrival then exits 0", m1.code === 0 && m1.out.inclu
 check("hook: poll silent after monitor delivery", run(["hook", "poll", "--from", "bob", "--style", "grok"], henv).trim() === "");
 const m2 = await runMonitor(["monitor", "--from", "bob", "--timeout", "2", "--interval", "1"], henv);
 check("hook: monitor exits 0 silent on timeout", m2.code === 0 && m2.out.trim() === "");
-const m3 = await runMonitor(["monitor", "--from", "bob", "--timeout", "2"], { ...henv, AGENTBOARD_DIR: path.join(henv.AGENTBOARD_DIR, "nope") });
+const m3 = await runMonitor(["monitor", "--from", "bob", "--timeout", "2"], { ...henv, CREWBUS_DIR: path.join(henv.CREWBUS_DIR, "nope") });
 check("hook: monitor refuses missing board", m3.code === 1 && (m3.out + m3.err).includes("no board"));
 
 // unified tracking: hook-delivered mail is skipped by marker-aware readers,
@@ -358,17 +358,17 @@ check("hook: --idle-after delivers when stale", run(["hook", "poll", "--from", "
 fs.rmSync(hookBoard, { recursive: true, force: true });
 
 // cross-direction: plugin push suppresses hook poll and vice versa
-const xBoard = fs.mkdtempSync(path.join(os.tmpdir(), "ab-cross-"));
-const xenv = { ...process.env, AGENTBOARD_DIR: xBoard };
+const xBoard = fs.mkdtempSync(path.join(os.tmpdir(), "cb-cross-"));
+const xenv = { ...process.env, CREWBUS_DIR: xBoard };
 run(["cli", "register", "--from", "bob", "--session", "ses_bob"], xenv);
 run(["cli", "send", "--from", "alice", "--to", "bob", "--body", "cross one"], xenv);
 const pushes = [];
 const stubClient = { session: { promptAsync: async (a) => { pushes.push(a); } }, app: { log: async () => true } };
 const watchMod = await import(pathToFileURL(fileURLToPath(new URL("../opencode/plugins/dm-watch.js", import.meta.url))).href);
-// the plugin resolves the board like the live runtime: AGENTBOARD_DIR env of
-// its own process, else <directory>/.agentboard
-const savedBoardDir = process.env.AGENTBOARD_DIR;
-process.env.AGENTBOARD_DIR = xBoard;
+// the plugin resolves the board like the live runtime: CREWBUS_DIR env of
+// its own process, else <directory>/.crewbus
+const savedBoardDir = process.env.CREWBUS_DIR;
+process.env.CREWBUS_DIR = xBoard;
 const watcher = await watchMod.DmWatchPlugin({ client: stubClient, directory: xBoard });
 await new Promise((r) => setTimeout(r, 1600));
 check("cross: plugin pushes first mail", pushes.length === 1);
@@ -378,8 +378,8 @@ check("cross: hook delivers second mail", run(["hook", "poll", "--from", "bob", 
 await new Promise((r) => setTimeout(r, 1600));
 check("cross: plugin skips hook-delivered mail", pushes.length === 1);
 await watcher.dispose();
-if (savedBoardDir === undefined) delete process.env.AGENTBOARD_DIR;
-else process.env.AGENTBOARD_DIR = savedBoardDir;
+if (savedBoardDir === undefined) delete process.env.CREWBUS_DIR;
+else process.env.CREWBUS_DIR = savedBoardDir;
 fs.rmSync(xBoard, { recursive: true, force: true });
 
 // ------------------------------------------------------- harness session-id capture (respawn slice 1)
@@ -405,7 +405,7 @@ check("capture: no preassign without id", !buildSpawnTarget({ harness: "claude",
 check("capture: junk null", extractHarnessSessionId("codex", "plain text\nnot json") === null);
 check("capture: empty null", extractHarnessSessionId("claude", "") === null && extractHarnessSessionId("claude", null) === null);
 check("capture: non-string ignored", extractHarnessSessionId("claude", JSON.stringify({ session_id: 42 })) === null);
-const capBoard = fs.mkdtempSync(path.join(os.tmpdir(), "ab-cap-"));
+const capBoard = fs.mkdtempSync(path.join(os.tmpdir(), "cb-cap-"));
 const capD = ensureBoard(capBoard);
 check("capture: board has worker-sessions dir", fs.existsSync(path.join(capBoard, "worker-sessions")));
 fs.writeFileSync(path.join(capBoard, "agents", "cap1.json"), JSON.stringify({ name: "cap1", spawnedPid: 999999999, spawnedBy: "lead", briefId: "msg-x" }));
@@ -465,50 +465,50 @@ check("respawn: generic brief fresh", briefG.includes("fresh session"));
 
 // ------------------------------------------------------- init adapters
 const mkproj = () => {
-  const p = fs.mkdtempSync(path.join(os.tmpdir(), "ab-proj-"));
+  const p = fs.mkdtempSync(path.join(os.tmpdir(), "cb-proj-"));
   const e = { ...process.env };
-  delete e.AGENTBOARD_DIR;
-  delete e.AGENTBOARD_AGENT;
+  delete e.CREWBUS_DIR;
+  delete e.CREWBUS_AGENT;
   return { p, e };
 };
 
 const full = mkproj();
 run(["cli", "init", "--harness", "claude,codex,antigravity,grok,cursor"], full.e, full.p);
-for (const f of [".claude/settings.json", ".codex/hooks.json", ".agents/hooks.json", ".agents/mcp_config.json", ".mcp.json", ".grok/hooks/agentboard.json", ".cursor/hooks.json", ".cursor/mcp.json", "AGENTS.md"]) {
+for (const f of [".claude/settings.json", ".codex/hooks.json", ".agents/hooks.json", ".agents/mcp_config.json", ".mcp.json", ".grok/hooks/crewbus.json", ".cursor/hooks.json", ".cursor/mcp.json", "AGENTS.md"]) {
   check(`init: writes ${f}`, fs.existsSync(path.join(full.p, f)));
 }
 const claudeHooks = JSON.parse(fs.readFileSync(path.join(full.p, ".claude", "settings.json"), "utf8"));
 check("init: claude SessionStart+Stop", !!claudeHooks.hooks.SessionStart && !!claudeHooks.hooks.Stop);
-const claudeWaiter = (claudeHooks.hooks.PostToolUse || []).flatMap((g) => g.hooks || []).find((h) => String(h.command || "").includes("agentboard-hook") && String(h.command || "").includes(" wait "));
+const claudeWaiter = (claudeHooks.hooks.PostToolUse || []).flatMap((g) => g.hooks || []).find((h) => String(h.command || "").includes("crewbus-hook") && String(h.command || "").includes(" wait "));
 check("init: claude PostToolUse asyncRewake waiter", !!claudeWaiter && claudeWaiter.asyncRewake === true && claudeWaiter.timeout === 150);
 check("init: claude SessionStart waiter", (claudeHooks.hooks.SessionStart || []).flatMap((g) => g.hooks || []).some((h) => String(h.command || "").includes(" wait ")));
 const agHooks = JSON.parse(fs.readFileSync(path.join(full.p, ".agents", "hooks.json"), "utf8"));
-check("init: antigravity keyed block", !!agHooks["agentboard-dm"].Stop && !!agHooks["agentboard-dm"].PreInvocation);
-const grokHooks = JSON.parse(fs.readFileSync(path.join(full.p, ".grok", "hooks", "agentboard.json"), "utf8"));
+check("init: antigravity keyed block", !!agHooks["crewbus-dm"].Stop && !!agHooks["crewbus-dm"].PreInvocation);
+const grokHooks = JSON.parse(fs.readFileSync(path.join(full.p, ".grok", "hooks", "crewbus.json"), "utf8"));
 check("init: grok SessionStart+Stop+PostToolUse", !!grokHooks.hooks.SessionStart && !!grokHooks.hooks.Stop && !!grokHooks.hooks.PostToolUse);
-check("init: grok inbox skill", fs.existsSync(path.join(full.p, ".grok", "skills", "agentboard-inbox", "SKILL.md")));
+check("init: grok inbox skill", fs.existsSync(path.join(full.p, ".grok", "skills", "crewbus-inbox", "SKILL.md")));
 const curHooks = JSON.parse(fs.readFileSync(path.join(full.p, ".cursor", "hooks.json"), "utf8"));
 check("init: cursor flat hooks", curHooks.version === 1 && Array.isArray(curHooks.hooks.sessionStart) && Array.isArray(curHooks.hooks.stop));
 const curMcp = JSON.parse(fs.readFileSync(path.join(full.p, ".cursor", "mcp.json"), "utf8"));
-check("init: cursor MCP server", !!(curMcp.mcpServers && curMcp.mcpServers.agentboard && curMcp.mcpServers.agentboard.command));
-check("init: board.json records harnesses", JSON.parse(fs.readFileSync(path.join(full.p, ".agentboard", "board.json"), "utf8")).harnesses.length === 5);
+check("init: cursor MCP server", !!(curMcp.mcpServers && curMcp.mcpServers.crewbus && curMcp.mcpServers.crewbus.command));
+check("init: board.json records harnesses", JSON.parse(fs.readFileSync(path.join(full.p, ".crewbus", "board.json"), "utf8")).harnesses.length === 5);
 const md = fs.readFileSync(path.join(full.p, "AGENTS.md"), "utf8");
-check("init: AGENTS harness notes", md.includes("agentboard:harness:claude") && md.includes("agentboard:harness:grok"));
+check("init: AGENTS harness notes", md.includes("crewbus:harness:claude") && md.includes("crewbus:harness:grok"));
 // idempotent re-init, preserves user hooks
 const before = fs.readFileSync(path.join(full.p, ".claude", "settings.json"), "utf8");
 const beforeCur = fs.readFileSync(path.join(full.p, ".cursor", "hooks.json"), "utf8");
-const beforeGrok = fs.readFileSync(path.join(full.p, ".grok", "hooks", "agentboard.json"), "utf8");
-const beforeSkill = fs.readFileSync(path.join(full.p, ".grok", "skills", "agentboard-inbox", "SKILL.md"), "utf8");
+const beforeGrok = fs.readFileSync(path.join(full.p, ".grok", "hooks", "crewbus.json"), "utf8");
+const beforeSkill = fs.readFileSync(path.join(full.p, ".grok", "skills", "crewbus-inbox", "SKILL.md"), "utf8");
 run(["cli", "init", "--harness", "claude,codex,antigravity,grok,cursor"], full.e, full.p);
 check("init: re-run byte-identical cursor hooks", fs.readFileSync(path.join(full.p, ".cursor", "hooks.json"), "utf8") === beforeCur);
 check("init: re-run byte-identical hooks", fs.readFileSync(path.join(full.p, ".claude", "settings.json"), "utf8") === before);
-check("init: re-run byte-identical grok hooks", fs.readFileSync(path.join(full.p, ".grok", "hooks", "agentboard.json"), "utf8") === beforeGrok);
-check("init: re-run keeps grok skill", fs.readFileSync(path.join(full.p, ".grok", "skills", "agentboard-inbox", "SKILL.md"), "utf8") === beforeSkill);
+check("init: re-run byte-identical grok hooks", fs.readFileSync(path.join(full.p, ".grok", "hooks", "crewbus.json"), "utf8") === beforeGrok);
+check("init: re-run keeps grok skill", fs.readFileSync(path.join(full.p, ".grok", "skills", "crewbus-inbox", "SKILL.md"), "utf8") === beforeSkill);
 fs.writeFileSync(path.join(full.p, ".claude", "settings.json"), JSON.stringify({ hooks: { ...claudeHooks.hooks, PostToolUse: [{ matcher: "Edit", hooks: [{ type: "command", command: "prettier" }] }, ...(claudeHooks.hooks.PostToolUse || [])] } }));
 run(["cli", "init", "--harness", "claude"], full.e, full.p);
 const merged = JSON.parse(fs.readFileSync(path.join(full.p, ".claude", "settings.json"), "utf8"));
 const mergedCmds = (merged.hooks.PostToolUse || []).flatMap((g) => g.hooks || []).map((h) => h.command || "");
-check("init: preserves user hooks", !!merged.hooks.Stop && mergedCmds.some((c) => c === "prettier") && mergedCmds.some((c) => c.includes("agentboard-hook") && c.includes(" wait ")));
+check("init: preserves user hooks", !!merged.hooks.Stop && mergedCmds.some((c) => c === "prettier") && mergedCmds.some((c) => c.includes("crewbus-hook") && c.includes(" wait ")));
 fs.rmSync(full.p, { recursive: true, force: true });
 
 // auto-detect: .agents marker -> antigravity only
@@ -530,25 +530,25 @@ const port = mkproj();
 run(["cli", "init", "--harness", "claude,codex", "--portable"], port.e, port.p);
 check(
   "init: --portable writes binary MCP entry",
-  JSON.parse(fs.readFileSync(path.join(port.p, ".mcp.json"), "utf8")).mcpServers.agentboard.command === "agentboard-mcp"
+  JSON.parse(fs.readFileSync(path.join(port.p, ".mcp.json"), "utf8")).mcpServers.crewbus.command === "crewbus-mcp"
 );
 fs.rmSync(port.p, { recursive: true, force: true });
 
 // claude-plugin bundle: marketplace-ready, PATH-based (no absolute paths)
 const plugDir = path.join(HERE, "..", "claude-plugin");
 const plugJson = JSON.parse(fs.readFileSync(path.join(plugDir, ".claude-plugin", "plugin.json"), "utf8"));
-check("plugin: manifest name/version", plugJson.name === "agentboard" && !!plugJson.version);
+check("plugin: manifest name/version", plugJson.name === "crewbus" && !!plugJson.version);
 const plugHooks = JSON.parse(fs.readFileSync(path.join(plugDir, "hooks", "hooks.json"), "utf8"));
 check("plugin: hooks events", !!plugHooks.hooks.SessionStart && !!plugHooks.hooks.Stop && !!plugHooks.hooks.PostToolUse);
 const plugWaiters = ["SessionStart", "PostToolUse"].every((ev) =>
-  (plugHooks.hooks[ev] || []).flatMap((g) => g.hooks || []).some((h) => h.asyncRewake === true && String(h.command || "").includes("agentboard-hook wait"))
+  (plugHooks.hooks[ev] || []).flatMap((g) => g.hooks || []).some((h) => h.asyncRewake === true && String(h.command || "").includes("crewbus-hook wait"))
 );
 check("plugin: asyncRewake waiters", plugWaiters);
 const plugCmds = ["SessionStart", "Stop", "PostToolUse"].flatMap((ev) => (plugHooks.hooks[ev] || []).flatMap((g) => g.hooks || []).map((h) => h.command || ""));
 check("plugin: no absolute paths", plugCmds.length > 0 && plugCmds.every((c) => !path.isAbsolute(c) && !c.includes("C:/") && !c.startsWith("/")));
 const plugMcp = JSON.parse(fs.readFileSync(path.join(plugDir, ".mcp.json"), "utf8"));
-check("plugin: MCP server", !!(plugMcp.mcpServers && plugMcp.mcpServers.agentboard && plugMcp.mcpServers.agentboard.command));
-check("plugin: skill", fs.existsSync(path.join(plugDir, "skills", "agentboard", "SKILL.md")));
+check("plugin: MCP server", !!(plugMcp.mcpServers && plugMcp.mcpServers.crewbus && plugMcp.mcpServers.crewbus.command));
+check("plugin: skill", fs.existsSync(path.join(plugDir, "skills", "crewbus", "SKILL.md")));
 
 // respawn e2e (generic harness — real processes, no vendor binary needed)
 const rsp = mkproj();
@@ -574,15 +574,15 @@ check("respawn: dry-run previews", dryRs.includes("would respawn rs1") && dryRs.
 run(["cli", "spawn-kill", "--from", "boss", "--to", "rs1"], rsp.e, rsp.p);
 const r1 = run(["cli", "respawn", "--from", "boss", "--to", "rs1"], rsp.e, rsp.p);
 check("respawn: reboots dead generic", r1.includes("respawned rs1") && r1.includes("attempt 1") && r1.includes("fresh boot"));
-const rdoc = JSON.parse(fs.readFileSync(path.join(rsp.p, ".agentboard", "worker-sessions", "rs1.json"), "utf8"));
+const rdoc = JSON.parse(fs.readFileSync(path.join(rsp.p, ".crewbus", "worker-sessions", "rs1.json"), "utf8"));
 check("respawn: binding attempt counted", rdoc.respawnCount === 1 && typeof rdoc.spawnedPid === "number" && !!rdoc.lastRespawnAt);
 check("respawn: status carries respawns", JSON.parse(run(["cli", "spawn-status", "--to", "rs1", "--json"], rsp.e, rsp.p))[0].respawnCount === 1);
 run(["cli", "spawn-kill", "--from", "boss", "--to", "rs1"], rsp.e, rsp.p);
 const r2 = run(["cli", "respawn", "--from", "boss", "--to", "rs1", "--body", "extra nudge"], rsp.e, rsp.p);
 check("respawn: attempt increments", r2.includes("attempt 2"));
 // no-id harness worker: crafted binding without a captured session id
-fs.writeFileSync(path.join(rsp.p, ".agentboard", "agents", "rs2.json"), JSON.stringify({ name: "rs2", spawnedPid: 999999997, spawnedBy: "boss", briefId: "msg-rs2" }));
-fs.writeFileSync(path.join(rsp.p, ".agentboard", "worker-sessions", "rs2.json"), JSON.stringify({ name: "rs2", harness: "claude", spawnedPid: 999999997, briefId: "msg-rs2", logPath: path.join(rsp.p, ".agentboard", "logs", "rs2-x.log") }));
+fs.writeFileSync(path.join(rsp.p, ".crewbus", "agents", "rs2.json"), JSON.stringify({ name: "rs2", spawnedPid: 999999997, spawnedBy: "boss", briefId: "msg-rs2" }));
+fs.writeFileSync(path.join(rsp.p, ".crewbus", "worker-sessions", "rs2.json"), JSON.stringify({ name: "rs2", harness: "claude", spawnedPid: 999999997, briefId: "msg-rs2", logPath: path.join(rsp.p, ".crewbus", "logs", "rs2-x.log") }));
 mustFail("respawn: no-id refused with guidance", ["respawn", "--from", "boss", "--to", "rs2"]);
 // cleanup: kill sleepers (Windows holds log handles briefly — retry rm)
 run(["cli", "spawn-kill", "--from", "boss", "--to", "rs1"], rsp.e, rsp.p);
@@ -639,10 +639,10 @@ await new Promise((r) => setTimeout(r, 1100));
 const cpStale = run(["cli", "ack", "--from", "cplead", "--timeout", "1s"], cpj.e, cpj.p);
 check("checkpoint: ack-timeout excludes", cpStale.includes("1 message(s)") && cpStale.includes(cpBrief) && !cpStale.includes("done X"));
 check("checkpoint: thread shows", run(["cli", "thread", "--id", cpBrief], cpj.e, cpj.p).includes("done X"));
-check("checkpoint: prompt discipline", buildSpawnPrompt({ name: "w", from: "lead", body: "b", replyId: "msg-1", cwd: "/tmp", root: "/tmp/.agentboard" }).includes("--checkpoint"));
+check("checkpoint: prompt discipline", buildSpawnPrompt({ name: "w", from: "lead", body: "b", replyId: "msg-1", cwd: "/tmp", root: "/tmp/.crewbus" }).includes("--checkpoint"));
 // spawn-status reply detection ignores checkpoints (lib-level, no binary needed)
-const cpD = ensureBoard(path.join(cpj.p, ".agentboard"));
-fs.writeFileSync(path.join(cpj.p, ".agentboard", "agents", "cpw2.json"), JSON.stringify({ name: "cpw2", spawnedPid: 999999995, spawnedBy: "cplead", briefId: "b-ck" }));
+const cpD = ensureBoard(path.join(cpj.p, ".crewbus"));
+fs.writeFileSync(path.join(cpj.p, ".crewbus", "agents", "cpw2.json"), JSON.stringify({ name: "cpw2", spawnedPid: 999999995, spawnedBy: "cplead", briefId: "b-ck" }));
 run(["cli", "send", "--from", "cpw2", "--to", "cplead", "--reply", "b-ck", "--checkpoint", "--body", "still working"], cpj.e, cpj.p);
 check("checkpoint: no false reply", workerStatus(cpD, "cpw2", 5).reply === null);
 run(["cli", "send", "--from", "cpw2", "--to", "cplead", "--reply", "b-ck", "--body", "final summary"], cpj.e, cpj.p);
@@ -657,8 +657,8 @@ for (let i = 0; i < 10; i++) {
 }
 // MCP: dm_send checkpoint + unacked exclusion + label (dedicated server —
 // the top-level one is killed after the MCP section)
-const cpMcpBoard = fs.mkdtempSync(path.join(os.tmpdir(), "ab-cpmcp-"));
-const cpSrv = spawn("node", [MCP], { env: { ...process.env, AGENTBOARD_DIR: cpMcpBoard }, stdio: ["pipe", "pipe", "inherit"] });
+const cpMcpBoard = fs.mkdtempSync(path.join(os.tmpdir(), "cb-cpmcp-"));
+const cpSrv = spawn("node", [MCP], { env: { ...process.env, CREWBUS_DIR: cpMcpBoard }, stdio: ["pipe", "pipe", "inherit"] });
 let cpBuf = "";
 const cpPending = [];
 cpSrv.stdout.on("data", (d) => {
@@ -709,7 +709,7 @@ for (let i = 0; i < 10; i++) {
 const pl = mkproj();
 run(["cli", "init", "--harness", "generic"], pl.e, pl.p);
 const plBossTok = run(["cli", "register", "--from", "plboss"], pl.e, pl.p).match(/token (abt-[0-9a-f]+)/)[1];
-const supEnv = { ...pl.e, AGENTBOARD_TOKEN: plBossTok };
+const supEnv = { ...pl.e, CREWBUS_TOKEN: plBossTok };
 const bgCli = (args, outName) => {
   const fd = fs.openSync(path.join(pl.p, outName), "a");
   const child = spawn("node", [CLI, ...args], { env: supEnv, cwd: pl.p, stdio: ["ignore", fd, fd], detached: true });
@@ -731,7 +731,7 @@ const stopBg = (h) => {
 };
 const readPoolState = (id) => {
   try {
-    return JSON.parse(fs.readFileSync(path.join(pl.p, ".agentboard", "pool-state", id + ".json"), "utf8"));
+    return JSON.parse(fs.readFileSync(path.join(pl.p, ".crewbus", "pool-state", id + ".json"), "utf8"));
   } catch {
     return null;
   }
@@ -746,7 +746,7 @@ const waitPoolState = async (id, pred, tries = 120) => {
 };
 const waitPoolFile = async (exclude = [], tries = 60) => {
   for (let i = 0; i < tries; i++) {
-    const files = fs.readdirSync(path.join(pl.p, ".agentboard", "pool-state")).filter((f) => f.endsWith(".json") && !exclude.includes(f));
+    const files = fs.readdirSync(path.join(pl.p, ".crewbus", "pool-state")).filter((f) => f.endsWith(".json") && !exclude.includes(f));
     if (files.length > 0) return files[0].replace(/\.json$/, "");
     await new Promise((r) => setTimeout(r, 500));
   }
@@ -775,12 +775,12 @@ const plMustFail = (label, args) => {
   check(label, bad);
 };
 plMustFail("pool-resume: unknown refused", ["pool-resume", "--from", "plboss", "--id", "pool-nope"]);
-fs.writeFileSync(path.join(pl.p, ".agentboard", "pool-state", "legacy.json"), JSON.stringify({ id: "legacy", from: "plboss", total: 1, poolSize: 1, harness: "generic", done: 0, active: {}, results: [] }));
+fs.writeFileSync(path.join(pl.p, ".crewbus", "pool-state", "legacy.json"), JSON.stringify({ id: "legacy", from: "plboss", total: 1, poolSize: 1, harness: "generic", done: 0, active: {}, results: [] }));
 plMustFail("pool-resume: legacy refused", ["pool-resume", "--from", "plboss", "--id", "legacy"]);
-fs.rmSync(path.join(pl.p, ".agentboard", "pool-state", "legacy.json"));
+fs.rmSync(path.join(pl.p, ".crewbus", "pool-state", "legacy.json"));
 // single-flight: crafted live lock refuses a second supervisor
-const lockFile = path.join(pl.p, ".agentboard", "locks", crypto.createHash("sha256").update(`pool/${poolId}`).digest("hex").slice(0, 16) + ".json");
-fs.mkdirSync(path.join(pl.p, ".agentboard", "locks"), { recursive: true });
+const lockFile = path.join(pl.p, ".crewbus", "locks", crypto.createHash("sha256").update(`pool/${poolId}`).digest("hex").slice(0, 16) + ".json");
+fs.mkdirSync(path.join(pl.p, ".crewbus", "locks"), { recursive: true });
 fs.writeFileSync(lockFile, JSON.stringify({ scope: `pool/${poolId}`, owner: "someone-else", createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 60000).toISOString() }) + "\n");
 plMustFail("pool-resume: locked refused", ["pool-resume", "--from", "plboss", "--id", poolId]);
 fs.rmSync(lockFile, { force: true });
@@ -792,15 +792,15 @@ check("pool B: state file appears", !!resumeIdB);
 const bBooted = resumeIdB ? await waitPoolState(resumeIdB, (st) => st.launched === 2) : null;
 check("pool B: workers booted", !!bBooted);
 stopBg(supB);
-const qState = JSON.parse(fs.readFileSync(path.join(pl.p, ".agentboard", "pool-state", resumeIdB + ".json"), "utf8"));
+const qState = JSON.parse(fs.readFileSync(path.join(pl.p, ".crewbus", "pool-state", resumeIdB + ".json"), "utf8"));
 for (const w of ["plq-1", "plq-2"]) {
   run(["cli", "register", "--from", w], pl.e, pl.p);
   run(["cli", "send", "--from", w, "--to", "plboss", "--reply", qState.idByName[w], "--body", `done ${w}`], pl.e, pl.p);
 }
 const finOut = run(["cli", "pool-resume", "--from", "plboss", "--id", resumeIdB], supEnv, pl.p);
 check("pool-resume: replied counted, none relaunched", finOut.includes("already replied") && finOut.includes("done 2"));
-const fst = JSON.parse(fs.readFileSync(path.join(pl.p, ".agentboard", "pool-state", resumeIdB + ".json"), "utf8"));
-check("pool-resume: finished + lock released", !!fst.finishedAt && fst.done === 2 && fst.results.length === 2 && !fs.existsSync(path.join(pl.p, ".agentboard", "locks", crypto.createHash("sha256").update(`pool/${resumeIdB}`).digest("hex").slice(0, 16) + ".json")));
+const fst = JSON.parse(fs.readFileSync(path.join(pl.p, ".crewbus", "pool-state", resumeIdB + ".json"), "utf8"));
+check("pool-resume: finished + lock released", !!fst.finishedAt && fst.done === 2 && fst.results.length === 2 && !fs.existsSync(path.join(pl.p, ".crewbus", "locks", crypto.createHash("sha256").update(`pool/${resumeIdB}`).digest("hex").slice(0, 16) + ".json")));
 plMustFail("pool-resume: finished refused", ["pool-resume", "--from", "plboss", "--id", resumeIdB]);
 // Pool C (adopt + relaunch): supervisor dies with one live worker; resume
 // adopts it, then a kill triggers the second boot — all transitions forced,
@@ -816,13 +816,13 @@ check("pool-resume: adopts live worker", await waitForLog("supR.log", "adopted l
 run(["cli", "spawn-kill", "--from", "plboss", "--to", "plr-1"], pl.e, pl.p);
 check("pool-resume: relaunches after kill", await waitForLog("supR.log", "spawned plr-2"));
 stopBg(supR);
-const rst = JSON.parse(fs.readFileSync(path.join(pl.p, ".agentboard", "pool-state", resumeId + ".json"), "utf8"));
+const rst = JSON.parse(fs.readFileSync(path.join(pl.p, ".crewbus", "pool-state", resumeId + ".json"), "utf8"));
 check("pool-resume: adopted once, second booted", rst.results.filter((r) => r.to === "plr-1").length === 1 && rst.results.filter((r) => r.to === "plr-2").length === 1 && rst.results.some((r) => r.to === "plr-2" && r.resumed === true) && !rst.finishedAt && rst.done === 1);
-check("pool-resume: killed supervisor holds lock", fs.existsSync(path.join(pl.p, ".agentboard", "locks", crypto.createHash("sha256").update(`pool/${resumeId}`).digest("hex").slice(0, 16) + ".json")));
+check("pool-resume: killed supervisor holds lock", fs.existsSync(path.join(pl.p, ".crewbus", "locks", crypto.createHash("sha256").update(`pool/${resumeId}`).digest("hex").slice(0, 16) + ".json")));
 // reconcile: stale pid (live test-process pid + ancient spawn) reads dead
-fs.writeFileSync(path.join(pl.p, ".agentboard", "agents", "stalew.json"), JSON.stringify({ name: "stalew", spawnedPid: process.pid, spawnedBy: "plboss", spawnedAt: "2020-01-01T00:00:00.000Z", briefId: "b-s" }));
+fs.writeFileSync(path.join(pl.p, ".crewbus", "agents", "stalew.json"), JSON.stringify({ name: "stalew", spawnedPid: process.pid, spawnedBy: "plboss", spawnedAt: "2020-01-01T00:00:00.000Z", briefId: "b-s" }));
 check("reconcile: isPidStale unit", isPidStale(process.pid, "2020-01-01T00:00:00.000Z") === true && isPidStale(process.pid, new Date().toISOString()) === false && isPidStale(999999999, "2020-01-01T00:00:00.000Z") === false);
-const plD = ensureBoard(path.join(pl.p, ".agentboard"));
+const plD = ensureBoard(path.join(pl.p, ".crewbus"));
 check("reconcile: stale reads dead", workerStatus(plD, "stalew", 1).alive === false && workerStatus(plD, "stalew", 1).pidStale === true);
 check("reconcile: text marks stale", run(["cli", "spawn-status", "--to", "stalew"], pl.e, pl.p).includes("stale pid"));
 const plDoc = run(["cli", "doctor"], pl.e, pl.p);
@@ -839,7 +839,7 @@ for (let i = 0; i < 15; i++) {
 
 // self-hosted Claude marketplace: repo root marketplace.json -> ./claude-plugin
 const market = JSON.parse(fs.readFileSync(path.join(HERE, "..", ".claude-plugin", "marketplace.json"), "utf8"));
-check("marketplace: lists agentboard plugin", market.name === "agentboard" && Array.isArray(market.plugins) && market.plugins.some((p) => p.name === "agentboard" && p.source === "./claude-plugin"));
+check("marketplace: lists crewbus plugin", market.name === "crewbus" && Array.isArray(market.plugins) && market.plugins.some((p) => p.name === "crewbus" && p.source === "./claude-plugin"));
 check("marketplace: source dir resolves", market.plugins.every((p) => fs.existsSync(path.join(HERE, "..", p.source, ".claude-plugin", "plugin.json"))));
 
 // unknown harness fails

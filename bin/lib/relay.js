@@ -1,8 +1,8 @@
-// Phase 1 pure extraction from bin/agentboard.js — relay serve-side only.
+// Phase 1 pure extraction from bin/crewbus.js — relay serve-side only.
 // Verbatim copies (only `export` + imports added, plus two documented context
 // params on serving closures). Do NOT edit the monolith yet; Phase 2 will cut
 // the originals and wire imports.
-// Source: bin/agentboard.js (see line numbers in comments).
+// Source: bin/crewbus.js (see line numbers in comments).
 //
 // Imports from sibling Phase-1 modules (already landed):
 //   ./store.js    -> readJson, writeJson, listJson, getFlag, cleanWebName,
@@ -50,7 +50,7 @@ import { appendChainRecord } from "./export.js";
 export function relaySecretFromArgs(args) { // line 679
   const flag = getFlag(args, "--secret");
   if (flag !== undefined) return flag;
-  const env = process.env.AGENTBOARD_SECRET;
+  const env = process.env.CREWBUS_SECRET;
   return env === undefined || env === "" ? undefined : env;
 }
 
@@ -340,18 +340,18 @@ export function readDevice(d, id) { // line 7176
   }
 }
 export function deviceFromReq(req, url) { // line 7185
-  const h = req.headers && (req.headers["x-agentboard-device"] || req.headers["x-relay-device"]);
+  const h = req.headers && (req.headers["x-crewbus-device"] || req.headers["x-relay-device"]);
   if (h !== undefined && h !== null && String(h) !== "") return parseDeviceCred(h);
   const q = url.searchParams.get("device");
   return q === null ? null : parseDeviceCred(q);
 }
 
 // §4.4 relay auth: when a secret is configured (or the relay is remote),
-// /sync/* + /api/spawn + /api/kill require it via x-agentboard-secret or
+// /sync/* + /api/spawn + /api/kill require it via x-crewbus-secret or
 // ?secret= (constant-time compare). Localhost without a secret stays open
 // for single-machine use.
 export const relaySecretFor = (req, url) => { // line 7700 (verbatim arrow; no serve-closure captures)
-  const h = req.headers && (req.headers["x-agentboard-secret"] || req.headers["x-relay-secret"]);
+  const h = req.headers && (req.headers["x-crewbus-secret"] || req.headers["x-relay-secret"]);
   if (h !== undefined && h !== null && String(h) !== "") return String(h);
   const q = url.searchParams.get("secret");
   return q === null ? undefined : String(q);
@@ -404,7 +404,7 @@ export async function requireRelaySecret(req, res, url, ctx) { // lines 7706-774
   if (remote) {
     if (req.oidc) return true;
     res.writeHead(403, { "content-type": "application/json; charset=utf-8" });
-    res.end(JSON.stringify({ error: "remote relay needs --secret/AGENTBOARD_SECRET (see README)" }));
+    res.end(JSON.stringify({ error: "remote relay needs --secret/CREWBUS_SECRET (see README)" }));
     return false;
   }
   return true;
@@ -436,7 +436,7 @@ export function requireRelayClientCert(req, res, url, tlsClientCaPem) { // lines
 // web<->relay cycle since cmdServe also needs boardSnapshot from web.js).
 export { handleApiKill } from "./web.js";
 
-// --- OIDC verify (moved from bin/agentboard.js 6958-7145) ---
+// --- OIDC verify (moved from bin/crewbus.js 6958-7145) ---
 // Hand-rolled JWT verify (RS/ES family) against the issuer's JWKS, used by
 // requireRelaySecret (Bearer alternative) and cmdLogin (stays in monolith).
 export const OIDC_SKEW_SEC = 60; // line 6958

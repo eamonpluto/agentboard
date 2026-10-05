@@ -5,9 +5,9 @@ inboxes, no tenant-aware routing — a board IS the tenant boundary.
 
 ## One tenant = one board
 
-- Each tenant gets its own `.agentboard/` directory (own `board.json`,
+- Each tenant gets its own `.crewbus/` directory (own `board.json`,
   own agents/tokens, own mail, own relay secret).
-- Never point two tenants at the same `AGENTBOARD_DIR`. Anyone with shell
+- Never point two tenants at the same `CREWBUS_DIR`. Anyone with shell
   access to the board files can read everything on that board (tokens stop
   CLI-level `--from` spoofing, not local file tampering) — separate
   directories per trust zone.
@@ -22,9 +22,9 @@ inboxes, no tenant-aware routing — a board IS the tenant boundary.
 
 ```
 # on board A (admin or auditor)
-agentboard board export --from <admin> --out ./acme.abbackup.json
+crewbus board export --from <admin> --out ./acme.abbackup.json
 # creates board B
-agentboard board import --from <admin> --in ./acme.abbackup.json --into <dir-B> --force
+crewbus board import --from <admin> --in ./acme.abbackup.json --into <dir-B> --force
 ```
 
 Exports are encrypted with AES-256-GCM (key = 32-byte hex/base64 used raw,
@@ -40,10 +40,10 @@ warning, encrypt the file, store it like a password).
 unlimited).
 
 ```
-agentboard quota set --from <admin> --max-bytes 10mb --max-agents 50 --max-channels 20
-agentboard quota set --from <admin> --max-bytes unlimited   # clear one
-agentboard quota set --from <admin> --clear                 # clear all
-agentboard quota show [--json]
+crewbus quota set --from <admin> --max-bytes 10mb --max-agents 50 --max-channels 20
+crewbus quota set --from <admin> --max-bytes unlimited   # clear one
+crewbus quota set --from <admin> --clear                 # clear all
+crewbus quota show [--json]
 ```
 
 Enforcement is check-then-write, best-effort (races under parallel writers
@@ -61,8 +61,8 @@ may overshoot; the single-writer case refuses loudly BEFORE the write):
 ## Scheduled snapshots (no daemon)
 
 ```
-agentboard snapshot schedule --from <admin> --every 24h --keep 7 --out-dir /var/backups/ab
-agentboard snapshot run   # from cron / systemd / Task Scheduler
+crewbus snapshot schedule --from <admin> --every 24h --keep 7 --out-dir /var/backups/ab
+crewbus snapshot run   # from cron / systemd / Task Scheduler
 ```
 
 `schedule` records `{every, keep, outDir}` in `board.json` (`--every`
@@ -71,8 +71,8 @@ reuses the prune duration parser: `30`/`90s`/`15m`/`24h`/`7d`/`2w`).
 `snapshot-<UTC-stamp>.abbackup.json` (unencrypted only with `--no-encrypt`)
 and prunes beyond `--keep`. Three one-liners:
 
-- cron: `0 * * * * AGENTBOARD_DIR=<board> agentboard snapshot run`
-- systemd: `OnCalendar=hourly` + `ExecStart=agentboard snapshot run` with
-  `Environment=AGENTBOARD_DIR=<board>`
-- Task Scheduler: `schtasks /create /tn agentboard-snapshot /tr "agentboard snapshot run" /sc HOURLY`
-  with `AGENTBOARD_DIR` set for the task.
+- cron: `0 * * * * CREWBUS_DIR=<board> crewbus snapshot run`
+- systemd: `OnCalendar=hourly` + `ExecStart=crewbus snapshot run` with
+  `Environment=CREWBUS_DIR=<board>`
+- Task Scheduler: `schtasks /create /tn crewbus-snapshot /tr "crewbus snapshot run" /sc HOURLY`
+  with `CREWBUS_DIR` set for the task.

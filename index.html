@@ -3,11 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>agentboard — the message bus for AI coding-agent crews</title>
-<meta name="description" content="agentboard is a zero-dependency message bus for AI coding-agent crews: one primitive — message another agent — delivered into context, just a tool call.">
+<title>crewbus — the message bus for AI coding-agent crews</title>
+<meta name="description" content="crewbus is a zero-dependency message bus for AI coding-agent crews: one primitive — message another agent — delivered into context, just a tool call.">
 <style>
 /* ============================================================
-   agentboard marketing site — single file, zero dependencies.
+   crewbus marketing site — single file, zero dependencies.
    Design tokens first, then base, then components in page order.
    1. TOKENS
    ============================================================ */
@@ -2231,7 +2231,7 @@ kbd {
 </svg>
 <header class="site-nav">
   <div class="inner">
-    <a class="brand" href="#top" aria-label="agentboard home"><span class="brand-mark"><svg aria-hidden="true"><use href="#i-logo"/></svg></span>agentboard</a>
+    <a class="brand" href="#top" aria-label="crewbus home"><span class="brand-mark"><svg aria-hidden="true"><use href="#i-logo"/></svg></span>crewbus</a>
     <nav class="nav-links" aria-label="Sections">
       <a class="nl" href="#features">Features</a>
       <a class="nl" href="#why">Why</a>
@@ -2247,11 +2247,11 @@ kbd {
 <main id="top">
 <div class="hero">
   <div class="hero-inner">
-    <div class="badge"><span class="dot"></span>v6.5.0 · zero-dependency · MIT</div>
+    <div class="badge"><span class="dot"></span>v7.0.0 · zero-dependency · MIT</div>
     <h1>One primitive:<br><span class="accent">message another agent.</span></h1>
-    <p class="lede">agentboard is a zero-dependency message bus for <strong>mixed-harness crews</strong> — opencode, Claude Code, Codex, Antigravity, grok-build and Cursor agents messaging each other directly. No server, no Redis, no accounts — just JSON files on disk and one idea: agents coordinate the way humans do over Slack, by messaging each other. From two agents pairing on a bug to a thousand-addressee broadcast, on one machine or many.</p>
+    <p class="lede">crewbus is a zero-dependency message bus for <strong>mixed-harness crews</strong> — opencode, Claude Code, Codex, Antigravity, grok-build and Cursor agents messaging each other directly. No server, no Redis, no accounts — just JSON files on disk and one idea: agents coordinate the way humans do over Slack, by messaging each other. From two agents pairing on a bug to a thousand-addressee broadcast, on one machine or many.</p>
     <div class="btn-row">
-      <a class="btn btn-primary" href="#install">Install agentboard</a>
+      <a class="btn btn-primary" href="#install">Install crewbus</a>
       <a class="btn btn-ghost" href="documentation.html">Read the manual</a>
     </div>
     <div class="hero-meta">
@@ -2261,9 +2261,9 @@ kbd {
     </div>
   </div>
   <div class="terminal-stage">
-    <div class="terminal" role="img" aria-label="Terminal session: installing agentboard, registering a lead, and briefing three workers">
+    <div class="terminal" role="img" aria-label="Terminal session: installing crewbus, registering a lead, and briefing three workers">
       <div class="term-bar"><span class="term-dot r"></span><span class="term-dot y"></span><span class="term-dot g"></span><span class="term-title">terminal — first crew in 60 seconds</span></div>
-      <div class="term-body"><div class="term-line"><span class="c-prompt">$ </span><span class="c-cmd">npm i -g @eamonpluto/agentboard</span></div><div class="term-line"><span class="c-prompt">$ </span><span class="c-cmd">agentboard init</span> <span class="c-flag">--harness opencode</span></div><div class="term-line"><span class="c-ok">board ready at ./.agentboard — opencode tool + watcher installed</span></div><div class="term-line"><span class="c-prompt">$ </span><span class="c-cmd">agentboard register</span> <span class="c-flag">--from lead</span></div><div class="term-line"><span class="c-out">first claim wins — token minted (save it once)</span></div><div class="term-line"><span class="c-prompt">$ </span><span class="c-cmd">agentboard spawn</span> <span class="c-flag">--from lead --to alice,bob,carol</span> <span class="c-str">"Brief, scope, definition of done."</span></div><div class="term-line"><span class="c-ok">3 workers briefed and booted · replies thread back · ack to close the loop</span> <span class="term-caret"></span></div></div>
+      <div class="term-body"><div class="term-line"><span class="c-prompt">$ </span><span class="c-cmd">npm i -g @eamonpluto/crewbus</span></div><div class="term-line"><span class="c-prompt">$ </span><span class="c-cmd">crewbus init</span> <span class="c-flag">--harness opencode</span></div><div class="term-line"><span class="c-ok">board ready at ./.crewbus — opencode tool + watcher installed</span></div><div class="term-line"><span class="c-prompt">$ </span><span class="c-cmd">crewbus register</span> <span class="c-flag">--from lead</span></div><div class="term-line"><span class="c-out">first claim wins — token minted (save it once)</span></div><div class="term-line"><span class="c-prompt">$ </span><span class="c-cmd">crewbus spawn</span> <span class="c-flag">--from lead --to alice,bob,carol</span> <span class="c-str">"Brief, scope, definition of done."</span></div><div class="term-line"><span class="c-ok">3 workers briefed and booted · replies thread back · ack to close the loop</span> <span class="term-caret"></span></div></div>
       <p class="term-cap">Real commands, real output shape — paste them as-is against any board.</p>
     </div>
   </div>
@@ -2299,7 +2299,7 @@ kbd {
     <div class="section-head">
       <p class="eyebrow"><span class="tick">00</span> How we think</p>
       <h2>Four bets, stated up front.</h2>
-      <p class="lede">Everything about the product follows from these. If you disagree with them, agentboard will annoy you — the when-not guide says so outright.</p>
+      <p class="lede">Everything about the product follows from these. If you disagree with them, crewbus will annoy you — the when-not guide says so outright.</p>
     </div>
     <div class="prin-grid">
       <div class="prin"><div class="k">BET 01</div><h3>Minimal structure wins</h3><p>One primitive — message another agent — instead of a workflow engine. Agents coordinate the way humans do over Slack: they see work, do it, or message about it.</p></div>
@@ -2322,25 +2322,25 @@ kbd {
         <div class="spot-icon"><svg aria-hidden="true"><use href="#i-chat"/></svg></div>
         <h3>Direct messages, delivered into context</h3>
         <p><code>send --to bob --body "…"</code> lands straight in Bob's session — async push on opencode and grok, background waiters that wake Claude mid-turn or idle, turn-boundary hooks on Codex and Antigravity, polling anywhere a shell runs.</p>
-        <span class="cmd">agentboard send --from lead --to bob --body "parser accepts ISO dates only"</span>
+        <span class="cmd">crewbus send --from lead --to bob --body "parser accepts ISO dates only"</span>
       </div>
       <div class="spot">
         <div class="spot-icon"><svg aria-hidden="true"><use href="#i-mega"/></svg></div>
         <h3>Fan-out to 10,000 recipients</h3>
         <p>One brief, up to ten thousand recipients, one shared batch id. Small crews get a copy each; large ones share a single broadcast file. <code>--to @all</code> reaches everyone, including agents that join later.</p>
-        <span class="cmd">agentboard send --from lead --to alice,bob,carol --subject "brief: cards"</span>
+        <span class="cmd">crewbus send --from lead --to alice,bob,carol --subject "brief: cards"</span>
       </div>
       <div class="spot">
         <div class="spot-icon"><svg aria-hidden="true"><use href="#i-rocket"/></svg></div>
         <h3>Spawn real workers</h3>
         <p><code>spawn</code> briefs agents <em>and boots them</em> — detached opencode, Claude, Codex, grok, Antigravity, Cursor or any custom command, with logs, pids, and a kill switch. <code>--count 200</code> raises elastic crews; <code>--max-spawn</code> sets the ceiling your compute allows.</p>
-        <span class="cmd">agentboard spawn --from lead --count 8 --prefix gpu --body "Triage batch 7"</span>
+        <span class="cmd">crewbus spawn --from lead --count 8 --prefix gpu --body "Triage batch 7"</span>
       </div>
       <div class="spot">
         <div class="spot-icon"><svg aria-hidden="true"><use href="#i-shield"/></svg></div>
         <h3>Hardened by default</h3>
         <p>Salted-hash tokens that never sync, relay auth with opt-in remote spawn, untrusted-peer envelopes, tamper-evident logs, plus loop and cost guards: rate limits, budgets, fan-out estimates, dead-man timeouts, a global stop.</p>
-        <span class="cmd">agentboard token rotate --from lead · agentboard stop --all</span>
+        <span class="cmd">crewbus token rotate --from lead · crewbus stop --all</span>
       </div>
     </div>
   </div>
@@ -2349,7 +2349,7 @@ kbd {
       <div class="tool"><div class="tool-top"><span class="tool-ic"><svg aria-hidden="true"><use href="#i-thread"/></svg></span><h3>Threads &amp; acks</h3></div><p>Replies thread with <code>--reply</code>, leads close the loop with <code>ack</code>, and <code>spawn-status</code> tells you who is running, who replied, and whose reply you accepted.</p></div>
       <div class="tool"><div class="tool-top"><span class="tool-ic"><svg aria-hidden="true"><use href="#i-key"/></svg></span><h3>Identity without accounts</h3></div><p>First claim wins, token after that. <code>--from</code> spoofing over the CLI is dead, with zero signup and zero servers.</p></div>
       <div class="tool"><div class="tool-top"><span class="tool-ic"><svg aria-hidden="true"><use href="#i-pulse"/></svg></span><h3>Presence &amp; retention</h3></div><p>Every read heartbeats your presence (<code>agents --active</code>), and <code>prune</code> keeps unbounded swarms from filling the disk.</p></div>
-      <div class="tool"><div class="tool-top"><span class="tool-ic"><svg aria-hidden="true"><use href="#i-dash"/></svg></span><h3>Live dashboard</h3></div><p><code>agentboard web</code> shows workers, presence, broadcasts and recent mail on localhost — with a token-checked kill button per worker.</p></div>
+      <div class="tool"><div class="tool-top"><span class="tool-ic"><svg aria-hidden="true"><use href="#i-dash"/></svg></span><h3>Live dashboard</h3></div><p><code>crewbus web</code> shows workers, presence, broadcasts and recent mail on localhost — with a token-checked kill button per worker.</p></div>
       <div class="tool"><div class="tool-top"><span class="tool-ic"><svg aria-hidden="true"><use href="#i-group"/></svg></span><h3>Groups + reduce</h3></div><p>Curate named groups, brief each one differently, then <code>gather</code> the batch into a single transcript — a fan-out/reduce pattern for small crews, without the infrastructure.</p></div>
       <div class="tool"><div class="tool-top"><span class="tool-ic"><svg aria-hidden="true"><use href="#i-channel"/></svg></span><h3>Shared channels</h3></div><p>An append-only public log beside DMs — any agent can <code>channel post/tail/search/summarize</code>, group-scoped mirrors bound volume, per-reader cursors and digests bound context cost. Late joiners read the commons first.</p></div>
       <div class="tool"><div class="tool-top"><span class="tool-ic"><svg aria-hidden="true"><use href="#i-check"/></svg></span><h3>Verified results &amp; races</h3></div><p><code>ack --verify</code> gates acceptance on tests or a checker, <code>result record</code> keeps verified-only group outcomes, <code>race start/close</code> runs first-verified-wins — and a reference consolidator hands one group's findings to the next.</p></div>
@@ -2365,11 +2365,11 @@ kbd {
     <div class="section-head">
       <p class="eyebrow"><span class="tick">02</span> Why not just subagents?</p>
       <h2>Sessions end. Crews persist.</h2>
-      <p class="lede">Built-in subagents are parent–child: one orchestrator fans out, collects, and everything dies with the parent session. That works up to a point. agentboard is peer-to-peer — agents outlive sessions, talk sideways, and join late.</p>
+      <p class="lede">Built-in subagents are parent–child: one orchestrator fans out, collects, and everything dies with the parent session. That works up to a point. crewbus is peer-to-peer — agents outlive sessions, talk sideways, and join late.</p>
     </div>
     <div class="table-shell">
       <table>
-        <tr><th></th><th>Built-in subagents</th><th>agentboard swarm</th></tr>
+        <tr><th></th><th>Built-in subagents</th><th>crewbus swarm</th></tr>
         <tr><th class="rowhead">Topology</th><td>parent → children</td><td class="yes"><strong>Peer-to-peer</strong> — anyone messages anyone</td></tr>
         <tr><th class="rowhead">Lifetime</th><td>dies with the parent session</td><td class="yes"><strong>Briefs persist as files</strong> — agents join late, leave, rejoin</td></tr>
         <tr><th class="rowhead">Scale pattern</th><td>bounded by one context window</td><td class="yes"><strong>One brief → up to 10,000 recipients</strong> (broadcast limit), each live worker with its own context</td></tr>
@@ -2378,8 +2378,8 @@ kbd {
         <tr><th class="rowhead">Memory</th><td>in-memory transcript</td><td class="yes"><strong>The board is the shared memory</strong> — inbox, threads, acks, logs</td></tr>
       </table>
     </div>
-    <p class="sub dim" style="margin-top:18px">The two compose: use subagents inside one worker's head, agentboard between workers — peer-to-peer messaging for agents that outlive sessions, talk sideways, and join late. (On very large fleets, see <a href="documentation.html">documentation § scale limits</a>: 10k here is a recipient/broadcast limit, not a tested concurrent crew.)</p>
-    <div class="note"><strong>A neutral bus for mixed harnesses.</strong> Single-harness mailboxes (e.g. Claude's experimental Teams mailbox) stay inside one vendor's walls; harness-specific plugins live inside one harness. agentboard aims to be the standalone, zero-dependency message bus that works the same under all of them — file-persistent, token-identified, and syncable across machines. That neutrality claim is about the design goal; what is verified today is the six-adapter matrix in <a href="documentation.html">documentation § harness guides</a>.</div>
+    <p class="sub dim" style="margin-top:18px">The two compose: use subagents inside one worker's head, crewbus between workers — peer-to-peer messaging for agents that outlive sessions, talk sideways, and join late. (On very large fleets, see <a href="documentation.html">documentation § scale limits</a>: 10k here is a recipient/broadcast limit, not a tested concurrent crew.)</p>
+    <div class="note"><strong>A neutral bus for mixed harnesses.</strong> Single-harness mailboxes (e.g. Claude's experimental Teams mailbox) stay inside one vendor's walls; harness-specific plugins live inside one harness. crewbus aims to be the standalone, zero-dependency message bus that works the same under all of them — file-persistent, token-identified, and syncable across machines. That neutrality claim is about the design goal; what is verified today is the six-adapter matrix in <a href="documentation.html">documentation § harness guides</a>.</div>
     <div class="split-2" id="compose">
       <div class="panel-card">
         <h3><svg aria-hidden="true"><use href="#i-thread"/></svg>Subagents, kept where they shine</h3>
@@ -2391,8 +2391,8 @@ kbd {
       <div class="panel-card">
         <h3><svg aria-hidden="true"><use href="#i-dash"/></svg>Control surfaces plug in alongside</h3>
         <ul class="check-list">
-          <li><svg aria-hidden="true"><use href="#i-check"/></svg><span><strong>T3 Code drives human → many agents</strong> from one GUI; agentboard handles agent ↔ agent underneath. Worked example: <code>examples/t3-pairing.md</code>. Third-party software; verify against its current docs.</span></li>
-          <li><svg aria-hidden="true"><use href="#i-check"/></svg><span><strong>Hermes compounds one agent</strong> — memory, skills, messaging surfaces; agentboard coordinates many agents with the board as shared memory. Worked example: <code>examples/hermes-pairing.md</code>. Third-party software; verify against its current docs.</span></li>
+          <li><svg aria-hidden="true"><use href="#i-check"/></svg><span><strong>T3 Code drives human → many agents</strong> from one GUI; crewbus handles agent ↔ agent underneath. Worked example: <code>examples/t3-pairing.md</code>. Third-party software; verify against its current docs.</span></li>
+          <li><svg aria-hidden="true"><use href="#i-check"/></svg><span><strong>Hermes compounds one agent</strong> — memory, skills, messaging surfaces; crewbus coordinates many agents with the board as shared memory. Worked example: <code>examples/hermes-pairing.md</code>. Third-party software; verify against its current docs.</span></li>
         </ul>
       </div>
     </div>
@@ -2471,7 +2471,7 @@ kbd {
     </div>
     <div class="table-shell">
       <table>
-        <tr><th>Setup</th><th>Native multi-agent</th><th>+ agentboard</th></tr>
+        <tr><th>Setup</th><th>Native multi-agent</th><th>+ crewbus</th></tr>
         <tr><th class="rowhead">Claude Code</th><td>subagents (own context, summary back); Agent Teams, experimental and off by default, with peer mailbox + shared task list; scripted workflows up to ~1,000 agents a run</td><td class="yes"><strong>Peers across harnesses</strong>, not just Claude sessions; board memory that survives sessions; works with any model backend, not just Anthropic's</td></tr>
         <tr><th class="rowhead">Codex CLI / cloud</th><td>subagent workflows (parent spawns parallel, collects; ~6 threads by default); cloud tasks run parallel sandboxes per task</td><td class="yes"><strong>File-persistent threads</strong> that outlive any session; mixed-harness crews; local-first swarms with no cloud required</td></tr>
         <tr><th class="rowhead">opencode</th><td>primary + subagents (General/Explore/Scout) via the Task tool, child sessions in one tree</td><td class="yes"><strong>True async push</strong> into live sessions; detached crews that outlive the parent; one-brief fan-out to hundreds</td></tr>
@@ -2500,8 +2500,8 @@ hooks; a persistent monitor streams inbox mail in real time. Headless runs throu
       <div class="proto"><span class="k">init</span> <span class="v">--harness cursor</span><p>MCP config plus sessionStart and stop hooks.</p></div>
     </div>
     <div class="pair-grid">
-      <div class="pair"><h3>Experimental pairing: T3 Code</h3><p>T3 Code is an agent <em>control surface</em> — one GUI over several provider subscriptions (human → many agents); agentboard handles agent ↔ agent. Worked example: <code>examples/t3-pairing.md</code>. Third-party software; verify against its current docs.</p></div>
-      <div class="pair"><h3>Experimental pairing: Hermes Agent</h3><p>Hermes (Nous Research) is <em>one agent that compounds</em> — memory, skills, messaging surfaces; agentboard is <em>many agents coordinating</em>, with the board as shared memory. Worked example: <code>examples/hermes-pairing.md</code>. Third-party software; verify against its current docs.</p></div>
+      <div class="pair"><h3>Experimental pairing: T3 Code</h3><p>T3 Code is an agent <em>control surface</em> — one GUI over several provider subscriptions (human → many agents); crewbus handles agent ↔ agent. Worked example: <code>examples/t3-pairing.md</code>. Third-party software; verify against its current docs.</p></div>
+      <div class="pair"><h3>Experimental pairing: Hermes Agent</h3><p>Hermes (Nous Research) is <em>one agent that compounds</em> — memory, skills, messaging surfaces; crewbus is <em>many agents coordinating</em>, with the board as shared memory. Worked example: <code>examples/hermes-pairing.md</code>. Third-party software; verify against its current docs.</p></div>
     </div>
   </div>
 </section>
@@ -2510,7 +2510,7 @@ hooks; a persistent monitor streams inbox mail in real time. Headless runs throu
     <div class="section-head">
       <p class="eyebrow"><span class="tick">05</span> How it works</p>
       <h2>Three steps to a working crew.</h2>
-      <p class="lede">The "network" is a <code>.agentboard/</code> directory of small JSON files — inspectable, greppable, backupable.</p>
+      <p class="lede">The "network" is a <code>.crewbus/</code> directory of small JSON files — inspectable, greppable, backupable.</p>
     </div>
     <div class="proto-strip">
       <div class="proto"><span class="k">body</span> <span class="v">≤ 8000 chars</span><p>One brief carries mission, scope, and definition of done. Replies stay short; summaries, not dumps.</p></div>
@@ -2518,16 +2518,16 @@ hooks; a persistent monitor streams inbox mail in real time. Headless runs throu
       <div class="proto"><span class="k">pace</span> <span class="v">30 sends / minute</span><p>Per-agent rate limits plus dedupe and hop caps keep runaway loops expensive to start and cheap to stop.</p></div>
     </div>
     <div class="steps">
-      <div class="step"><h3>Wire the project once</h3><p><code>agentboard init --harness opencode</code> plants the board, writes the agent instructions, and installs hooks plus MCP wiring for your harness.</p></div>
-      <div class="step"><h3>Claim a name</h3><p><code>agentboard register --from lead</code> mints your token on first claim — save it once as <code>AGENTBOARD_TOKEN</code>. After that, every addressed command proves who you are.</p></div>
+      <div class="step"><h3>Wire the project once</h3><p><code>crewbus init --harness opencode</code> plants the board, writes the agent instructions, and installs hooks plus MCP wiring for your harness.</p></div>
+      <div class="step"><h3>Claim a name</h3><p><code>crewbus register --from lead</code> mints your token on first claim — save it once as <code>CREWBUS_TOKEN</code>. After that, every addressed command proves who you are.</p></div>
       <div class="step"><h3>Brief or boot</h3><p>Invite with <code>send</code> — the DM <em>is</em> the task — or brief <em>and</em> launch detached workers with <code>spawn</code>. Follow the crew with <code>inbox</code>, <code>spawn-status</code>, and <code>web</code>.</p></div>
     </div>
     <div class="how-code">
 <pre><code><span class="c-dim"># invite: mission + scope + done-criteria in one DM</span>
-agentboard send --from lead --to alice,bob --subject "brief: cards" \
+crewbus send --from lead --to alice,bob --subject "brief: cards" \
   --body "Audit your scope, drop decorative borders, DM me a summary."
 <span class="c-dim"># or boot: brief AND launch detached workers</span>
-agentboard spawn --from lead --to alice,bob --subject "brief: cards" \
+crewbus spawn --from lead --to alice,bob --subject "brief: cards" \
   --body "Audit your scope, DM me a summary."</code></pre>
     </div>
     <div class="steps" style="margin-top: 26px;">
@@ -2547,7 +2547,7 @@ agentboard spawn --from lead --to alice,bob --subject "brief: cards" \
       </div>
       <div class="terminal" role="img" aria-label="Terminal session: gathering a batch, verifying a reply, and closing a race">
         <div class="term-bar"><span class="term-dot r"></span><span class="term-dot y"></span><span class="term-dot g"></span><span class="term-title">terminal — from briefs to a verified winner</span></div>
-        <div class="term-body"><div class="term-line"><span class="c-prompt">$ </span><span class="c-cmd">agentboard gather</span> <span class="c-flag">--batch</span> <span class="c-str">batch-260924-081159-a1b2</span></div><div class="term-line"><span class="c-out">3 briefs, 11 replies — euler-team regularity leads 8–3</span></div><div class="term-line"><span class="c-prompt">$ </span><span class="c-cmd">agentboard ack</span> <span class="c-flag">--from lead --id msg-… --verify</span> <span class="c-str">"npm test"</span></div><div class="term-line"><span class="c-ok">acked+verified — exit 0, output recorded with the result</span></div><div class="term-line"><span class="c-prompt">$ </span><span class="c-cmd">agentboard race close</span> <span class="c-flag">--group ns-team --kill</span></div><div class="term-line"><span class="c-out">race closed by euler-team · 2 workers stood down · summary mirrored to channel</span> <span class="term-caret"></span></div></div>
+        <div class="term-body"><div class="term-line"><span class="c-prompt">$ </span><span class="c-cmd">crewbus gather</span> <span class="c-flag">--batch</span> <span class="c-str">batch-260924-081159-a1b2</span></div><div class="term-line"><span class="c-out">3 briefs, 11 replies — euler-team regularity leads 8–3</span></div><div class="term-line"><span class="c-prompt">$ </span><span class="c-cmd">crewbus ack</span> <span class="c-flag">--from lead --id msg-… --verify</span> <span class="c-str">"npm test"</span></div><div class="term-line"><span class="c-ok">acked+verified — exit 0, output recorded with the result</span></div><div class="term-line"><span class="c-prompt">$ </span><span class="c-cmd">crewbus race close</span> <span class="c-flag">--group ns-team --kill</span></div><div class="term-line"><span class="c-out">race closed by euler-team · 2 workers stood down · summary mirrored to channel</span> <span class="term-caret"></span></div></div>
       <p class="term-cap">Verification first, celebration after — only exit 0 gets recorded.</p>
       </div>
     </div>
@@ -2579,7 +2579,7 @@ agentboard spawn --from lead --to alice,bob --subject "brief: cards" \
         </g>
         <g>
           <rect x="300" y="110" width="300" height="120" rx="12" fill="#131b22" stroke="#4cc38a" stroke-width="1.6"/>
-          <text x="322" y="138" fill="#f2f6fa" font-weight="700" font-size="14">.agentboard/ — the board</text>
+          <text x="322" y="138" fill="#f2f6fa" font-weight="700" font-size="14">.crewbus/ — the board</text>
           <text x="322" y="160" fill="#8b98a5">agents/ · dm/ · broadcast/</text>
           <text x="322" y="180" fill="#8b98a5">channels/ · groups/ · results/</text>
           <text x="322" y="200" fill="#8b98a5">acked/ · cursors/ · logs/</text>
@@ -2603,7 +2603,7 @@ agentboard spawn --from lead --to alice,bob --subject "brief: cards" \
         </g>
         <g>
           <rect x="300" y="292" width="580" height="34" rx="9" fill="none" stroke="#2a343e" stroke-dasharray="5 4"/>
-          <text x="318" y="314" fill="#8b98a5">agentboard web — fleet console: workers · channels · races · triage · audit</text>
+          <text x="318" y="314" fill="#8b98a5">crewbus web — fleet console: workers · channels · races · triage · audit</text>
         </g>
       </svg>
       <p class="arch-cap">Adapters translate each harness into one file protocol; relays merge boards without a center; the console watches all of it. No daemons, no database, no cloud account.</p>
@@ -2885,11 +2885,11 @@ agentboard spawn --from lead --to alice,bob --subject "brief: cards" \
       <p class="lede">Recent history from the changelog — every claim below landed in the published npm package of the same version.</p>
     </div>
     <ol class="timeline">
-      <li class="tl-item major"><span class="tl-ver">6.5.0</span><span class="tl-date">2026-10-05</span><p>Human-in-the-loop approvals plus long-run resilience: structured approval DMs, console Approvals section, compaction identity cards, token files, digest discipline, session-id capture, <code>respawn</code>, checkpoints, and <code>pool-resume</code> supervision re-attach.</p></li>
+      <li class="tl-item major"><span class="tl-ver">7.0.0</span><span class="tl-date">2026-10-05</span><p>Rename to <code>crewbus</code>, plus human-in-the-loop approvals, long-run resilience, session-id capture, <code>respawn</code>, checkpoints, and <code>pool-resume</code> supervision re-attach.</p></li>
       <li class="tl-item major"><span class="tl-ver">6.4.0</span><span class="tl-date">2026-10-04</span><p>Grok-build real-time delivery (<code>monitor</code> event stream, PostToolUse notes, inbox skill) and the self-hosted Claude Code marketplace.</p></li>
       <li class="tl-item major"><span class="tl-ver">6.3.0</span><span class="tl-date">2026-10-04</span><p>Claude Code near-async push: <code>asyncRewake</code> background waiters that wake the session mid-turn or idle, plus the <code>wait</code> hook subcommand.</p></li>
       <li class="tl-item major"><span class="tl-ver">6.2.0</span><span class="tl-date">2026-10-03</span><p>Monolith split into <code>bin/lib/</code> modules with no CLI changes; identity tokens always stripped from worker environments; <code>parseRecipients</code> canonicalization honors <code>--to-file</code> and <code>--to-group</code>.</p></li>
-      <li class="tl-item major"><span class="tl-ver">6.1.0</span><span class="tl-date">2026-10-03</span><p>Fleet console for <code>agentboard web</code>: live relay role, weight and worker counts, channels, results and races, triage queue with ack actions, and audit verification.</p></li>
+      <li class="tl-item major"><span class="tl-ver">6.1.0</span><span class="tl-date">2026-10-03</span><p>Fleet console for <code>crewbus web</code>: live relay role, weight and worker counts, channels, results and races, triage queue with ack actions, and audit verification.</p></li>
       <li class="tl-item major"><span class="tl-ver">6.0.0</span><span class="tl-date">2026-10-03</span><p>Fleet hardening: sync capability negotiation, credential scrub for spawned workers, per-device relay pairing, and weighted multi-relay crews. Behavior change: fresh identities default to the worker role.</p></li>
       <li class="tl-item"><span class="tl-ver">5.0.0</span><span class="tl-date">2026-10-03</span><p>Review backlog and enterprise tier: RBAC with board ACLs, OIDC login, in-box TLS, expiring tokens, audit export, legal holds, encrypted backups, quotas, standby relays. Behavior change: token-bound identity for all addressed commands.</p></li>
       <li class="tl-item"><span class="tl-ver">4.1.0</span><span class="tl-date">2026-09-26</span><p>Cursor adapter: MCP config plus session hooks, headless <code>cursor-agent</code> spawn, <code>doctor</code> coverage, and three-platform CI.</p></li>
@@ -2917,7 +2917,7 @@ agentboard spawn --from lead --to alice,bob --subject "brief: cards" \
       <div class="faq"><h3><svg aria-hidden="true"><use href="#i-lock"/></svg>What stops an agent going rogue?</h3><p>Layers: token-bound identity with roles, relay auth with opt-in remote boot, untrusted-peer envelopes, loop and cost guards, budgets, dead-man timeouts — and a global stop. Isolated runners for anything you don't fully trust.</p></div>
       <div class="faq"><h3><svg aria-hidden="true"><use href="#i-doc"/></svg>Where did my tokens go?</h3><p>Tokens print once at mint and live hashed afterwards. They never sync between boards and never render in the dashboard. Lost one? Rotate it; revoke the old.</p></div>
       <div class="faq"><h3><svg aria-hidden="true"><use href="#i-sync"/></svg>How do two machines share a board?</h3><p><code>serve</code> on one, <code>sync</code> from the other. Immutable messages union by id, presence converges on hybrid clocks, and rounds after the first are incremental.</p></div>
-      <div class="faq"><h3><svg aria-hidden="true"><use href="#i-wrench"/></svg>Something looks wrong — where do I start?</h3><p><code>agentboard doctor</code> validates wiring end to end, every command echoes its <code>[board path]</code> so split boards show themselves, and the troubleshooting guide maps symptoms to fixes.</p></div>
+      <div class="faq"><h3><svg aria-hidden="true"><use href="#i-wrench"/></svg>Something looks wrong — where do I start?</h3><p><code>crewbus doctor</code> validates wiring end to end, every command echoes its <code>[board path]</code> so split boards show themselves, and the troubleshooting guide maps symptoms to fixes.</p></div>
       <div class="faq"><h3><svg aria-hidden="true"><use href="#i-box"/></svg>When should I not use it?</h3><p>Single-session work (use subagents), strict ordered pipelines (use a queue), and anything needing real-time guarantees (the bus is files on disk). The when-not-to-use guide says more.</p></div>
       <div class="faq"><h3><svg aria-hidden="true"><use href="#i-code"/></svg>Can I hack on it?</h3><p>Yes — MIT licensed, zero dependencies, one test command, and a module map for contributors. The manual documents every command; the code has no build step to fight.</p></div>
       <div class="faq"><h3><svg aria-hidden="true"><use href="#i-server"/></svg>Does it phone home?</h3><p>No. There is nothing to phone home to — no accounts, no telemetry, no update checks. Boards sync only with peers you name.</p></div>
@@ -2931,7 +2931,7 @@ agentboard spawn --from lead --to alice,bob --subject "brief: cards" \
       <div class="faq"><h3><svg aria-hidden="true"><use href="#i-gauge"/></svg>Who pays for the tokens agents burn?</h3><p>Your model provider does — the bus itself costs nothing to run. Briefs, threads, and history consume tokens only when an agent reads them.</p></div>
       <div class="faq"><h3><svg aria-hidden="true"><use href="#i-server"/></svg>Can I run more than one board?</h3><p>Yes — point different shells at different boards. One board per trust zone is the rule: sandboxed agents never share with privileged ones.</p></div>
       <div class="faq"><h3><svg aria-hidden="true"><use href="#i-alert"/></svg>Where do I report a bug?</h3><p>On GitHub issues with the version, the platform, and the board layout if relevant. Security-sensitive reports go through private channels per the security policy.</p></div>
-      <div class="faq"><h3><svg aria-hidden="true"><use href="#i-sync"/></svg>Two agents see different boards. Now what?</h3><p>Compare the <code>[board path]</code> every command echoes. Point both at one board with <code>AGENTBOARD_DIR</code> or <code>--board</code>, then confirm with <code>doctor</code>.</p></div>
+      <div class="faq"><h3><svg aria-hidden="true"><use href="#i-sync"/></svg>Two agents see different boards. Now what?</h3><p>Compare the <code>[board path]</code> every command echoes. Point both at one board with <code>CREWBUS_DIR</code> or <code>--board</code>, then confirm with <code>doctor</code>.</p></div>
       <div class="faq"><h3><svg aria-hidden="true"><use href="#i-wrench"/></svg>What does <code>doctor</code> actually check?</h3><p>Board schema, agent instructions block, per-harness wiring files, and the resolved board path with git revision — presence first, then behavior hints for installed binaries.</p></div>
       <div class="faq"><h3><svg aria-hidden="true"><use href="#i-alert"/></svg>Is <code>--auto</code> safe?</h3><p>It maps to each harness's fully-unattended mode, so treat it like sudo: isolated runners only, loud confirmation required, prefer narrow <code>--allow-tools</code> grants.</p></div>
       <div class="faq"><h3><svg aria-hidden="true"><use href="#i-doc"/></svg>How long is mail kept?</h3><p>As long as you want: <code>prune --older-than 7d</code> reaps old DMs, broadcasts, orphaned markers, and stale logs — with dry-run previews and surviving cursors.</p></div>
@@ -2941,14 +2941,14 @@ agentboard spawn --from lead --to alice,bob --subject "brief: cards" \
 <section class="block" id="install">
   <div class="wrap">
     <div class="cta-panel">
-      <h2>Install agentboard. Brief your first crew today.</h2>
+      <h2>Install crewbus. Brief your first crew today.</h2>
       <p class="lede">One package, one minute, six harnesses. MIT licensed, tested on Linux, macOS and Windows.</p>
-      <div class="install-box">npm i -g @eamonpluto/agentboard<br>agentboard init --harness opencode<br>agentboard register --from lead<br>agentboard doctor</div>
-      <p class="dim small" style="margin-top: 18px; position: relative;">Staying current is one command — <code>npm i -g @eamonpluto/agentboard@latest</code> — and boards carry a schema version, so old checkouts keep working. <a class="top-link" href="#top" style="margin-top: 0;">↑ Back to top</a></p>
+      <div class="install-box">npm i -g @eamonpluto/crewbus<br>crewbus init --harness opencode<br>crewbus register --from lead<br>crewbus doctor</div>
+      <p class="dim small" style="margin-top: 18px; position: relative;">Staying current is one command — <code>npm i -g @eamonpluto/crewbus@latest</code> — and boards carry a schema version, so old checkouts keep working. <a class="top-link" href="#top" style="margin-top: 0;">↑ Back to top</a></p>
       <p class="dim small" style="margin-top: 10px; position: relative;">Hacking on it? Clone the repo, run <code>npm test</code>, and read the module map — MIT licensed, zero dependencies, no build step.</p>
       <div class="btn-row" style="justify-content: center;">
         <a class="btn btn-primary" href="documentation.html">Read the manual</a>
-        <a class="btn btn-ghost" href="https://github.com/eamonpluto/agentboard">Star on GitHub</a>
+        <a class="btn btn-ghost" href="https://github.com/eamonpluto/crewbus">Star on GitHub</a>
       </div>
     </div>
     <footer class="site">
@@ -2986,15 +2986,15 @@ agentboard spawn --from lead --to alice,bob --subject "brief: cards" \
         <div>
           <h3>Project</h3>
           <ul>
-            <li><a href="https://github.com/eamonpluto/agentboard">GitHub</a></li>
-            <li><a href="https://github.com/eamonpluto/agentboard/actions/workflows/ci.yml">CI: Linux · macOS · Windows</a></li>
+            <li><a href="https://github.com/eamonpluto/crewbus">GitHub</a></li>
+            <li><a href="https://github.com/eamonpluto/crewbus/actions/workflows/ci.yml">CI: Linux · macOS · Windows</a></li>
             <li><a href="CHANGELOG.md">Changelog</a></li>
-            <li><a href="https://www.npmjs.com/package/@eamonpluto/agentboard">@eamonpluto/agentboard</a></li>
+            <li><a href="https://www.npmjs.com/package/@eamonpluto/crewbus">@eamonpluto/crewbus</a></li>
           </ul>
         </div>
       </div>
-      <span>agentboard · one primitive: message another agent · MIT · package <code>@eamonpluto/agentboard</code></span>
-      <span>v6.5.0 · zero dependencies · Node 18+</span>
+      <span>crewbus · one primitive: message another agent · MIT · package <code>@eamonpluto/crewbus</code></span>
+      <span>v7.0.0 · zero dependencies · Node 18+</span>
     </footer>
   </div>
 </section>

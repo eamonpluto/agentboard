@@ -1,14 +1,14 @@
-// .opencode/plugins/dm-watch.js — inject DMs into context (agent-board DM-only v2).
+// .opencode/plugins/dm-watch.js — inject DMs into context (crewbus DM-only v2).
 // Watches <board>/dm/<agent>/*.json + <board>/broadcast/*.json (addressed to
 // <agent> or @all) and delivers new messages to the live opencode session
 // registered for <agent> via client.session.promptAsync.
 //
-// Routing: .agentboard/agents/<name>.json holds { sessionId }. The dm-send
+// Routing: .crewbus/agents/<name>.json holds { sessionId }. The dm-send
 // tool writes it on every send; register --session writes it from the CLI.
 // Fire-once: in-memory Set + on-disk delivered/<agent>/<msgId>.json markers
 // claimed with exclusive create ('wx'), pre-populated on startup (survives
 // restarts, same idea as bgrun's .notify -> .notified rename). Markers are
-// shared with agentboard-hook, and the hook's cursors/<agent>.json fast-
+// shared with crewbus-hook, and the hook's cursors/<agent>.json fast-
 // forward pointer is honored (and advanced on our deliveries), so agents
 // mixing harnesses never get a message twice.
 // Polls every 1s; that poll is the source of truth (no fs.watch dependency).
@@ -33,16 +33,16 @@ import path from "node:path";
 const POLL_MS = 1000;
 
 function boardRoot(directory) {
-  if (process.env.AGENTBOARD_DIR) return path.resolve(process.env.AGENTBOARD_DIR);
-  return findBoardUpward(directory) || path.join(directory, ".agentboard");
+  if (process.env.CREWBUS_DIR) return path.resolve(process.env.CREWBUS_DIR);
+  return findBoardUpward(directory) || path.join(directory, ".crewbus");
 }
 
-// Nearest ancestor (incl. start) containing a .agentboard dir, or null.
+// Nearest ancestor (incl. start) containing a .crewbus dir, or null.
 function findBoardUpward(start) {
   let dir = path.resolve(start);
   for (;;) {
     try {
-      if (fs.statSync(path.join(dir, ".agentboard")).isDirectory()) return path.join(dir, ".agentboard");
+      if (fs.statSync(path.join(dir, ".crewbus")).isDirectory()) return path.join(dir, ".crewbus");
     } catch {}
     const parent = path.dirname(dir);
     if (parent === dir) return null;
@@ -186,7 +186,7 @@ export const DmWatchPlugin = async ({ client, directory }) => {
     } catch {}
   }
 
-  // Cursor file shared with agentboard-hook: hook delivery moves it, and we
+  // Cursor file shared with crewbus-hook: hook delivery moves it, and we
   // honor it (plus our markers) so mixed-harness agents never get doubles.
   // We also advance it on our own deliveries.
   function readCursor(agent) {
@@ -414,7 +414,7 @@ export const DmWatchPlugin = async ({ client, directory }) => {
   return {
     // Compaction rehydration: opencode summarizes this session, so the agent
     // wakes up forgetting its name, board, and token. Push the same identity
-    // card `agentboard-hook compact` prints into the summary prompt.
+    // card `crewbus-hook compact` prints into the summary prompt.
     "experimental.session.compacting": async (input, output) => {
       try {
         if (!output || !Array.isArray(output.context)) return;
@@ -422,9 +422,9 @@ export const DmWatchPlugin = async ({ client, directory }) => {
         let agent = null;
         for (const [name, sid] of agentToSession) if (sid === (input && input.sessionID)) agent = name;
         const who = agent || "unknown";
-        output.context.push(`agentboard: context refreshed after compaction. You are '${who}' on board ${root}.`);
-        output.context.push(`Token: read ${path.join(root, "logs", who + ".token")} into AGENTBOARD_TOKEN (0600 file written at register/mint). Lost it? Ask your lead/admin to revoke it, then re-register for a fresh one.`);
-        output.context.push(`Then: agentboard inbox --from ${who} --unacked --digest (escalate to full reads on hits).`);
+        output.context.push(`crewbus: context refreshed after compaction. You are '${who}' on board ${root}.`);
+        output.context.push(`Token: read ${path.join(root, "logs", who + ".token")} into CREWBUS_TOKEN (0600 file written at register/mint). Lost it? Ask your lead/admin to revoke it, then re-register for a fresh one.`);
+        output.context.push(`Then: crewbus inbox --from ${who} --unacked --digest (escalate to full reads on hits).`);
         const doc = agent ? readJsonSafe(path.join(root, "agents", agent + ".json")) : null;
         const ws = doc && doc.briefId ? readJsonSafe(path.join(root, "worker-sessions", agent + ".json")) : null;
         if (ws && (ws.promptPath || ws.origPromptPath)) output.context.push(`Your brief: re-read ${ws.promptPath || ws.origPromptPath} from worker-sessions if present.`);

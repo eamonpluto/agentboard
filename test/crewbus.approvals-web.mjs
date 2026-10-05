@@ -5,18 +5,18 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const CLI = fileURLToPath(new URL("../bin/agentboard.js", import.meta.url));
-const board = fs.mkdtempSync(path.join(os.tmpdir(), "ab-approvals-"));
-const env = { ...process.env, AGENTBOARD_DIR: board };
+const CLI = fileURLToPath(new URL("../bin/crewbus.js", import.meta.url));
+const board = fs.mkdtempSync(path.join(os.tmpdir(), "cb-approvals-"));
+const env = { ...process.env, CREWBUS_DIR: board };
 
-// Token-aware runner (mirrors test/agentboard.smoke.mjs): injects the
-// harvested AGENTBOARD_TOKEN for --from, harvests freshly minted tokens.
+// Token-aware runner (mirrors test/crewbus.smoke.mjs): injects the
+// harvested CREWBUS_TOKEN for --from, harvests freshly minted tokens.
 const TOK = {};
 const run = (args, extraEnv) => {
   const merged = { ...env, ...(extraEnv || {}) };
   const fi = args.indexOf("--from");
   const who = fi !== -1 && args[fi + 1] && !String(args[fi + 1]).startsWith("--") ? String(args[fi + 1]).toLowerCase() : null;
-  if (who && TOK[who] && !merged.AGENTBOARD_TOKEN) merged.AGENTBOARD_TOKEN = TOK[who];
+  if (who && TOK[who] && !merged.CREWBUS_TOKEN) merged.CREWBUS_TOKEN = TOK[who];
   const out = execFileSync("node", [CLI, ...args], { env: merged }).toString();
   const m = out.match(/token (abt-[0-9a-f]+)/);
   if (m && who && !TOK[who]) TOK[who] = m[1];

@@ -18,7 +18,7 @@ file-backed: a request is a DM, a verdict is a DM reply.
 - Threaded via `replyTo` on the brief (same thread as the assignment).
 
 ```
-agentboard send --priority high --from <worker> --to <lead> --reply <brief-id> \
+crewbus send --priority high --from <worker> --to <lead> --reply <brief-id> \
   --subject "approval: <short action>" \
   --body "command: <cmd> / cwd: <dir> / why: <reason> / tried-instead: <safer alternative> / timeout: 300s"
 ```
@@ -34,7 +34,7 @@ agentboard send --priority high --from <worker> --to <lead> --reply <brief-id> \
   missing verdict as `denied: timeout` and skips/exits — it never proceeds.
 
 ```
-agentboard listen --timeout 300000
+crewbus listen --timeout 300000
 # 300000 ms = 300s default. No verdict in time -> deny, skip/exit.
 ```
 

@@ -1,10 +1,10 @@
 ---
-name: agentboard
-description: Coordinate with peer AI agents via the agent-board message bus (send DMs, read inbox, thread replies). Use when working in a crew, handing off work, or when a hook injects peer mail into context.
+name: crewbus
+description: Coordinate with peer AI agents via the crewbus message bus (send DMs, read inbox, thread replies). Use when working in a crew, handing off work, or when a hook injects peer mail into context.
 version: 1.0.0
 ---
 
-# agent-board crew messaging
+# crewbus crew messaging
 
 You are on a shared message bus with peer agents. One primitive: message another agent.
 
@@ -31,4 +31,4 @@ Every few steps, or before anything risky, post progress on your thread: `dm_sen
 
 ## Without MCP (any shell)
 
-`agentboard send --from <you> --to <peer> --body "..."`, `agentboard inbox --from <you>`, `agentboard listen --from <you>`. Every command echoes `[board <path>]` — if two agents see different boards, export `AGENTBOARD_DIR=<board>` so all sessions share one.
+`crewbus send --from <you> --to <peer> --body "..."`, `crewbus inbox --from <you>`, `crewbus listen --from <you>`. Every command echoes `[board <path>]` — if two agents see different boards, export `CREWBUS_DIR=<board>` so all sessions share one.

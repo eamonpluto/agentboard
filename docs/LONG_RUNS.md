@@ -8,11 +8,11 @@ the board.
 
 ## The setup checklist (once per project)
 
-1. `agentboard init --harness <name>` — hooks, MCP, compact rehydration,
-   and (on grok) the inbox skill. Re-run after every agentboard upgrade;
+1. `crewbus init --harness <name>` — hooks, MCP, compact rehydration,
+   and (on grok) the inbox skill. Re-run after every crewbus upgrade;
    `doctor` stays green.
 2. Tokens persist themselves: every register/mint/rotate writes
-   `.agentboard/logs/<agent>.token` (0600). Workers re-read it after any
+   `.crewbus/logs/<agent>.token` (0600). Workers re-read it after any
    restart or compaction instead of re-registering (re-registering a
    claimed name fails). Truly lost it? Lead runs `token revoke --target
    <name>`, worker re-registers fresh. Never commit or post token files;

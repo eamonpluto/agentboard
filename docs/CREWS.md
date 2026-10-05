@@ -9,7 +9,7 @@ absorb workers.
 ## Survey the fleet
 
 ```sh
-agentboard crew survey --relays http://r1:8471,http://r2:8471 [--json]
+crewbus crew survey --relays http://r1:8471,http://r2:8471 [--json]
 # http://r1:8471  role=primary weight=3 workers=2 lagMs=- uptimeSec=400
 # http://r2:8471  role=primary weight=1 workers=0 lagMs=- uptimeSec=390
 ```
@@ -17,7 +17,7 @@ agentboard crew survey --relays http://r1:8471,http://r2:8471 [--json]
 ## Dispatch
 
 ```sh
-agentboard crew dispatch --from lead \
+crewbus crew dispatch --from lead \
   --relays http://r1:8471,http://r2:8471 --weights 3,1 \
   --count 4 --prefix w --harness generic --cmd "node worker.js" \
   --body "Triage batch 7…" --secret s3 [--dry-run]
@@ -39,7 +39,7 @@ without booting. Every boot lands under your identity on that relay
 Repeat `--relay-auth <url-prefix>=<cred>` for relays that don't share one
 secret (`abd-…` values go out as device credentials, anything else as the
 shared secret; longest prefix wins). Bare `--secret` / `--device` /
-`AGENTBOARD_*` apply to every relay. Pair each relay first
+`CREWBUS_*` apply to every relay. Pair each relay first
 (`relay pair`, see `docs/PAIRING.md`) and you never share a secret at all.
 
 ## Properties

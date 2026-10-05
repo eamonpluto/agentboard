@@ -21,7 +21,7 @@ check(
     template.includes("--priority")
 );
 
-const skill = read("claude-plugin/skills/agentboard/SKILL.md");
+const skill = read("claude-plugin/skills/crewbus/SKILL.md");
 check(
   "skill: Poll cheap section",
   skill.includes("## Poll cheap") &&

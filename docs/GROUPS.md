@@ -8,9 +8,9 @@ is replaced by the commands below.
 ## Curate + brief + reduce
 
 ```sh
-agentboard group create team-a --add a1,a2,a3
-agentboard send --from lead --to-group team-a --subject "variant: regularity" --body "..."
-agentboard gather --batch <batch>   # briefs + replies + telemetry footer + contributing groups
+crewbus group create team-a --add a1,a2,a3
+crewbus send --from lead --to-group team-a --subject "variant: regularity" --body "..."
+crewbus gather --batch <batch>   # briefs + replies + telemetry footer + contributing groups
 ```
 
 `gather --batch` prints a telemetry footer
@@ -20,7 +20,7 @@ agentboard gather --batch <batch>   # briefs + replies + telemetry footer + cont
 ## Replies carry artifacts
 
 ```sh
-agentboard send --from e1 --to lead --reply <brief-id> --artifact out/a1.json --body "done"
+crewbus send --from e1 --to lead --reply <brief-id> --artifact out/a1.json --body "done"
 ```
 
 `--artifact <path-or-url>` (max 500 chars) is stored on the message and
@@ -29,10 +29,10 @@ shown by `inbox` / `gather` / `thread`.
 ## Verify, then record the result
 
 ```sh
-agentboard ack --from lead --id <reply-id> --verify "node test/check.mjs --input out/a1.json"
-agentboard result record --group team-a --msg <reply-id> --artifact out/a1.json --from lead
-agentboard result show --group team-a
-agentboard result list [--group team-a] [--json]
+crewbus ack --from lead --id <reply-id> --verify "node test/check.mjs --input out/a1.json"
+crewbus result record --group team-a --msg <reply-id> --artifact out/a1.json --from lead
+crewbus result show --group team-a
+crewbus result list [--group team-a] [--json]
 ```
 
 `results/<group>.json` holds ONE record
@@ -44,8 +44,8 @@ unless `--force` (which prints a warning to stderr).
 ## Race mode
 
 ```sh
-agentboard race start --group team-a --batch <batch> [--timeout 60000] [--json]
-agentboard race close --group team-a --from lead [--kill]
+crewbus race start --group team-a --batch <batch> [--timeout 60000] [--json]
+crewbus race close --group team-a --from lead [--kill]
 ```
 
 `race start` reports the winner (recorded result whose `msgId` is in the
@@ -57,8 +57,8 @@ with `--kill`, terminates their spawned pids.
 ## Status + telemetry
 
 ```sh
-agentboard group status team-a [--json]      # running (pid alive), replies, verified, spend
-agentboard group telemetry team-a [--json]   # {messages, tokensEst, wallClockMs, members, verifiedCount}
+crewbus group status team-a [--json]      # running (pid alive), replies, verified, spend
+crewbus group telemetry team-a [--json]   # {messages, tokensEst, wallClockMs, members, verifiedCount}
 ```
 
 Spend = message count + wall-clock since the group `createdAt` +

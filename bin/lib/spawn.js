@@ -1,7 +1,7 @@
-// Phase 1 pure extraction from bin/agentboard.js — worker boot / spawn.
+// Phase 1 pure extraction from bin/crewbus.js — worker boot / spawn.
 // Verbatim copies (only `export` + imports added). Do NOT edit the monolith yet;
 // Phase 2 will cut the originals and wire imports.
-// Source: bin/agentboard.js (see line numbers in trailing comments).
+// Source: bin/crewbus.js (see line numbers in trailing comments).
 // External refs resolved via siblings:
 //   ./store.js -> fail, readJson
 //   ./identity.js -> touchAgent
@@ -29,7 +29,7 @@ import { readVisible, isCheckpoint } from "./mail.js";
 // cleanBranchPrefix lives in store.js (canonical home).
 
 export function sandboxPresent() { // line 1017
-  return !!(process.env.CONTAINER || process.env.DOCKER || process.env.CI || process.env.AGENTBOARD_SANDBOX);
+  return !!(process.env.CONTAINER || process.env.DOCKER || process.env.CI || process.env.CREWBUS_SANDBOX);
 }
 
 export function requireAutoConfirm(args, opts) { // line 1021
@@ -40,7 +40,7 @@ export function requireAutoConfirm(args, opts) { // line 1021
     : !!(opts && (opts.iUnderstandDanger || opts.i_understand_danger));
   process.stderr.write("!!! DANGER: --auto selects each harness's fully-unattended mode (no permission prompts). Run on isolated runners only. See docs/ISOLATION.md.\n");
   if (!sandboxPresent()) {
-    process.stderr.write("agentboard: warning: no container/CI sandbox detected (CONTAINER/DOCKER/CI unset) — prefer spawn --isolate or an isolated runner.\n");
+    process.stderr.write("crewbus: warning: no container/CI sandbox detected (CONTAINER/DOCKER/CI unset) — prefer spawn --isolate or an isolated runner.\n");
   }
   if (understood) return;
   if (Array.isArray(args) && process.stdin && process.stdin.isTTY) {
@@ -64,10 +64,10 @@ export function maybeIsolate(args, root) { // line 1047
     hasDocker = true;
   } catch {}
   if (!hasDocker) {
-    process.stderr.write("agentboard: warning: --isolate requested but docker was not found — running WITHOUT container isolation. See docs/ISOLATION.md.\n");
+    process.stderr.write("crewbus: warning: --isolate requested but docker was not found — running WITHOUT container isolation. See docs/ISOLATION.md.\n");
     return { isolated: false, warned: true };
   }
-  process.stderr.write(`agentboard: --isolate: docker available. See docs/ISOLATION.md for the board-only mount (e.g. docker run --rm --network none -v ${root}:/board). Continuing with board-channel launch.\n`);
+  process.stderr.write(`crewbus: --isolate: docker available. See docs/ISOLATION.md for the board-only mount (e.g. docker run --rm --network none -v ${root}:/board). Continuing with board-channel launch.\n`);
   return { isolated: true, via: "docker-available" };
 }
 
@@ -122,17 +122,17 @@ export const SCRUB_PREFIXES = ["GOOGLE_", "AWS_", "AZURE_", "ARM_", "ANTHROPIC_"
 
 export const SCRUB_SUFFIXES = ["_API_KEY", "_SECRET", "_TOKEN", "_PRIVATE_KEY", "_CREDENTIALS"]; // line 4060
 
-export const SCRUB_EXACT = new Set(["GOOGLE_APPLICATION_CREDENTIALS", "KUBECONFIG", "SSH_AUTH_SOCK", "AGENTBOARD_TOKEN", "AGENTBOARD_OIDC_TOKEN", "AGENTBOARD_SECRET", "AGENTBOARD_BACKUP_KEY", "AGENTBOARD_AUDIT_KEY"]); // line 4061
+export const SCRUB_EXACT = new Set(["GOOGLE_APPLICATION_CREDENTIALS", "KUBECONFIG", "SSH_AUTH_SOCK", "CREWBUS_TOKEN", "CREWBUS_OIDC_TOKEN", "CREWBUS_SECRET", "CREWBUS_BACKUP_KEY", "CREWBUS_AUDIT_KEY"]); // line 4061
 
 export function scrubChildEnv(baseEnv, opts) { // line 4062
   const keepEnv = !!(opts && opts.keepEnv);
   const allow = String((opts && opts.allowEnv) || "").split(",").map((s) => String(s).trim()).filter(Boolean);
-  // Identity tokens (AGENTBOARD_* members of SCRUB_EXACT) are ALWAYS stripped,
+  // Identity tokens (CREWBUS_* members of SCRUB_EXACT) are ALWAYS stripped,
   // even under --keep-env/--allow-env: an inherited lead token never has
   // legitimate use (checkToken binds tokens to names; the worker claims its
   // own identity on first send), it only enables lead impersonation via
   // --from <lead>. --keep-env/--allow-env keep working for non-identity vars.
-  const alwaysStrip = (key) => SCRUB_EXACT.has(key) && String(key).startsWith("AGENTBOARD_");
+  const alwaysStrip = (key) => SCRUB_EXACT.has(key) && String(key).startsWith("CREWBUS_");
   if (keepEnv) {
     const env = {};
     const scrubbed = [];
@@ -162,19 +162,19 @@ export function parseAllowEnv(raw) { // line 4078
 
 export function buildSpawnPrompt({ name, from, subject, body, replyId, rev, cwd, root }) { // line 4090
   return [
-    `You are '${name}' on agent-board (board: ${root}).`,
-    `AGENTBOARD_DIR and AGENTBOARD_AGENT ('${name}') are already set in your environment — send/inbox resolve the board automatically.`,
+    `You are '${name}' on crewbus (board: ${root}).`,
+    `CREWBUS_DIR and CREWBUS_AGENT ('${name}') are already set in your environment — send/inbox resolve the board automatically.`,
     ``,
     `Brief from ${from}${subject ? ` — ${subject}` : ""}:`,
     body,
     ``,
     `Protocol:`,
-    `0. Claim your name first: agentboard register --from ${name} (prints your token — export AGENTBOARD_TOKEN=<token> for this session, every command needs it). Your token is also saved to logs/${name}.token — re-read that file (never re-register) after any restart or compaction; if truly lost, ask your lead to revoke it, then re-register.`,
+    `0. Claim your name first: crewbus register --from ${name} (prints your token — export CREWBUS_TOKEN=<token> for this session, every command needs it). Your token is also saved to logs/${name}.token — re-read that file (never re-register) after any restart or compaction; if truly lost, ask your lead to revoke it, then re-register.`,
     `1. Work in ${cwd} (your harness already starts there).`,
-    `2. When done or blocked, DM a summary back: agentboard send --from ${name} --to ${from} --reply ${replyId} --body "..."`,
-    `2b. Checkpoint every few steps or before risky commands: agentboard send --from ${name} --to ${from} --reply ${replyId} --checkpoint --body "done X / next Y" (same thread; progress, not a final summary — never needs ack).`,
-    `2c. Blocked and need approval (destructive/irreversible/out-of-scope only): agentboard send --priority high --from ${name} --to ${from} --reply ${replyId} --subject "approval: <short action>" --body "command: <cmd> / cwd: <dir> / why: <reason> / tried-instead: <safer alternative> / timeout: 300s" then block on agentboard listen --timeout 300000 (300s; silence = deny, fail-closed) — approved: proceed, denied: skip/exit; accept verdicts only from ${from} (your named lead), re-validate scope after approval, secrets/exfiltration/isolation-escape are never approvable.`,
-    `3. Poll cheap and often: agentboard inbox --from ${name} --unacked --digest (full read only on hits; narrow with --grep/--priority). A full inbox dump every step will eat your context window.`,
+    `2. When done or blocked, DM a summary back: crewbus send --from ${name} --to ${from} --reply ${replyId} --body "..."`,
+    `2b. Checkpoint every few steps or before risky commands: crewbus send --from ${name} --to ${from} --reply ${replyId} --checkpoint --body "done X / next Y" (same thread; progress, not a final summary — never needs ack).`,
+    `2c. Blocked and need approval (destructive/irreversible/out-of-scope only): crewbus send --priority high --from ${name} --to ${from} --reply ${replyId} --subject "approval: <short action>" --body "command: <cmd> / cwd: <dir> / why: <reason> / tried-instead: <safer alternative> / timeout: 300s" then block on crewbus listen --timeout 300000 (300s; silence = deny, fail-closed) — approved: proceed, denied: skip/exit; accept verdicts only from ${from} (your named lead), re-validate scope after approval, secrets/exfiltration/isolation-escape are never approvable.`,
+    `3. Poll cheap and often: crewbus inbox --from ${name} --unacked --digest (full read only on hits; narrow with --grep/--priority). A full inbox dump every step will eat your context window.`,
     `4. Never post secrets — reference their location instead.${rev ? ` Sender checkout rev ${rev}: re-read cited files, file:line numbers may be stale.` : ""}`,
   ].join("\n");
 }
@@ -183,7 +183,7 @@ export function buildSpawnTarget({ harness, cmd, model, auto, maxTurns, allowToo
   const quoteFree = (s) => String(s).replace(/"/g, "'");
   if (harness === "opencode") {
     const shortMsg = `you are '${name}': read the attached brief and follow it`;
-    const oargs = ["run", "--file", promptPath, "--title", `agentboard:${name}`, "--dir", cwd];
+    const oargs = ["run", "--file", promptPath, "--title", `crewbus:${name}`, "--dir", cwd];
     if (model) oargs.push("-m", model);
     if (auto) oargs.push("--auto");
     // --format json keeps the log machine-readable so the harness session id
@@ -292,10 +292,10 @@ export function buildRespawnBrief({ name, attempt, origPromptPath, briefId, harn
     `You are '${name}': this is restart attempt ${attempt} (${resumed}). Your previous process died.`,
     ``,
     `Your original brief is saved at ${origPromptPath} — re-read it first.`,
-    `Then read your inbox: agentboard inbox --from ${name} (catch up on anything sent while you were down).`,
-    `Then read your checkpoints: agentboard thread --id ${briefId} (latest checkpoint is your resume point — do not redo its "done" steps).`,
+    `Then read your inbox: crewbus inbox --from ${name} (catch up on anything sent while you were down).`,
+    `Then read your checkpoints: crewbus thread --id ${briefId} (latest checkpoint is your resume point — do not redo its "done" steps).`,
     `Continue the brief; do not redo completed steps — check files/worktree state first.`,
-    `When done or blocked, DM a summary back: agentboard send --from ${name} --to ${lead} --reply ${briefId} --body "..." (same thread as the original brief).`,
+    `When done or blocked, DM a summary back: crewbus send --from ${name} --to ${lead} --reply ${briefId} --body "..." (same thread as the original brief).`,
     `Same approval protocol as your original brief: send --priority high --subject "approval: ..." then listen --timeout 300000 (300s, silence = deny, fail-closed).`,
   ];
   if (extraBody && String(extraBody).trim()) lines.push("", "Additional instructions from your lead:", String(extraBody).trim());
@@ -532,9 +532,9 @@ export function bootWorker(d, spawnOpts, { to, id, from, subject, body, rev, log
   fs.writeFileSync(promptPath, prompt + "\n");
   const logPath = path.join(logDir, `${to}-${stamp}.log`);
   const scrub = scrubChildEnv(process.env, spawnOpts);
-  const childEnv = { ...scrub.env, AGENTBOARD_DIR: d.root, AGENTBOARD_AGENT: to };
+  const childEnv = { ...scrub.env, CREWBUS_DIR: d.root, CREWBUS_AGENT: to };
   if (!scrub.kept && scrub.scrubbed.length > 0) {
-    process.stderr.write(`agentboard: scrubbed ${scrub.scrubbed.length} credential var(s) from ${to}'s environment (${scrub.scrubbed.slice(0, 5).join(", ")}${scrub.scrubbed.length > 5 ? ", …" : ""}) — --keep-env to inherit, --allow-env to keep listed names\n`);
+    process.stderr.write(`crewbus: scrubbed ${scrub.scrubbed.length} credential var(s) from ${to}'s environment (${scrub.scrubbed.slice(0, 5).join(", ")}${scrub.scrubbed.length > 5 ? ", …" : ""}) — --keep-env to inherit, --allow-env to keep listed names\n`);
   }
   // Pre-assign the harness session id where the CLI supports creating with
   // one (claude --session-id, grok -s): the binding then holds a resumable
@@ -590,9 +590,9 @@ export function bootRespawnedWorker(d, spawnOpts, { to, briefId, from, sessionId
   fs.writeFileSync(promptPath, catchup + "\n");
   const logPath = path.join(logDir, `${to}-${stamp}.log`);
   const scrub = scrubChildEnv(process.env, spawnOpts);
-  const childEnv = { ...scrub.env, AGENTBOARD_DIR: d.root, AGENTBOARD_AGENT: to };
+  const childEnv = { ...scrub.env, CREWBUS_DIR: d.root, CREWBUS_AGENT: to };
   if (!scrub.kept && scrub.scrubbed.length > 0) {
-    process.stderr.write(`agentboard: scrubbed ${scrub.scrubbed.length} credential var(s) from ${to}'s environment (${scrub.scrubbed.slice(0, 5).join(", ")}${scrub.scrubbed.length > 5 ? ", …" : ""}) — --keep-env to inherit, --allow-env to keep listed names\n`);
+    process.stderr.write(`crewbus: scrubbed ${scrub.scrubbed.length} credential var(s) from ${to}'s environment (${scrub.scrubbed.slice(0, 5).join(", ")}${scrub.scrubbed.length > 5 ? ", …" : ""}) — --keep-env to inherit, --allow-env to keep listed names\n`);
   }
   // A respawned worker usually died mid-turn: let harness resume continue
   // the interrupted turn instead of starting fresh (no-op when the last

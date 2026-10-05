@@ -1,4 +1,4 @@
-# Loop / cost controls (agent-board §4.4)
+# Loop / cost controls (crewbus §4.4)
 
 Pragmatic guards against runaway crews. All are documented, overridable,
 and cheap — none requires a daemon.
@@ -19,5 +19,5 @@ and cheap — none requires a daemon.
 - Dead-man timeouts: `spawn --timeout 10m` records `deadlineAt`
   (`30`, `90s`, `15m`, `24h`, `7d`, `2w` syntax); `spawn-status` flags
   passed deadlines — reap with `spawn-kill`/`stop`.
-- Global stop: `agentboard stop --all --from <you>` kills every spawned
+- Global stop: `crewbus stop --all --from <you>` kills every spawned
   worker truly (whole process tree: `taskkill /T /F` on Windows).

@@ -1,9 +1,9 @@
-# Split: `bin/agentboard.js` → `bin/lib/*.js`
+# Split: `bin/crewbus.js` → `bin/lib/*.js`
 
-Status: landed. `bin/agentboard.js` is a dispatcher that intentionally
+Status: landed. `bin/crewbus.js` is a dispatcher that intentionally
 retains the `cmd*` wrappers, `USAGE`, `main()`, and the opencode
 tool/plugin embeds; domain logic lives in the 10 lib modules (import
-block, `bin/agentboard.js` lines 42–51). No behavior change is intended, with one deliberate exception recorded in CHANGELOG (parseRecipients full-version canonicalization).
+block, `bin/crewbus.js` lines 42–51). No behavior change is intended, with one deliberate exception recorded in CHANGELOG (parseRecipients full-version canonicalization).
 
 ## Module map
 
@@ -20,7 +20,7 @@ block, `bin/agentboard.js` lines 42–51). No behavior change is intended, with 
 | `bin/lib/channels.js` | Shared channels + locks: log IO, per-reader cursors, digest/summarize, group mirrors, advisory locks, channel text-merge | `appendChannelPost`, `readChannelPosts`, `tailChannelPosts`, `parseChannelText`, `mergeChannelText`, `mirrorToGroupChannels`, `acquireLockDoc`, `releaseLockDoc` |
 | `bin/lib/web.js` | Dashboard + API: snapshots, HTML render, ack/kill handlers, `cmdWeb` | `boardSnapshot`, `fleetSnapshot`, `channelsSnapshot`, `resultsSnapshot`, `auditSnapshot`, `renderBoardHtml`, `handleApiAck`, `handleApiKill`, `cmdWeb` |
 
-Full export lists: see the import block at the top of `bin/agentboard.js`
+Full export lists: see the import block at the top of `bin/crewbus.js`
 (lines 42–51). Entry-point `cmd*` functions (e.g. `cmdSend`, `cmdSync`,
 `cmdServe`) stay in the monolith; lib modules carry the computation helpers
 those verbs call.
@@ -52,7 +52,7 @@ those verbs call.
 ## How to add a command
 
 1. Add the `cmd*` wrapper + `main()` switch case (+ `USAGE` text) in
-   `bin/agentboard.js` (dispatcher owns CLI parsing and flag handling).
+   `bin/crewbus.js` (dispatcher owns CLI parsing and flag handling).
 2. Put reusable logic in the owning `bin/lib/*.js` module (table above);
    keep the new lib code side-effect-free at top level.
 3. Add tests under `test/` covering the new path (`npm test` runs smoke +
@@ -61,11 +61,11 @@ those verbs call.
 ## Embeds note
 
 The `OPENCODE_TOOL_DM_SEND` / `OPENCODE_PLUGIN_DM_WATCH` template literals
-stay in `bin/agentboard.js` (populated from `opencode/tools/dm-send.js` +
+stay in `bin/crewbus.js` (populated from `opencode/tools/dm-send.js` +
 `opencode/plugins/dm-watch.js`). `sync-embeds.mjs` is unaffected by this
 split — keep running `node sync-embeds.mjs --check` after edits.
 
 ## MCP note
 
-`bin/agentboard-mcp.js` is still standalone (own copies, no `bin/lib/*`
+`bin/crewbus-mcp.js` is still standalone (own copies, no `bin/lib/*`
 imports). Sharing lib modules with the MCP server is future work, NOT done.

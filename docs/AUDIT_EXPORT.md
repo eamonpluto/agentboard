@@ -16,7 +16,7 @@ HMAC-signed for independent off-box verification.
   "role": "admin",
   "action": "send",
   "target": "aud1",
-  "board": "C:/data/.agentboard",
+  "board": "C:/data/.crewbus",
   "result": "ok",
   "prevHash": "ec0cd4…",
   "sig": "bdb72b…",
@@ -47,14 +47,14 @@ are additive.
 
 ## Signing key
 
-`AGENTBOARD_AUDIT_KEY`, else the board secret (`AGENTBOARD_SECRET`).
+`CREWBUS_AUDIT_KEY`, else the board secret (`CREWBUS_SECRET`).
 Use ONE key per board — records signed under different keys (or none)
 fail verification under the current key at the first mismatch.
 
 ## Verify
 
 ```sh
-agentboard log --verify [--audit] [--json] [--limit 50]
+crewbus log --verify [--audit] [--json] [--limit 50]
 ```
 
 Checks the hash chain, then — when a key is configured — every present
@@ -66,7 +66,7 @@ Checks the hash chain, then — when a key is configured — every present
 ## SIEM forwarder
 
 ```sh
-agentboard serve --audit-forward <https-url> [--audit-forward-key <bearer>]
+crewbus serve --audit-forward <https-url> [--audit-forward-key <bearer>]
 ```
 
 The relay POSTs each audit event (same v:1 schema, `application/json`;
@@ -84,15 +84,15 @@ The relay POSTs each audit event (same v:1 schema, `application/json`;
   written while it runs are forwarded too. Baseline is taken at startup
   (history is not re-posted); pre-existing spool files still drain.
 
-Env equivalents: `AGENTBOARD_AUDIT_FORWARD`,
-`AGENTBOARD_AUDIT_FORWARD_KEY`.
+Env equivalents: `CREWBUS_AUDIT_FORWARD`,
+`CREWBUS_AUDIT_FORWARD_KEY`.
 
 ## Legal hold
 
 ```sh
-agentboard hold place --from <admin> [--reason "..."]
-agentboard hold lift --from <admin>
-agentboard hold status [--from <you>] [--json]
+crewbus hold place --from <admin> [--reason "..."]
+crewbus hold lift --from <admin>
+crewbus hold status [--from <you>] [--json]
 ```
 
 - `place`/`lift` are admin-only (token-checked + authorized).

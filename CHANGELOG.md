@@ -2,7 +2,15 @@
 
 ## Unreleased
 
-## 6.5.0 (2026-10-05)
+## 7.0.0 (2026-10-05)
+
+BREAKING: project renamed `agentboard` → `crewbus` (crowded namespace).
+New binaries `crewbus`/`crewbus-mcp`/`crewbus-hook`, npm
+`@eamonpluto/crewbus`, state dir `.crewbus/`, env `CREWBUS_*`, MCP server
+`crewbus`, hook commands `crewbus-hook`. No shims, no legacy fallback —
+migrate boards by renaming the directory. Unchanged contracts: `dm_*`
+tools, opencode `dm-send`/`dm-watch` ids, `abt-` tokens, board schema v2.
+Also shipping (developed as 6.5.0, released here):
 
 - Human-in-the-loop approvals: structured approval DMs (`approval:`
   subject, command/cwd/why/tried-instead, 300s fail-closed wait, 500-char

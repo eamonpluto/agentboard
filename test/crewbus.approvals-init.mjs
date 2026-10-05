@@ -5,7 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const CLI = fileURLToPath(new URL("../bin/agentboard.js", import.meta.url));
+const CLI = fileURLToPath(new URL("../bin/crewbus.js", import.meta.url));
 
 let failures = 0;
 const check = (label, cond) => {
@@ -14,10 +14,10 @@ const check = (label, cond) => {
 };
 
 const mkproj = () => {
-  const p = fs.mkdtempSync(path.join(os.tmpdir(), "ab-appr-"));
+  const p = fs.mkdtempSync(path.join(os.tmpdir(), "cb-appr-"));
   const e = { ...process.env };
-  delete e.AGENTBOARD_DIR;
-  delete e.AGENTBOARD_AGENT;
+  delete e.CREWBUS_DIR;
+  delete e.CREWBUS_AGENT;
   return { p, e };
 };
 
@@ -47,7 +47,7 @@ const claudeFile = path.join(full.p, ".claude", "settings.json");
 check("approvals: claude settings written", fs.existsSync(claudeFile));
 const claude = readJson(claudeFile);
 const claudeAllow = (claude.permissions && claude.permissions.allow) || [];
-for (const e of ["mcp__agentboard__*", "Bash(node *agentboard* *)", "Bash(agentboard* *)", "Read(./.agentboard/**)"]) {
+for (const e of ["mcp__crewbus__*", "Bash(node *crewbus* *)", "Bash(crewbus* *)", "Read(./.crewbus/**)"]) {
   check(`approvals: claude allows ${e}`, claudeAllow.includes(e));
 }
 check("approvals: claude hooks intact", !!((claude.hooks || {}).SessionStart) && !!((claude.hooks || {}).Stop));
@@ -59,26 +59,26 @@ const op = readJson(opFile);
 check("approvals: opencode dm-send allowed", op.permission && op.permission["dm-send"] === "allow");
 check(
   "approvals: opencode bash bus pattern",
-  op.permission && typeof op.permission.bash === "object" && op.permission.bash["*agentboard*"] === "allow"
+  op.permission && typeof op.permission.bash === "object" && op.permission.bash["*crewbus*"] === "allow"
 );
 check(
   "approvals: opencode read board pattern",
-  op.permission && typeof op.permission.read === "object" && op.permission.read["**/.agentboard/**"] === "allow"
+  op.permission && typeof op.permission.read === "object" && op.permission.read["**/.crewbus/**"] === "allow"
 );
 
 // cursor: allowlist entries present alongside hooks/MCP wiring
 const curFile = path.join(full.p, ".cursor", "permissions.json");
 check("approvals: cursor permissions written", fs.existsSync(curFile));
 const cur = readJson(curFile);
-check("approvals: cursor mcp allowlist", Array.isArray(cur.mcpAllowlist) && cur.mcpAllowlist.includes("agentboard:*"));
+check("approvals: cursor mcp allowlist", Array.isArray(cur.mcpAllowlist) && cur.mcpAllowlist.includes("crewbus:*"));
 check(
   "approvals: cursor terminal allowlist",
   Array.isArray(cur.terminalAllowlist) &&
-    cur.terminalAllowlist.includes("node:*agentboard*") &&
-    cur.terminalAllowlist.includes("agentboard")
+    cur.terminalAllowlist.includes("node:*crewbus*") &&
+    cur.terminalAllowlist.includes("crewbus")
 );
 check("approvals: cursor hooks intact", !!readJson(path.join(full.p, ".cursor", "hooks.json")).hooks);
-check("approvals: cursor MCP intact", !!readJson(path.join(full.p, ".cursor", "mcp.json")).mcpServers.agentboard);
+check("approvals: cursor MCP intact", !!readJson(path.join(full.p, ".cursor", "mcp.json")).mcpServers.crewbus);
 
 // re-run is byte-identical (idempotent, no rewrite when wired)
 const snap = [claudeFile, opFile, curFile].map(read);
@@ -107,16 +107,16 @@ check("approvals: preserves user allow entry", claudeMerged.permissions.allow.in
 check("approvals: preserves user ask list", JSON.stringify(claudeMerged.permissions.ask) === JSON.stringify(["Bash(git push *)"]));
 check(
   "approvals: preserves user hook + waiter",
-  JSON.stringify(read(claudeFile)).includes("prettier") && JSON.stringify(read(claudeFile)).includes("agentboard-hook")
+  JSON.stringify(read(claudeFile)).includes("prettier") && JSON.stringify(read(claudeFile)).includes("crewbus-hook")
 );
-check("approvals: keeps bus entries after user seed", ["mcp__agentboard__*", "Read(./.agentboard/**)"].every((e) => claudeMerged.permissions.allow.includes(e)));
+check("approvals: keeps bus entries after user seed", ["mcp__crewbus__*", "Read(./.crewbus/**)"].every((e) => claudeMerged.permissions.allow.includes(e)));
 const opMerged = readJson(opFile);
 check("approvals: preserves user edit deny", opMerged.permission.edit === "deny");
 check("approvals: preserves user bash pattern", opMerged.permission.bash["git *"] === "allow");
-check("approvals: keeps bus patterns after user seed", opMerged.permission.bash["*agentboard*"] === "allow");
+check("approvals: keeps bus patterns after user seed", opMerged.permission.bash["*crewbus*"] === "allow");
 const curMerged = readJson(curFile);
 check("approvals: preserves user mcp entry", curMerged.mcpAllowlist.includes("linear:list_issues"));
-check("approvals: keeps bus mcp entry after user seed", curMerged.mcpAllowlist.includes("agentboard:*"));
+check("approvals: keeps bus mcp entry after user seed", curMerged.mcpAllowlist.includes("crewbus:*"));
 await rmRetry(full.p);
 
 // ------------------------------------------------ skipped harnesses gain no approval files
@@ -124,7 +124,7 @@ const skip = mkproj();
 run(["init", "--harness", "codex,grok,antigravity"], skip.e, skip.p);
 check("approvals: codex hooks wired", fs.existsSync(path.join(skip.p, ".codex", "hooks.json")));
 check("approvals: codex gains no config.toml", !fs.existsSync(path.join(skip.p, ".codex", "config.toml")));
-check("approvals: grok hooks wired", fs.existsSync(path.join(skip.p, ".grok", "hooks", "agentboard.json")));
+check("approvals: grok hooks wired", fs.existsSync(path.join(skip.p, ".grok", "hooks", "crewbus.json")));
 check("approvals: grok gains no config.toml", !fs.existsSync(path.join(skip.p, ".grok", "config.toml")));
 check("approvals: antigravity hooks wired", fs.existsSync(path.join(skip.p, ".agents", "hooks.json")));
 check(

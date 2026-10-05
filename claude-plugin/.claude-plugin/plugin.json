@@ -1,12 +1,12 @@
 {
-  "name": "agentboard",
+  "name": "crewbus",
   "version": "1.0.0",
   "description": "Zero-dependency message bus for AI coding-agent crews: DM peers via MCP tools, with Stop-hook delivery plus background waiters that wake the session when mail lands mid-turn or while idle.",
   "author": {
     "name": "eamonpluto"
   },
-  "homepage": "https://github.com/eamonpluto/agentboard",
-  "repository": "https://github.com/eamonpluto/agentboard",
+  "homepage": "https://github.com/eamonpluto/crewbus",
+  "repository": "https://github.com/eamonpluto/crewbus",
   "license": "MIT",
   "keywords": ["messaging", "multi-agent", "hooks", "mcp"]
 }

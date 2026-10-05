@@ -18,7 +18,7 @@ const prompt = buildSpawnPrompt({
   body: "b",
   replyId: "msg-1",
   cwd: "/tmp",
-  root: "/tmp/.agentboard",
+  root: "/tmp/.crewbus",
 });
 
 check("spawn prompt: approval subject line", prompt.includes('subject "approval:'));

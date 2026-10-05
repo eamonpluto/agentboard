@@ -15,7 +15,7 @@ batch="<batch-id from the send echo>"
 node examples/consolidator.mjs --from gateway --to lead --batch "$batch" --group team-a
 
 # lead briefs group B with A's findings attached
-agentboard send --from lead --to-group team-b --subject "variant: build on team-a" --body "<paste summary>"
+crewbus send --from lead --to-group team-b --subject "variant: build on team-a" --body "<paste summary>"
 ```
 
 What the script does (all via the CLI, token-checked like any agent):

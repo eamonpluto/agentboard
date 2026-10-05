@@ -1,6 +1,6 @@
-# When NOT to use agentboard
+# When NOT to use crewbus
 
-agentboard is a local DM bus for mixed-harness coding crews. It is the wrong
+crewbus is a local DM bus for mixed-harness coding crews. It is the wrong
 tool when any of these is your actual problem:
 
 - **You need governance (SSO, RBAC, audit, VPC isolation).** The board is
@@ -9,7 +9,7 @@ tool when any of these is your actual problem:
   this bus, for anything regulated. See `SECURITY.md`.
 - **One harness, one session, parent-owned helpers.** Built-in subagents are
   simpler: one orchestrator fans out, collects, everything dies with the
-  parent. Reach for agentboard when agents must outlive sessions, talk
+  parent. Reach for crewbus when agents must outlive sessions, talk
   sideways, or span harnesses.
 - **You need thousands of *concurrent* live workers.** `send --to` fans one
   brief out to up to 10,000 *recipients* (a broadcast limit, not a crew
@@ -25,7 +25,7 @@ tool when any of these is your actual problem:
   one board, never post secrets (post references).
 - **Remote use across the open internet as-is.** `serve` relays bind
   localhost by default; remote protected endpoints need
-  `--secret`/`AGENTBOARD_SECRET`, and `/api/spawn`+`/api/kill` are OPT-IN
+  `--secret`/`CREWBUS_SECRET`, and `/api/spawn`+`/api/kill` are OPT-IN
   (`--allow-remote-spawn`, default OFF) — still LAN-trust only. Tunnel
   before exposing them; `/api/spawn` can boot processes on the relay
   machine.
@@ -33,6 +33,6 @@ tool when any of these is your actual problem:
 Simpler alternatives and when each wins: a shared SQLite file (single-box
 structured state with real queries), a plain message queue (ordering +
 backpressure), or an existing MCP mail server (single-harness setups that
-don't need cross-harness DMs). agentboard wins when the crew is
+don't need cross-harness DMs). crewbus wins when the crew is
 multi-harness, local-first, and coordination should stay as thin as "message
 another agent".

@@ -1,7 +1,7 @@
-// Phase 1 pure extraction from bin/agentboard.js — backup/restore/quotas/storage.
+// Phase 1 pure extraction from bin/crewbus.js — backup/restore/quotas/storage.
 // Verbatim copies (only `export` + imports added). Do NOT edit the monolith yet;
 // Phase 2 will cut the originals and wire imports.
-// Source: bin/agentboard.js (see line numbers in trailing comments).
+// Source: bin/crewbus.js (see line numbers in trailing comments).
 // External refs resolved via siblings:
 //   ./store.js -> fail, getFlag, readJson, writeJson
 //   ./identity.js -> countAgentRecords
@@ -27,7 +27,7 @@ import { fail, getFlag, readJson, writeJson } from "./store.js";
 import { countAgentRecords, readAgent, roleOfRecord, timingSafeEqualStr } from "./identity.js";
 import { readBoardMeta, writeBoardMeta, writeAtomicFile } from "./store.js";
 
-// Legal-hold primitives (moved from bin/agentboard.js 5568-5593): the export
+// Legal-hold primitives (moved from bin/crewbus.js 5568-5593): the export
 // manifest stamps active holds, and restores refuse held boards (import
 // checks holdActive before writing). cmdHold/cmdPrune entry points stay in
 // the monolith and import these.
@@ -131,7 +131,7 @@ export function enforceBytesQuota(d, bytesNeeded) { // line 9047
 export function resolveBackupKeyMaterial(args) { // line 9057
   if (args.includes("--no-encrypt")) return { noEncrypt: true, material: null, source: "--no-encrypt" };
   const kf = getFlag(args, "--key-file");
-  const envName = getFlag(args, "--key-env") || "AGENTBOARD_BACKUP_KEY";
+  const envName = getFlag(args, "--key-env") || "CREWBUS_BACKUP_KEY";
   if (kf !== undefined) {
     let s = "";
     try {
@@ -176,7 +176,7 @@ export function encryptBackupPayload(innerJson, material) { // line 9097
   const ct = Buffer.concat([cipher.update(Buffer.from(innerJson, "utf8")), cipher.final()]);
   const tag = cipher.getAuthTag();
   return {
-    format: "agentboard-backup/1",
+    format: "crewbus-backup/1",
     encrypted: true,
     algo: "aes-256-gcm",
     kdf,
@@ -188,8 +188,8 @@ export function encryptBackupPayload(innerJson, material) { // line 9097
 }
 
 export function decryptBackupPayload(outer, material) { // line 9116
-  if (!outer || outer.format !== "agentboard-backup/1" || outer.encrypted !== true) {
-    throw new Error("not an encrypted agentboard backup envelope");
+  if (!outer || outer.format !== "crewbus-backup/1" || outer.encrypted !== true) {
+    throw new Error("not an encrypted crewbus backup envelope");
   }
   const iv = Buffer.from(String(outer.iv || ""), "base64");
   const tag = Buffer.from(String(outer.tag || ""), "base64");
@@ -298,7 +298,7 @@ export function doExportToFile(d, outPath, { material, noEncrypt, includeSecrets
   const inner = { manifest, files };
   const innerJson = JSON.stringify(inner);
   const envelope = noEncrypt
-    ? { format: "agentboard-backup/1", encrypted: false, manifest, files }
+    ? { format: "crewbus-backup/1", encrypted: false, manifest, files }
     : encryptBackupPayload(innerJson, material);
   writeAtomicFile(outPath, Buffer.from(JSON.stringify(envelope) + "\n", "utf8"));
   return manifest;
@@ -311,7 +311,7 @@ export function readBackupInner(inPath, keyArgs) { // line 9245
   } catch (e) {
     fail(`cannot read backup "${inPath}": ${(e && e.message) || e}`);
   }
-  if (!outer || outer.format !== "agentboard-backup/1") fail(`not an agentboard backup: "${inPath}" (want format agentboard-backup/1)`);
+  if (!outer || outer.format !== "crewbus-backup/1") fail(`not a crewbus backup: "${inPath}" (want format crewbus-backup/1)`);
   if (outer.encrypted === true) {
     if (keyArgs && keyArgs.noEncrypt) fail(`backup "${inPath}" is encrypted — drop --no-encrypt and provide the key (--key-env/--key-file)`);
     const km = resolveBackupKeyMaterial(keyArgs || []);
@@ -364,7 +364,7 @@ export function dirSize(dirPath) { // line 9561
   return { files, bytes };
 }
 
-// --- Audit chain + signed off-box sink (moved from bin/agentboard.js 690-1010, 1200-1203) ---
+// --- Audit chain + signed off-box sink (moved from bin/crewbus.js 690-1010, 1200-1203) ---
 // Tamper-evident hash-chained log. One JSON record per line:
 // {seq, prev, hash, at, actor, type, data}, hash = sha256(prev + canonical).
 export function chainRecordHash(rec) {
@@ -400,16 +400,16 @@ export function readChainRecords(d, kind) {
 // tamper-evident link (sha256 over prev + canonical core), `sig` is the
 // keyed HMAC over the same core chained to the previous event, so each
 // event is independently verifiable off-box (see docs/AUDIT_EXPORT.md).
-// Signing key: AGENTBOARD_AUDIT_KEY, else the board secret
-// (AGENTBOARD_SECRET). Without a key, records keep sig:"" and `log --verify`
+// Signing key: CREWBUS_AUDIT_KEY, else the board secret
+// (CREWBUS_SECRET). Without a key, records keep sig:"" and `log --verify`
 // checks the hash chain only (legacy records verify the same way).
 export function boardHmacKey() {
-  if (process.env.AGENTBOARD_SECRET) return String(process.env.AGENTBOARD_SECRET);
+  if (process.env.CREWBUS_SECRET) return String(process.env.CREWBUS_SECRET);
   return null;
 }
 
 export function auditHmacKey() {
-  const dedicated = process.env.AGENTBOARD_AUDIT_KEY;
+  const dedicated = process.env.CREWBUS_AUDIT_KEY;
   if (dedicated !== undefined && String(dedicated) !== "") return String(dedicated);
   return boardHmacKey();
 }

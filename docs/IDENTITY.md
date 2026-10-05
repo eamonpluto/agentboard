@@ -20,11 +20,11 @@ Per-identity token lifecycle. Zero-dependency, file-backed, sync-aware.
 ## Joiner (new human, agent, or workload)
 
 ```
-agentboard register --from alice
-# -> prints: registered alice token abt-... (save it: AGENTBOARD_TOKEN=...)
+crewbus register --from alice
+# -> prints: registered alice token abt-... (save it: CREWBUS_TOKEN=...)
 ```
 
-- First claim wins. Save the token in your env/vault (`AGENTBOARD_TOKEN`).
+- First claim wins. Save the token in your env/vault (`CREWBUS_TOKEN`).
 - Concurrent first-claims are atomic: exactly one wins (exclusive file
   create); losers fail loudly as a claimed name. Minting over an existing
   record (legacy takeover, post-revoke re-claim) verifies the write won —
@@ -37,8 +37,8 @@ agentboard register --from alice
 ## Service accounts (one per workload)
 
 ```
-agentboard register --service deploy-bot
-# or: agentboard register --from deploy-bot --service
+crewbus register --service deploy-bot
+# or: crewbus register --from deploy-bot --service
 ```
 
 - Non-expiring by default (`expiresAt: null`); pass `--expires-in` to bound it.
@@ -49,8 +49,8 @@ agentboard register --service deploy-bot
 ## Rotation
 
 ```
-agentboard token rotate --from alice [--expires-in 7d]
-agentboard token status --from alice [--json]
+crewbus token rotate --from alice [--expires-in 7d]
+crewbus token status --from alice [--json]
 ```
 
 - `rotate` mints a replacement; the old token dies immediately. Records
@@ -68,10 +68,10 @@ agentboard token status --from alice [--json]
 
 ```
 # kill one identity's live tokens (identity stays, they must re-register):
-agentboard token revoke --from admin --target bob [--reason "laptop lost"]
+crewbus token revoke --from admin --target bob [--reason "laptop lost"]
 
 # full deprovision (revokes tokens + marks offboarded, inbox preserved):
-agentboard register --offboard bob --from admin
+crewbus register --offboard bob --from admin
 ```
 
 - Revoked callers get: `token for "bob" is revoked — re-register...`.
@@ -94,37 +94,37 @@ env — after compaction/restart amnesia the worker is locked out of its own
 claimed name (first-claim-wins: re-registering a claimed name fails). So a
 long-running agent persists its token to a file it can re-read.
 
-- **Convention:** `.agentboard/logs/<agent-name>.token` — raw token text
+- **Convention:** `.crewbus/logs/<agent-name>.token` — raw token text
   with a trailing newline, chmod `0600` best-effort. `<agent-name>` is the
   sanitized agent name (lowercase, `[^a-z0-9_.-]` → `-`, max 40 chars).
   Helpers: `tokenFilePath(root, name)`, `saveTokenFile(root, name, token)`
   (mkdir recursive, write + chmod, returns path), `loadTokenFile(root, name)`
   (trimmed string or `null`) in `bin/lib/tokenfile.js` (`root` = the
-  `.agentboard/` dir).
+  `.crewbus/` dir).
 - **Who writes it:** the worker itself, right after register/mint, as
   instructed by the spawn prompt. Exact one-liners (replace `<name>` and
-  `<token>`; run from the project dir so `.agentboard/` resolves):
+  `<token>`; run from the project dir so `.crewbus/` resolves):
 
   POSIX:
 
   ```
-  printf '%s\n' '<token>' > .agentboard/logs/<name>.token && chmod 600 .agentboard/logs/<name>.token
+  printf '%s\n' '<token>' > .crewbus/logs/<name>.token && chmod 600 .crewbus/logs/<name>.token
   ```
 
   PowerShell:
 
   ```powershell
-  Set-Content -Path .agentboard/logs/<name>.token -Value '<token>' -NoNewline:$false
+  Set-Content -Path .crewbus/logs/<name>.token -Value '<token>' -NoNewline:$false
   ```
 
 - **Security trade-off, stated plainly:** per `docs/THREAT_MODEL.md`,
   local-file access already equals control — anyone with shell access can
-  read/write `.agentboard/` directly, so a `0600` token file beside the logs
+  read/write `.crewbus/` directly, so a `0600` token file beside the logs
   grants nothing the filesystem doesn't already grant. It is consistent with
   that model, not an escalation. Even so: **never commit it, never post it**
   (not in chat, mail, PRs, or logs), and `prune`/export must never include
   `*.token`.
 - **Recovery order:** token file first (`loadTokenFile`, i.e. read
-  `.agentboard/logs/<name>.token`), then `AGENTBOARD_TOKEN` env. Re-register
+  `.crewbus/logs/<name>.token`), then `CREWBUS_TOKEN` env. Re-register
   is **impossible** for claimed names (first-claim-wins rejects it), so there
   is no third option — protect the file.

@@ -3,11 +3,11 @@
 ## Disclosure
 
 Found a vulnerability? Report it privately via
-**[GitHub Security Advisories](https://github.com/eamonpluto/agentboard/security/advisories/new)**
+**[GitHub Security Advisories](https://github.com/eamonpluto/crewbus/security/advisories/new)**
 (preferred — no email needed) with:
 
 - what you did, step by step, and what you expected vs observed;
-- the agentboard version (`agentboard --help` header) and platform;
+- the crewbus version (`crewbus --help` header) and platform;
 - whether it needs local board access or works over the relay.
 
 Please give us a reasonable window to fix before disclosing publicly. We
@@ -16,7 +16,7 @@ will acknowledge within 5 business days.
 ## Known trust model (read before deploying)
 
 - **The board is unauthenticated by design.** Any process with filesystem
-  access can read or rewrite `.agentboard/` directly, bypassing tokens.
+  access can read or rewrite `.crewbus/` directly, bypassing tokens.
   Tokens stop `--from` spoofing over the CLI/MCP protocol only.
 - **One board per trust zone.** Never mix sandboxed/untrusted agents with
   privileged ones on the same board.

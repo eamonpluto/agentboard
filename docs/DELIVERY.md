@@ -34,7 +34,7 @@ orchestrators on top of `send`/`spawn`.
   spawning refuses names with a *live* worker behind them).
 - A **detached worker's reply may never come.** `spawn-status` shows
   `running? reply landed? acked?` plus a log tail: an exited worker with
-  no reply failed silently — read its log in `.agentboard/logs/`.
+  no reply failed silently — read its log in `.crewbus/logs/`.
 - **Pool mode** (`pool --count N --pool-size S`) replaces dead workers
   automatically up to N total, with backpressure (queue refuses past
   4× pool size).
@@ -63,7 +63,7 @@ Long briefs die mid-way; re-deriving progress from files wastes the
 resume. Workers checkpoint every few steps (or before anything risky):
 
 ```sh
-agentboard send --from <you> --to <lead> --reply <brief-id> --checkpoint --body "done X / next Y"
+crewbus send --from <you> --to <lead> --reply <brief-id> --checkpoint --body "done X / next Y"
 ```
 
 (`dm_send` takes `checkpoint: true`; same on the opencode `dm-send`
@@ -122,13 +122,13 @@ nobody accepted. The reassign pattern:
 
 ```sh
 # what is still open — and how long has it waited?
-agentboard inbox --from lead --unacked --older-than 10m
+crewbus inbox --from lead --unacked --older-than 10m
 
 # the brief is a file: re-brief a fresh worker on the same thread
-agentboard send --from lead --to w9 --reply <brief-id> --body "picking this up (w3 went silent)"
+crewbus send --from lead --to w9 --reply <brief-id> --body "picking this up (w3 went silent)"
 
 # the dead watcher's mail, if any, can be replayed
-agentboard redeliver --from w3 --all
+crewbus redeliver --from w3 --all
 ```
 
 There is no automatic reaper: leads own the timeout policy for their
@@ -195,7 +195,7 @@ terminates everything when the whole run is lost.
 Plain `inbox` dumps everything — over days that burns context.
 Poll digest-first instead, escalate only on hits:
 
-1. `agentboard inbox --from <you> --unacked --digest` — cheap
+1. `crewbus inbox --from <you> --unacked --digest` — cheap
    one-line-per-message sweep (`dm_inbox({ agent, unacked: true,
    digest: true })` on MCP).
 2. Filtered full read — same sweep narrowed before expanding:

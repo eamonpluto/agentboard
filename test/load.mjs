@@ -1,4 +1,4 @@
-// agentboard load — synthetic fan-out at 10/100/1k/10k recipients (run:
+// crewbus load — synthetic fan-out at 10/100/1k/10k recipients (run:
 // npm run bench:load, NOT part of npm test). Fake agents = CLI register +
 // direct file writes; fan-out goes through the real `send` path via --to-file
 // (dodges Windows argv limits). Times fan-out write, inbox read, gather per N
@@ -12,7 +12,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const CLI = fileURLToPath(new URL("../bin/agentboard.js", import.meta.url));
+const CLI = fileURLToPath(new URL("../bin/crewbus.js", import.meta.url));
 
 const cpu = os.cpus()[0];
 const hardware = {
@@ -29,8 +29,8 @@ const NS = only > 0 ? [only] : [10, 100];
 const results = [];
 
 for (const N of NS) {
-  const board = fs.mkdtempSync(path.join(os.tmpdir(), "ab-load-"));
-  const env = { ...process.env, AGENTBOARD_DIR: board };
+  const board = fs.mkdtempSync(path.join(os.tmpdir(), "cb-load-"));
+  const env = { ...process.env, CREWBUS_DIR: board };
   const run = (args, extraEnv) =>
     execFileSync("node", [CLI, ...args], { env: { ...env, ...(extraEnv || {}) } }).toString();
   const timed = (label, fn) => {
@@ -43,7 +43,7 @@ for (const N of NS) {
 
   run(["init", "--harness", "generic"]);
   const leadTok = run(["register", "--from", "lead"]).match(/token (abt-[0-9a-f]+)/)[1];
-  const LEAD = { AGENTBOARD_TOKEN: leadTok };
+  const LEAD = { CREWBUS_TOKEN: leadTok };
   const names = Array.from({ length: N }, (_, i) => `w${i}`);
   const listFile = path.join(board, "recipients.txt");
   fs.writeFileSync(listFile, names.join(","));
@@ -57,7 +57,7 @@ for (const N of NS) {
   // 2. inbox read for one recipient (register first so the token check passes)
   const readerTok = run(["register", "--from", names[0]]).match(/token (abt-[0-9a-f]+)/)[1];
   const inbox = timed("inbox read", () =>
-    run(["inbox", "--from", names[0], "--json", "--limit", "5000"], { AGENTBOARD_TOKEN: readerTok })
+    run(["inbox", "--from", names[0], "--json", "--limit", "5000"], { CREWBUS_TOKEN: readerTok })
   );
   const seen = JSON.parse(inbox.out).length;
   // 3. gather: 5 threaded replies then reduce the batch

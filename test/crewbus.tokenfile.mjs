@@ -9,8 +9,8 @@ const check = (label, cond) => {
   if (!cond) failures++;
 };
 
-// tmp board dir (root = the .agentboard dir itself)
-const board = fs.mkdtempSync(path.join(os.tmpdir(), "ab-tokenfile-"));
+// tmp board dir (root = the .crewbus dir itself)
+const board = fs.mkdtempSync(path.join(os.tmpdir(), "cb-tokenfile-"));
 
 // save/load roundtrip
 const p = saveTokenFile(board, "alice", "abt-abc123");

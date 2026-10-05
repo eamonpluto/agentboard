@@ -1,5 +1,5 @@
 import fs from "node:fs";
-const cliPath = "bin/agentboard.js";
+const cliPath = "bin/crewbus.js";
 let cli = fs.readFileSync(cliPath, "utf8");
 // The embed const closes with "\n`;" (endMarker below supplies the final
 // newline), so the body must not end with one — strip it here so an

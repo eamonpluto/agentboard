@@ -1,7 +1,7 @@
-// Phase 1 pure extraction from bin/agentboard.js — sync engine + outbound client.
+// Phase 1 pure extraction from bin/crewbus.js — sync engine + outbound client.
 // Verbatim copies (only `export` + imports added). Do NOT edit the monolith yet;
 // Phase 2 will cut the originals and wire imports.
-// Source: bin/agentboard.js (see line numbers in comments).
+// Source: bin/crewbus.js (see line numbers in comments).
 //
 // Imports from sibling Phase-1 modules (already landed):
 //   ./store.js    -> BOARD_VERSION, readJson, writeJson, getFlag, fail
@@ -187,7 +187,7 @@ export const CLIENT_TLS = { insecure: false, certPem: null, keyPem: null, bearer
 
 export function clientInsecureFromArgs(args) { // line 6968
   if (args && args.includes("--insecure")) return true;
-  const v = String(process.env.AGENTBOARD_INSECURE || "").toLowerCase();
+  const v = String(process.env.CREWBUS_INSECURE || "").toLowerCase();
   return v === "1" || v === "true" || v === "yes";
 }
 
@@ -195,7 +195,7 @@ export function warnInsecureOnce(where) { // line 6974
   if (_insecureWarned) return;
   _insecureWarned = true;
   process.stderr.write(
-    `agentboard: WARNING: ${where || "TLS verification disabled (--insecure/AGENTBOARD_INSECURE=1)"} — dev/test only, never use with real credentials\n`
+    `crewbus: WARNING: ${where || "TLS verification disabled (--insecure/CREWBUS_INSECURE=1)"} — dev/test only, never use with real credentials\n`
   );
 }
 
@@ -215,7 +215,7 @@ export function readPemFlag(args, flag) { // line 6982
 // fleet, `crew dispatch` splits an elastic crew across primaries by weight
 // (largest remainder). Per-relay credentials via repeatable
 // --relay-auth <url-prefix>=<cred> (abd-… → device header, else shared
-// secret); bare --secret/--device/AGENTBOARD_* apply to every relay.
+// secret); bare --secret/--device/CREWBUS_* apply to every relay.
 export function relayAuthEntries(args) { // line 7304 (spec calls this relayCredEntries; monolith name kept verbatim)
   const out = [];
   for (let i = 0; i < args.length; i++) {
@@ -231,16 +231,16 @@ export function relayCredFor(url, args) { // line 7315
   const base = String(url).replace(/\/+$/, "");
   const entries = relayAuthEntries(args).filter((e) => base.startsWith(e.prefix)).sort((a, b) => b.prefix.length - a.prefix.length);
   if (entries.length > 0) return entries[0].cred;
-  const dflag = getFlag(args, "--device") || process.env.AGENTBOARD_DEVICE;
+  const dflag = getFlag(args, "--device") || process.env.CREWBUS_DEVICE;
   if (dflag) return String(dflag);
-  const sflag = getFlag(args, "--secret") || process.env.AGENTBOARD_SECRET;
+  const sflag = getFlag(args, "--secret") || process.env.CREWBUS_SECRET;
   if (sflag) return String(sflag);
   return "";
 }
 export function relayCredHeaders(cred) { // line 7325
   const c = String(cred || "");
   if (!c) return {};
-  return c.startsWith("abd-") ? { "x-agentboard-device": c } : { "x-agentboard-secret": c };
+  return c.startsWith("abd-") ? { "x-crewbus-device": c } : { "x-crewbus-secret": c };
 }
 export async function crewSurvey(relays) { // line 7330 (outbound-client helper for cmdCrew; moved with the relay-cred helpers)
   const rows = [];
@@ -288,10 +288,10 @@ export function httpJson(base, method, p, body, timeoutMs, extraHeaders) { // li
     const lib = isHttps ? https : http;
     const data = body === undefined ? null : Buffer.isBuffer(body) ? body : Buffer.from(String(body), "utf8");
     const headers = { ...(data ? { "content-type": "application/octet-stream", "content-length": data.length } : {}), ...(extraHeaders || {}) };
-    if (process.env.AGENTBOARD_SECRET) headers["x-agentboard-secret"] = String(process.env.AGENTBOARD_SECRET);
-    const device = CLIENT_TLS.device || process.env.AGENTBOARD_DEVICE;
-    if (device) headers["x-agentboard-device"] = String(device).trim();
-    const bearer = CLIENT_TLS.bearer || process.env.AGENTBOARD_OIDC_TOKEN;
+    if (process.env.CREWBUS_SECRET) headers["x-crewbus-secret"] = String(process.env.CREWBUS_SECRET);
+    const device = CLIENT_TLS.device || process.env.CREWBUS_DEVICE;
+    if (device) headers["x-crewbus-device"] = String(device).trim();
+    const bearer = CLIENT_TLS.bearer || process.env.CREWBUS_OIDC_TOKEN;
     if (bearer) headers.authorization = `Bearer ${String(bearer).trim()}`;
     const opts = {
       host: u.hostname, port: u.port || (isHttps ? 443 : 80), path: u.pathname + u.search,
@@ -335,7 +335,7 @@ export function setupClientTls(args) { // line 8359
   CLIENT_TLS.keyPem = keyPath ? fs.readFileSync(path.resolve(keyPath), "utf8") : null;
   const bearer = getFlag(args, "--bearer") || getFlag(args, "--oidc-token");
   CLIENT_TLS.bearer = bearer !== undefined ? String(bearer) : null;
-  const device = getFlag(args, "--device") || process.env.AGENTBOARD_DEVICE;
+  const device = getFlag(args, "--device") || process.env.CREWBUS_DEVICE;
   CLIENT_TLS.device = device !== undefined ? String(device) : null;
   if (CLIENT_TLS.device && !parseDeviceCred(CLIENT_TLS.device)) fail("malformed --device credential (want abd-<id>-<secret> from the /sync/pair exchange)");
 }
@@ -360,7 +360,7 @@ export async function syncRound(d, base, dry, since) { // line 8380
   const noteMissingCap = (cap) => {
     if (!cap || remoteCaps.includes(cap) || capsWarned.has(cap)) return;
     capsWarned.add(cap);
-    process.stderr.write(`agentboard: warning: peer lacks capability '${cap}' — ${SUB_CAP_NOTE[cap] || "degraded"} (mixed relay versions)\n`);
+    process.stderr.write(`crewbus: warning: peer lacks capability '${cap}' — ${SUB_CAP_NOTE[cap] || "degraded"} (mixed relay versions)\n`);
   };
   if (remoteCaps.length === 0) {
     for (const cap of Object.values(SUB_CAP)) noteMissingCap(cap);
@@ -372,7 +372,7 @@ export async function syncRound(d, base, dry, since) { // line 8380
       if (sub && !SYNC_SUBS.includes(sub)) unknownSubs.add(sub);
     }
     if (unknownSubs.size > 0) {
-      process.stderr.write(`agentboard: warning: peer advertises unknown areas (${[...unknownSubs].join(", ")}) — newer relay? ignored\n`);
+      process.stderr.write(`crewbus: warning: peer advertises unknown areas (${[...unknownSubs].join(", ")}) — newer relay? ignored\n`);
     }
   }
   const local = syncWalk(d).files;

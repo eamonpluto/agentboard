@@ -1,6 +1,6 @@
 ---
 name: Feature request
-about: Propose an addition to agentboard
+about: Propose an addition to crewbus
 ---
 
 **Problem** (what crew/task hurts today):

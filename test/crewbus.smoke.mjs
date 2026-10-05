@@ -4,18 +4,18 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const CLI = fileURLToPath(new URL("../bin/agentboard.js", import.meta.url));
+const CLI = fileURLToPath(new URL("../bin/crewbus.js", import.meta.url));
 const board = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", ".smoke-test-board");
 fs.rmSync(board, { recursive: true, force: true });
-const env = { ...process.env, AGENTBOARD_DIR: board };
-// Token-aware runner: injects the harvested AGENTBOARD_TOKEN for --from, and
+const env = { ...process.env, CREWBUS_DIR: board };
+// Token-aware runner: injects the harvested CREWBUS_TOKEN for --from, and
 // harvests freshly minted tokens from register/send output (first claim).
 const TOK = {};
 const run = (args, extraEnv) => {
   const merged = { ...env, ...(extraEnv || {}) };
   const fi = args.indexOf("--from");
   const who = fi !== -1 && args[fi + 1] && !String(args[fi + 1]).startsWith("--") ? String(args[fi + 1]).toLowerCase() : null;
-  if (who && TOK[who] && !merged.AGENTBOARD_TOKEN) merged.AGENTBOARD_TOKEN = TOK[who];
+  if (who && TOK[who] && !merged.CREWBUS_TOKEN) merged.CREWBUS_TOKEN = TOK[who];
   // The suite fires dozens of sends as the same identity; without the bypass
   // the 30/min token bucket trips on fast machines (speed-flaky). The limiter
   // itself is covered by a dedicated deterministic block below.
@@ -132,21 +132,21 @@ check("no duplicate record", caseNames.length === 1 && caseNames[0] === "casetes
 check("case variants share inbox", run(["send", "--from", "CASETEST", "--to", "bob", "--body", "same me"]).includes("sent msg-"));
 let noName = false;
 try {
-  execFileSync("node", [CLI, "inbox", "--from", "ghost-xyz"], { env: { ...env, AGENTBOARD_TOKEN: "" }, stdio: "pipe" });
+  execFileSync("node", [CLI, "inbox", "--from", "ghost-xyz"], { env: { ...env, CREWBUS_TOKEN: "" }, stdio: "pipe" });
 } catch (e) {
   noName = String((e.stdout || "") + (e.stderr || "")).includes("unknown agent");
 }
 check("inbox as unknown name rejected", noName);
 let claimed = false;
 try {
-  execFileSync("node", [CLI, "register", "--from", "alice"], { env: { ...env, AGENTBOARD_TOKEN: "" }, stdio: "pipe" });
+  execFileSync("node", [CLI, "register", "--from", "alice"], { env: { ...env, CREWBUS_TOKEN: "" }, stdio: "pipe" });
 } catch (e) {
   claimed = String((e.stdout || "") + (e.stderr || "")).includes("claimed");
 }
 check("re-register claimed name without token refused", claimed);
 check("re-register with token works", run(["register", "--from", "alice"]).includes("registered alice"));
 // first send as a fresh name auto-mints (same first-claim-wins as register)
-const freshOut = execFileSync("node", [CLI, "send", "--from", "fresh-qa", "--to", "bob", "--body", "hi"], { env: { ...env, AGENTBOARD_TOKEN: "" } }).toString();
+const freshOut = execFileSync("node", [CLI, "send", "--from", "fresh-qa", "--to", "bob", "--body", "hi"], { env: { ...env, CREWBUS_TOKEN: "" } }).toString();
 check("first send mints identity", /token abt-[0-9a-f]+/.test(freshOut));
 
 // 7b. broadcast fan-out + subject/reply threading (the DM *is* the task)
@@ -169,7 +169,7 @@ check(
 );
 let tooMany = false;
 try {
-  const bigList = path.join(os.tmpdir(), "ab-big-" + Date.now() + ".txt");
+  const bigList = path.join(os.tmpdir(), "cb-big-" + Date.now() + ".txt");
   fs.writeFileSync(bigList, Array.from({ length: 10001 }, (_, i) => `x${i}`).join("\n"));
   run(["send", "--from", "alice", "--to-file", bigList, "--body", "spam"]);
   fs.rmSync(bigList, { force: true });
@@ -188,7 +188,7 @@ check("no per-recipient dm copies for broadcast", !fs.existsSync(path.join(board
 const bulkJson = JSON.parse(run(["inbox", "--from", "bulk42", "--json"]));
 check("broadcast visible with batch id", bulkJson.length === 1 && !!bulkJson[0].batch);
 // --to-file bypasses argv limits for 1000-scale fan-outs (also broadcast path)
-const listFile = path.join(os.tmpdir(), "ab-to-" + Date.now() + ".txt");
+const listFile = path.join(os.tmpdir(), "cb-to-" + Date.now() + ".txt");
 fs.writeFileSync(listFile, Array.from({ length: 50 }, (_, i) => `file${i}`).join("\n"));
 const viaFile = run(["send", "--from", "alice", "--to-file", listFile, "--body", "file brief"]);
 check("--to-file fan-out works", viaFile.includes("sent 50 messages") && viaFile.includes("via broadcast"));
@@ -205,15 +205,15 @@ check("@all visible to stranger", run(["inbox", "--from", "newbie99"]).includes(
 check("@all in --all dump", run(["inbox", "--all"]).includes("all hands"));
 
 // 7b2. spawn: brief + boot workers detached (generic harness runs any command
-// with AGENTBOARD_DIR + AGENTBOARD_AGENT set; opencode path covered by --dry-run)
+// with CREWBUS_DIR + CREWBUS_AGENT set; opencode path covered by --dry-run)
 const dryOut = run(["spawn", "--from", "alice", "--to", "spw1,spw2", "--subject", "brief: cards", "--body", "drop borders", "--dry-run"]);
 check("spawn --dry-run previews without sending", dryOut.includes("would spawn spw1") && dryOut.includes("would spawn spw2"));
 check("spawn --dry-run shows prompt + reply threading", dryOut.includes("DM a summary back") && dryOut.includes("--reply"));
 run(["register", "--from", "spw1"]);
 check("spawn --dry-run touches no inbox", !run(["inbox", "--from", "spw1"]).includes("drop borders"));
-const stubPath = path.join(os.tmpdir(), "ab-stub-" + Date.now() + ".cjs");
-const markerPath = path.join(os.tmpdir(), "ab-marker-" + Date.now() + ".txt");
-fs.writeFileSync(stubPath, "require('fs').appendFileSync(process.env.SPAWN_MARKER, process.env.AGENTBOARD_AGENT + '|' + process.env.AGENTBOARD_DIR + '\\n')");
+const stubPath = path.join(os.tmpdir(), "cb-stub-" + Date.now() + ".cjs");
+const markerPath = path.join(os.tmpdir(), "cb-marker-" + Date.now() + ".txt");
+fs.writeFileSync(stubPath, "require('fs').appendFileSync(process.env.SPAWN_MARKER, process.env.CREWBUS_AGENT + '|' + process.env.CREWBUS_DIR + '\\n')");
 // Pre-warm: fresh script files pay first-execution AV scan on this box;
 // run once attached so the detached spawn below starts promptly.
 execFileSync("node", [stubPath], { env: { ...env, SPAWN_MARKER: markerPath }, stdio: "ignore" });
@@ -295,7 +295,7 @@ try {
 }
 check("spawn --max-turns scoped to claude/grok", spawnScope2);
 // spawn-status: running -> reply -> done, unknown names, --all, --json
-const sleeper = path.join(os.tmpdir(), "ab-sleeper-" + Date.now() + ".cjs");
+const sleeper = path.join(os.tmpdir(), "cb-sleeper-" + Date.now() + ".cjs");
 fs.writeFileSync(sleeper, "setTimeout(()=>{},15000)");
 const stSpawn = run(["spawn", "--from", "alice", "--harness", "generic", "--cmd", `node ${sleeper}`, "--to", "st1", "--body", "work please"]);
 const stReply = (stSpawn.match(/reply (\S+)/) || [])[1];
@@ -313,7 +313,7 @@ try {
 } catch {}
 fs.rmSync(sleeper, { force: true });
 // spawn-kill: the kill switch (closing the terminal does NOT stop detached workers)
-const killer = path.join(os.tmpdir(), "ab-killer-" + Date.now() + ".cjs");
+const killer = path.join(os.tmpdir(), "cb-killer-" + Date.now() + ".cjs");
 fs.writeFileSync(killer, "setTimeout(()=>{},60000)");
 run(["spawn", "--from", "alice", "--harness", "generic", "--cmd", `node ${killer}`, "--to", "kk1", "--body", "x"]);
 run(["register", "--from", "kk1"]);
@@ -349,7 +349,7 @@ try {
 check("spawn --max-spawn validates", maxSpawnBad);
 run(["register", "--from", "taken"]);
 check("spawn stale name allowed", run(["spawn", "--from", "alice", "--to", "taken", "--body", "x", "--dry-run"]).includes("would spawn taken"));
-const clashSlp = path.join(os.tmpdir(), "ab-clash-" + Date.now() + ".cjs");
+const clashSlp = path.join(os.tmpdir(), "cb-clash-" + Date.now() + ".cjs");
 fs.writeFileSync(clashSlp, "setTimeout(()=>{},60000)");
 run(["spawn", "--from", "alice", "--harness", "generic", "--cmd", `node ${clashSlp}`, "--to", "clash-live", "--body", "x"]);
 let countClash = false;
@@ -362,7 +362,7 @@ check("spawn live name refused", countClash);
 run(["spawn-kill", "--from", "alice", "--to", "clash-live"]);
 fs.rmSync(clashSlp, { force: true });
 // end-to-end: real --count boot + kill
-const counter = path.join(os.tmpdir(), "ab-counter-" + Date.now() + ".cjs");
+const counter = path.join(os.tmpdir(), "cb-counter-" + Date.now() + ".cjs");
 fs.writeFileSync(counter, "setTimeout(()=>{},60000)");
 const cntSpawn = run(["spawn", "--from", "alice", "--harness", "generic", "--cmd", `node ${counter}`, "--count", "1", "--prefix", "e2e", "--body", "x"]);
 check("spawn --count boots", cntSpawn.includes("spawned e2e-1 pid "));
@@ -370,7 +370,7 @@ check("spawn --count kill", run(["spawn-kill", "--from", "alice", "--to", "e2e-1
 fs.rmSync(counter, { force: true });
 let killNoToken = false;
 try {
-  execFileSync("node", [CLI, "spawn-kill", "--from", "alice", "--to", "kk1"], { env: { ...env, AGENTBOARD_TOKEN: "" }, stdio: "pipe" });
+  execFileSync("node", [CLI, "spawn-kill", "--from", "alice", "--to", "kk1"], { env: { ...env, CREWBUS_TOKEN: "" }, stdio: "pipe" });
 } catch (e) {
   killNoToken = String((e.stdout || "") + (e.stderr || "")).includes("bad token");
 }
@@ -515,8 +515,8 @@ check("race close broadcast lands", run(["inbox", "--from", "rv2"]).includes("ra
 check("group delete race", run(["group", "delete", "race-team"]).includes("deleted group race-team"));
 
 // 7c. read commands never plant boards + always echo the board
-const ghost = path.join(os.tmpdir(), "ab-ghost-" + Date.now());
-const ghostEnv = { ...process.env, AGENTBOARD_DIR: ghost };
+const ghost = path.join(os.tmpdir(), "cb-ghost-" + Date.now());
+const ghostEnv = { ...process.env, CREWBUS_DIR: ghost };
 let inboxRefused = false;
 try {
   execFileSync("node", [CLI, "inbox", "--from", "nobody"], { env: ghostEnv, stdio: "pipe" });
@@ -538,7 +538,7 @@ check("agents echoes board", run(["agents"]).includes("[board "));
 
 // 8. listen: backlog + live delivery
 const liveBody = "live ping " + Date.now();
-const listener = spawn("node", [CLI, "listen", "--from", "bob", "--timeout", "8000"], { env: { ...env, AGENTBOARD_TOKEN: TOK.bob } });
+const listener = spawn("node", [CLI, "listen", "--from", "bob", "--timeout", "8000"], { env: { ...env, CREWBUS_TOKEN: TOK.bob } });
 listener.on("error", () => {});
 let listenOut = "";
 listener.stdout.on("data", (d) => (listenOut += d.toString()));
@@ -548,48 +548,48 @@ await new Promise((res) => listener.on("close", res));
 check("listen printed live DM", listenOut.includes(liveBody));
 
 // 9. init installs opencode wiring + AGENTS.md block in a fresh project
-const proj = fs.mkdtempSync(path.join(os.tmpdir(), "ab-init-"));
+const proj = fs.mkdtempSync(path.join(os.tmpdir(), "cb-init-"));
 const projEnv = { ...process.env };
-delete projEnv.AGENTBOARD_DIR;
+delete projEnv.CREWBUS_DIR;
 execFileSync("node", [CLI, "init"], { env: projEnv, cwd: proj }).toString();
 check("init writes opencode tool", fs.existsSync(path.join(proj, ".opencode", "tools", "dm-send.js")));
 check("init writes opencode plugin", fs.existsSync(path.join(proj, ".opencode", "plugins", "dm-watch.js")));
 const md = fs.readFileSync(path.join(proj, "AGENTS.md"), "utf8");
-check("AGENTS.md has DM block, no v1 directive", md.includes("DM-only") && md.includes("agentboard:start") && !md.includes("PRIME DIRECTIVE"));
+check("AGENTS.md has DM block, no v1 directive", md.includes("DM-only") && md.includes("crewbus:start") && !md.includes("PRIME DIRECTIVE"));
 // re-init is idempotent (no duplicate block)
 execFileSync("node", [CLI, "init", "--force"], { env: projEnv, cwd: proj }).toString();
 const md2 = fs.readFileSync(path.join(proj, "AGENTS.md"), "utf8");
-check("re-init keeps single block", md2.indexOf("agentboard:start") === md2.lastIndexOf("agentboard:start"));
+check("re-init keeps single block", md2.indexOf("crewbus:start") === md2.lastIndexOf("crewbus:start"));
 fs.rmSync(proj, { recursive: true, force: true });
 
 // 9b. walk-up: commands from a subdirectory land on the project board
 // (realpath: os.tmpdir() is a symlink on macOS, and the CLI echoes the
 // canonical path it resolved via process.cwd()).
-const walk = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "ab-walk-")));
+const walk = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "cb-walk-")));
 const walkEnv = { ...process.env };
-delete walkEnv.AGENTBOARD_DIR;
-delete walkEnv.AGENTBOARD_AGENT;
+delete walkEnv.CREWBUS_DIR;
+delete walkEnv.CREWBUS_AGENT;
 execFileSync("node", [CLI, "init", "--harness", "generic"], { env: walkEnv, cwd: walk }).toString();
 const deep = path.join(walk, "sub", "deep");
 fs.mkdirSync(deep, { recursive: true });
 const walkSend = execFileSync("node", [CLI, "send", "--from", "w1", "--to", "w2", "--body", "from deep"], { env: walkEnv, cwd: deep }).toString();
-check("send echoes board path", walkSend.includes(`[board ${path.join(walk, ".agentboard")}]`));
-check("subdir send lands on project board", fs.existsSync(path.join(walk, ".agentboard", "dm", "w2")) && !fs.existsSync(path.join(deep, ".agentboard")));
+check("send echoes board path", walkSend.includes(`[board ${path.join(walk, ".crewbus")}]`));
+check("subdir send lands on project board", fs.existsSync(path.join(walk, ".crewbus", "dm", "w2")) && !fs.existsSync(path.join(deep, ".crewbus")));
 const w2Tok = execFileSync("node", [CLI, "register", "--from", "w2"], { env: walkEnv, cwd: deep }).toString().match(/token (abt-[0-9a-f]+)/)[1];
-const walkInbox = JSON.parse(execFileSync("node", [CLI, "inbox", "--from", "w2", "--json"], { env: { ...walkEnv, AGENTBOARD_TOKEN: w2Tok }, cwd: deep }).toString());
+const walkInbox = JSON.parse(execFileSync("node", [CLI, "inbox", "--from", "w2", "--json"], { env: { ...walkEnv, CREWBUS_TOKEN: w2Tok }, cwd: deep }).toString());
 check("subdir inbox reads project board", walkInbox.length === 1 && walkInbox[0].body === "from deep");
 const walkReg = execFileSync("node", [CLI, "register", "--from", "w3"], { env: walkEnv, cwd: deep }).toString();
-check("register echoes board path", walkReg.includes(`[board ${path.join(walk, ".agentboard")}]`));
+check("register echoes board path", walkReg.includes(`[board ${path.join(walk, ".crewbus")}]`));
 fs.rmSync(walk, { recursive: true, force: true });
 
 // 9c. drive-root guard: no silent stray boards, loud failure instead
 const rootEnv = { ...process.env };
-delete rootEnv.AGENTBOARD_DIR;
-delete rootEnv.AGENTBOARD_AGENT;
+delete rootEnv.CREWBUS_DIR;
+delete rootEnv.CREWBUS_AGENT;
 // Portable filesystem root ("C:\" on Windows, "/" on POSIX): writers must
 // refuse to plant a board there and fail loudly instead.
 const fsRoot = path.parse(process.cwd()).root;
-const rootBoard = path.join(fsRoot, ".agentboard");
+const rootBoard = path.join(fsRoot, ".crewbus");
 let rootRefused = false;
 try {
   execFileSync("node", [CLI, "send", "--from", "r1", "--to", "r2", "--body", "x"], { env: rootEnv, cwd: fsRoot, stdio: "pipe" });
@@ -606,10 +606,10 @@ try {
 check("register from drive root refused loudly", rootRegRefused && !fs.existsSync(rootBoard));
 
 // 10. doctor: healthy project passes, broken wiring fails
-const doc = fs.mkdtempSync(path.join(os.tmpdir(), "ab-doc-"));
+const doc = fs.mkdtempSync(path.join(os.tmpdir(), "cb-doc-"));
 const docEnv = { ...process.env };
-delete docEnv.AGENTBOARD_DIR;
-delete docEnv.AGENTBOARD_AGENT;
+delete docEnv.CREWBUS_DIR;
+delete docEnv.CREWBUS_AGENT;
 execFileSync("node", [CLI, "init", "--harness", "claude"], { env: docEnv, cwd: doc }).toString();
 let healthy = false;
 try {
@@ -630,7 +630,7 @@ try {
 }
 check("doctor FAILs on broken hooks", broken);
 // cursor wiring validates too
-const docCur = fs.mkdtempSync(path.join(os.tmpdir(), "ab-doc-cur-"));
+const docCur = fs.mkdtempSync(path.join(os.tmpdir(), "cb-doc-cur-"));
 execFileSync("node", [CLI, "init", "--harness", "cursor"], { env: docEnv, cwd: docCur }).toString();
 let curHealthy = false;
 try {
@@ -639,8 +639,8 @@ try {
 check("doctor healthy on cursor project", curHealthy);
 fs.rmSync(docCur, { recursive: true, force: true });
 // no board at all -> FAIL
-const noboard = fs.mkdtempSync(path.join(os.tmpdir(), "ab-noboard-"));
-const noboardEnv = { ...process.env, AGENTBOARD_DIR: path.join(noboard, "missing") };
+const noboard = fs.mkdtempSync(path.join(os.tmpdir(), "cb-noboard-"));
+const noboardEnv = { ...process.env, CREWBUS_DIR: path.join(noboard, "missing") };
 let noboardFails = false;
 try {
   execFileSync("node", [CLI, "doctor"], { env: noboardEnv, cwd: noboard, stdio: "pipe" });
@@ -677,7 +677,7 @@ for (let i = 0; i < 40 && !webPort; i++) {
 check("web prints localhost url", webPort > 0);
 if (webPort > 0) {
   const page = await webGet(webPort, "/");
-  check("web / serves dashboard", page.status === 200 && page.body.includes("agentboard") && page.body.includes("Workers"));
+  check("web / serves dashboard", page.status === 200 && page.body.includes("crewbus") && page.body.includes("Workers"));
   check("web / never renders tokens", !/abt-[0-9a-f]{10}/.test(page.body));
   const api = await webGet(webPort, "/api/board");
   const snap = JSON.parse(api.body);
@@ -765,7 +765,7 @@ if (webPort > 0) {
   const ghostKill = await killPost({ from: "alice", token: TOK.alice, to: ["ghost-web"] });
   check("web kill runs (unknown worker)", ghostKill.status === 200 && JSON.parse(ghostKill.body).results[0].result === "no-pid");
   // end-to-end: spawn a real sleeper, kill it from the web
-  const websleeper = path.join(os.tmpdir(), "ab-websleeper-" + Date.now() + ".cjs");
+  const websleeper = path.join(os.tmpdir(), "cb-websleeper-" + Date.now() + ".cjs");
   fs.writeFileSync(websleeper, "setTimeout(()=>{},60000)");
   run(["spawn", "--from", "alice", "--harness", "generic", "--cmd", `node ${websleeper}`, "--to", "kw1", "--body", "x"]);
   run(["register", "--from", "kw1"]);
@@ -779,16 +779,16 @@ webProc.kill();
 await new Promise((res) => webProc.on("close", res));
 
 // 12. remote boards: serve A, sync B both directions, LWW presence, guards
-const boardA = fs.mkdtempSync(path.join(os.tmpdir(), "ab-syncA-"));
-const boardB = fs.mkdtempSync(path.join(os.tmpdir(), "ab-syncB-"));
-const envA = { ...process.env, AGENTBOARD_DIR: boardA };
-const envB = { ...process.env, AGENTBOARD_DIR: boardB };
+const boardA = fs.mkdtempSync(path.join(os.tmpdir(), "cb-syncA-"));
+const boardB = fs.mkdtempSync(path.join(os.tmpdir(), "cb-syncB-"));
+const envA = { ...process.env, CREWBUS_DIR: boardA };
+const envB = { ...process.env, CREWBUS_DIR: boardB };
 const TOKAB = {};
 const cliX = (baseEnv, a) => {
   const merged = { ...baseEnv };
   const fi = a.indexOf("--from");
-  const who = fi !== -1 && a[fi + 1] && !String(a[fi + 1]).startsWith("--") ? `${merged.AGENTBOARD_DIR}\n${a[fi + 1]}` : null;
-  if (who && TOKAB[who] && !merged.AGENTBOARD_TOKEN) merged.AGENTBOARD_TOKEN = TOKAB[who];
+  const who = fi !== -1 && a[fi + 1] && !String(a[fi + 1]).startsWith("--") ? `${merged.CREWBUS_DIR}\n${a[fi + 1]}` : null;
+  if (who && TOKAB[who] && !merged.CREWBUS_TOKEN) merged.CREWBUS_TOKEN = TOKAB[who];
   const out = execFileSync("node", [CLI, ...a], { env: merged }).toString();
   const m = out.match(/token (abt-[0-9a-f]+)/);
   if (m && who && !TOKAB[who]) TOKAB[who] = m[1];
@@ -813,7 +813,7 @@ check("serve prints url", peerUrl.startsWith("http://127.0.0.1:"));
 execFileSync("node", [CLI, "sync", "--with", peerUrl], { env: envB });
 check("sync pulls A into B", fs.existsSync(path.join(boardB, "dm", "zoe")) && fs.existsSync(path.join(boardB, "agents", "anna.json")));
 const tokB = cliB(["register", "--from", "bob"]).match(/token (abt-[0-9a-f]+)/)[1];
-execFileSync("node", [CLI, "send", "--from", "bob", "--to", "amy", "--body", "hello from B"], { env: { ...envB, AGENTBOARD_TOKEN: tokB } });
+execFileSync("node", [CLI, "send", "--from", "bob", "--to", "amy", "--body", "hello from B"], { env: { ...envB, CREWBUS_TOKEN: tokB } });
 execFileSync("node", [CLI, "sync", "--with", peerUrl], { env: envB });
 check("sync pushes B into A", fs.existsSync(path.join(boardA, "dm", "amy")) && fs.existsSync(path.join(boardA, "agents", "bob.json")));
 // presence LWW: age A's copy (older mtime), sync, B's fresher copy wins
@@ -858,7 +858,7 @@ check("manifest ?since filters", Object.keys(manFilter.files).length === 0);
 // push: remote long-poll waits, then delivers (token-checked; agent files
 // store only a salted hash, so reuse the harvested mint token, not the file)
 const annaTokB = TOKAB[`${boardA}\nanna`];
-const waiter = spawn("node", [CLI, "listen", "--with", peerUrl, "--from", "anna", "--timeout", "10000"], { env: { ...envA, AGENTBOARD_TOKEN: annaTokB } });
+const waiter = spawn("node", [CLI, "listen", "--with", peerUrl, "--from", "anna", "--timeout", "10000"], { env: { ...envA, CREWBUS_TOKEN: annaTokB } });
 let waitOut = "";
 waiter.stdout.on("data", (d) => (waitOut += d.toString()));
 await new Promise((r) => setTimeout(r, 1500));
@@ -867,7 +867,7 @@ await new Promise((res) => waiter.on("close", res));
 check("remote listen delivers push", waitOut.includes("pushed hello"));
 let waitBad = false;
 try {
-  execFileSync("node", [CLI, "listen", "--with", peerUrl, "--from", "anna", "--timeout", "2000"], { env: { ...envA, AGENTBOARD_TOKEN: "abt-0" }, stdio: "pipe" });
+  execFileSync("node", [CLI, "listen", "--with", peerUrl, "--from", "anna", "--timeout", "2000"], { env: { ...envA, CREWBUS_TOKEN: "abt-0" }, stdio: "pipe" });
 } catch {
   waitBad = true;
 }
@@ -924,7 +924,7 @@ const rPlain = await postJson("/api/spawn", { from: "anna", token: annaTok, to: 
 check("remote spawn needs JSON content-type", rPlain.status === 415);
 const rNoGroup = await postJson("/api/spawn", { from: "anna", token: annaTok, to_group: "nope", body: "x", harness: "generic", cmd: "node -e 0" });
 check("remote spawn unknown group refused", rNoGroup.status === 400);
-const remStub = path.join(os.tmpdir(), "ab-remstub-" + Date.now() + ".cjs");
+const remStub = path.join(os.tmpdir(), "cb-remstub-" + Date.now() + ".cjs");
 fs.writeFileSync(remStub, "setTimeout(()=>{},60000)");
 const rSpawn = await postJson("/api/spawn", { from: "anna", token: annaTok, to: ["rem1"], body: "remote brief", harness: "generic", cmd: `node ${remStub}` });
 const rBody = JSON.parse(rSpawn.body);
@@ -935,17 +935,17 @@ check("remote kill via web api", rKill.status === 200 && JSON.parse(rKill.body).
 fs.rmSync(remStub, { force: true });
 // ---- BEGIN pairing: one-time tokens -> per-device credentials ----
 {
-  const pA = fs.mkdtempSync(path.join(os.tmpdir(), "ab-pair-a-"));
-  const pB = fs.mkdtempSync(path.join(os.tmpdir(), "ab-pair-b-"));
-  const pEnvA = { ...process.env, AGENTBOARD_DIR: pA };
-  const pEnvB = { ...process.env, AGENTBOARD_DIR: pB };
-  delete pEnvA.AGENTBOARD_TOKEN;
-  delete pEnvB.AGENTBOARD_TOKEN;
+  const pA = fs.mkdtempSync(path.join(os.tmpdir(), "cb-pair-a-"));
+  const pB = fs.mkdtempSync(path.join(os.tmpdir(), "cb-pair-b-"));
+  const pEnvA = { ...process.env, CREWBUS_DIR: pA };
+  const pEnvB = { ...process.env, CREWBUS_DIR: pB };
+  delete pEnvA.CREWBUS_TOKEN;
+  delete pEnvB.CREWBUS_TOKEN;
   const pRunA = (a, extra) => execFileSync("node", [CLI, ...a], { env: { ...pEnvA, ...(extra || {}) } }).toString();
   execFileSync("node", [CLI, "init", "--harness", "generic"], { env: pEnvA });
   execFileSync("node", [CLI, "init", "--harness", "generic"], { env: pEnvB });
   const pAdminTok = pRunA(["register", "--from", "pairadmin"]).match(/token (abt-[0-9a-f]+)/)[1];
-  const pAdminEnv = { ...pEnvA, AGENTBOARD_TOKEN: pAdminTok };
+  const pAdminEnv = { ...pEnvA, CREWBUS_TOKEN: pAdminTok };
   execFileSync("node", [CLI, "send", "--from", "pairadmin", "--to", "zed", "--body", "pair probe"], { env: pAdminEnv });
   const pSrv = spawn("node", [CLI, "serve", "--port", "0", "--secret", "pair-secret"], { env: pEnvA });
   let pOut = "";
@@ -1004,7 +1004,7 @@ fs.rmSync(remStub, { force: true });
 // ---- END pairing ----
 {
   const crewServe = (board, weight, log) => {
-    const p = spawn("node", [CLI, "serve", "--port", "0", "--secret", "crewsecret", "--weight", String(weight), "--allow-remote-spawn", "--allow-cmd", "^node"], { env: { ...process.env, AGENTBOARD_DIR: board } });
+    const p = spawn("node", [CLI, "serve", "--port", "0", "--secret", "crewsecret", "--weight", String(weight), "--allow-remote-spawn", "--allow-cmd", "^node"], { env: { ...process.env, CREWBUS_DIR: board } });
     return new Promise(async (resolve) => {
       let out = "";
       for (let i = 0; i < 40; i++) {
@@ -1016,13 +1016,13 @@ fs.rmSync(remStub, { force: true });
       resolve({ proc: p, url: "" });
     });
   };
-  const cA = fs.mkdtempSync(path.join(os.tmpdir(), "ab-crew-a-"));
-  const cB = fs.mkdtempSync(path.join(os.tmpdir(), "ab-crew-b-"));
-  const cEnvA = { ...process.env, AGENTBOARD_DIR: cA };
+  const cA = fs.mkdtempSync(path.join(os.tmpdir(), "cb-crew-a-"));
+  const cB = fs.mkdtempSync(path.join(os.tmpdir(), "cb-crew-b-"));
+  const cEnvA = { ...process.env, CREWBUS_DIR: cA };
   execFileSync("node", [CLI, "init", "--harness", "generic"], { env: cEnvA });
-  execFileSync("node", [CLI, "init", "--harness", "generic"], { env: { ...process.env, AGENTBOARD_DIR: cB } });
+  execFileSync("node", [CLI, "init", "--harness", "generic"], { env: { ...process.env, CREWBUS_DIR: cB } });
   const crewTok = execFileSync("node", [CLI, "register", "--from", "crewlead"], { env: cEnvA }).toString().match(/token (abt-[0-9a-f]+)/)[1];
-  const crewEnv = { ...cEnvA, AGENTBOARD_TOKEN: crewTok };
+  const crewEnv = { ...cEnvA, CREWBUS_TOKEN: crewTok };
   const rA = await crewServe(cA, 3);
   const rB = await crewServe(cB, 1);
   check("crew survey shows weights", execFileSync("node", [CLI, "crew", "survey", "--relays", `${rA.url},${rB.url}`, "--secret", "crewsecret"], { env: cEnvA }).toString().includes("weight=3") );
@@ -1069,14 +1069,14 @@ fs.rmSync(boardA, { recursive: true, force: true });
 fs.rmSync(boardB, { recursive: true, force: true });
 
 // 13. §4.4 security + integrity (all on temp boards, never the real one)
-const secBoard = fs.mkdtempSync(path.join(os.tmpdir(), "ab-sec-"));
-const secEnv = { ...process.env, AGENTBOARD_DIR: secBoard };
+const secBoard = fs.mkdtempSync(path.join(os.tmpdir(), "cb-sec-"));
+const secEnv = { ...process.env, CREWBUS_DIR: secBoard };
 const secTok = {};
 const secRun = (a, extra) => {
   const merged = { ...secEnv, ...(extra || {}) };
   const fi = a.indexOf("--from");
   const who = fi !== -1 && a[fi + 1] && !String(a[fi + 1]).startsWith("--") ? String(a[fi + 1]).toLowerCase() : null;
-  if (who && secTok[who] && !merged.AGENTBOARD_TOKEN) merged.AGENTBOARD_TOKEN = secTok[who];
+  if (who && secTok[who] && !merged.CREWBUS_TOKEN) merged.CREWBUS_TOKEN = secTok[who];
   const out = execFileSync("node", [CLI, ...a], { env: merged }).toString();
   const m = out.match(/token (abt-[0-9a-f]+)/);
   if (m && who && !secTok[who]) secTok[who] = m[1];
@@ -1092,7 +1092,7 @@ const newTok = (rotOut.match(/token (abt-[0-9a-f]+)/) || [])[1];
 check("token rotate issues a new token", !!newTok && newTok !== oldTok);
 let oldDead = false;
 try {
-  execFileSync("node", [CLI, "send", "--from", "sec1", "--to", "sec2", "--body", "x"], { env: { ...secEnv, AGENTBOARD_TOKEN: oldTok }, stdio: "pipe" });
+  execFileSync("node", [CLI, "send", "--from", "sec1", "--to", "sec2", "--body", "x"], { env: { ...secEnv, CREWBUS_TOKEN: oldTok }, stdio: "pipe" });
 } catch {
   oldDead = true;
 }
@@ -1111,7 +1111,7 @@ secRun(["send", "--from", "sec1", "--to", "sec2", "--body", "after rotate"]);
   await new Promise((r) => setTimeout(r, 1200));
   let expDead = false;
   try {
-    execFileSync("node", [CLI, "send", "--from", "exp1", "--to", "sec2", "--body", "late"], { env: { ...secEnv, AGENTBOARD_TOKEN: expTok }, stdio: "pipe" });
+    execFileSync("node", [CLI, "send", "--from", "exp1", "--to", "sec2", "--body", "late"], { env: { ...secEnv, CREWBUS_TOKEN: expTok }, stdio: "pipe" });
   } catch (e) {
     expDead = String((e.stdout || "") + (e.stderr || "")).includes("expired");
   }
@@ -1119,7 +1119,7 @@ secRun(["send", "--from", "sec1", "--to", "sec2", "--body", "after rotate"]);
   // rotation records rotatedAt + honors --expires-in; status shows state, no secrets
   const rot2 = idRun(["token", "rotate", "--from", "sec1", "--expires-in", "7d"]);
   secTok.sec1 = (rot2.match(/token (abt-[0-9a-f]+)/) || [])[1];
-  const stJson = JSON.parse(execFileSync("node", [CLI, "token", "status", "--from", "sec1", "--json"], { env: { ...secEnv, AGENTBOARD_TOKEN: secTok.sec1 } }).toString());
+  const stJson = JSON.parse(execFileSync("node", [CLI, "token", "status", "--from", "sec1", "--json"], { env: { ...secEnv, CREWBUS_TOKEN: secTok.sec1 } }).toString());
   check("1a rotate+status show expiry/rotation, no secrets", !!stJson.expiresAt && !!stJson.rotatedAt && JSON.stringify(stJson).includes("abt-") === false);
   // revocation: caller-checked, target must re-register, old token dead
   idRun(["register", "--from", "vic1"]);
@@ -1128,12 +1128,12 @@ secRun(["send", "--from", "sec1", "--to", "sec2", "--body", "after rotate"]);
   check("1a revocation record written", fs.existsSync(path.join(secBoard, "revoked")) && fs.readdirSync(path.join(secBoard, "revoked")).length >= 1);
   let vicDead = false;
   try {
-    execFileSync("node", [CLI, "send", "--from", "vic1", "--to", "sec2", "--body", "x"], { env: { ...secEnv, AGENTBOARD_TOKEN: vicTok }, stdio: "pipe" });
+    execFileSync("node", [CLI, "send", "--from", "vic1", "--to", "sec2", "--body", "x"], { env: { ...secEnv, CREWBUS_TOKEN: vicTok }, stdio: "pipe" });
   } catch (e) {
     vicDead = String((e.stdout || "") + (e.stderr || "")).includes("revok") || String((e.stdout || "") + (e.stderr || "")).includes("re-register");
   }
   check("1a revoked token dead", vicDead);
-  const reReg = execFileSync("node", [CLI, "register", "--from", "vic1"], { env: { ...secEnv, AGENTBOARD_TOKEN: "" } }).toString();
+  const reReg = execFileSync("node", [CLI, "register", "--from", "vic1"], { env: { ...secEnv, CREWBUS_TOKEN: "" } }).toString();
   check("1a revoked identity re-registers", /token abt-[0-9a-f]+/.test(reReg));
   secTok.vic1 = (reReg.match(/token (abt-[0-9a-f]+)/) || [])[1];
   // service accounts: non-expiring, hidden from --active unless opted in
@@ -1149,15 +1149,15 @@ secRun(["send", "--from", "sec1", "--to", "sec2", "--body", "after rotate"]);
   const leavDoc = JSON.parse(fs.readFileSync(path.join(secBoard, "agents", "leav1.json"), "utf8"));
   let leavDead = false;
   try {
-    execFileSync("node", [CLI, "send", "--from", "leav1", "--to", "sec2", "--body", "x"], { env: { ...secEnv, AGENTBOARD_TOKEN: secTok.leav1 || "abt-0" }, stdio: "pipe" });
+    execFileSync("node", [CLI, "send", "--from", "leav1", "--to", "sec2", "--body", "x"], { env: { ...secEnv, CREWBUS_TOKEN: secTok.leav1 || "abt-0" }, stdio: "pipe" });
   } catch (e) {
     leavDead = String((e.stdout || "") + (e.stderr || "")).includes("offboard");
   }
   check("1a offboarded sends refused, flags set", leavDead && leavDoc.offboarded === true);
   check("1a offboarded inbox preserved", fs.existsSync(path.join(secBoard, "dm", "leav1")));
   // sync hygiene: flags replicate, secrets never do
-  const syncPeer = fs.mkdtempSync(path.join(os.tmpdir(), "ab-1a-peer-"));
-  execFileSync("node", [CLI, "init", "--harness", "generic"], { env: { ...process.env, AGENTBOARD_DIR: syncPeer } });
+  const syncPeer = fs.mkdtempSync(path.join(os.tmpdir(), "cb-1a-peer-"));
+  execFileSync("node", [CLI, "init", "--harness", "generic"], { env: { ...process.env, CREWBUS_DIR: syncPeer } });
   const fwdServe = spawn("node", [CLI, "serve", "--port", "0"], { env: secEnv });
   let fwdUrl = "";
   for (let i = 0; i < 40 && !fwdUrl; i++) {
@@ -1166,7 +1166,7 @@ secRun(["send", "--from", "sec1", "--to", "sec2", "--body", "after rotate"]);
     const m = fwdUrl.match(/http:\/\/\S+/);
     if (m) { fwdUrl = m[0]; break; }
   }
-  execFileSync("node", [CLI, "sync", "--with", fwdUrl], { env: { ...process.env, AGENTBOARD_DIR: syncPeer } });
+  execFileSync("node", [CLI, "sync", "--with", fwdUrl], { env: { ...process.env, CREWBUS_DIR: syncPeer } });
   const peerLeav = JSON.parse(fs.readFileSync(path.join(syncPeer, "agents", "leav1.json"), "utf8"));
   const peerSvc = JSON.parse(fs.readFileSync(path.join(syncPeer, "agents", "svc1.json"), "utf8"));
   check("1a sync replicates offboard/service, strips secrets", peerLeav.offboarded === true && peerSvc.service === true && !peerSvc.tokenHash && !peerSvc.salt);
@@ -1178,7 +1178,7 @@ secRun(["send", "--from", "sec1", "--to", "sec2", "--body", "after rotate"]);
 // ---- END Phase 1a per-identity token lifecycle ----
 // legacy plaintext migration: plant a legacy file, auth once, hash replaces it
 fs.writeFileSync(path.join(secBoard, "agents", "legacy1.json"), JSON.stringify({ name: "legacy1", firstSeen: new Date().toISOString(), lastSeen: new Date().toISOString(), token: "abt-legacy1" }) + "\n");
-secRun(["send", "--from", "legacy1", "--to", "sec2", "--body", "migrate me"], { AGENTBOARD_TOKEN: "abt-legacy1" });
+secRun(["send", "--from", "legacy1", "--to", "sec2", "--body", "migrate me"], { CREWBUS_TOKEN: "abt-legacy1" });
 const legDoc = JSON.parse(fs.readFileSync(path.join(secBoard, "agents", "legacy1.json"), "utf8"));
 check("legacy plaintext migrates to hash", !legDoc.token && !!legDoc.tokenHash && !!legDoc.salt);
 // tamper-evident log verifies
@@ -1201,11 +1201,11 @@ check("forward depth over 5 refused", fwdBad);
 // speed-flaky: fast runners trip in-bucket, slow ones refill mid-burst)
 {
   const rlEnv = { ...env };
-  delete rlEnv.AGENTBOARD_TOKEN;
+  delete rlEnv.CREWBUS_TOKEN;
   const rlReg = execFileSync("node", [CLI, "register", "--from", "rl1"], { env: rlEnv }).toString();
   const rlTok = (rlReg.match(/token (abt-[0-9a-f]+)/) || [])[1];
   const rlSend = (body, extra) =>
-    execFileSync("node", [CLI, "send", "--from", "rl1", "--to", "rl2", "--body", body, ...(extra || [])], { env: { ...rlEnv, AGENTBOARD_TOKEN: rlTok }, stdio: "pipe" }).toString();
+    execFileSync("node", [CLI, "send", "--from", "rl1", "--to", "rl2", "--body", body, ...(extra || [])], { env: { ...rlEnv, CREWBUS_TOKEN: rlTok }, stdio: "pipe" }).toString();
   rlSend("first burst");
   const bucketFile = path.join(board, "rate", "rl1.json");
   const before = JSON.parse(fs.readFileSync(bucketFile, "utf8"));
@@ -1257,9 +1257,9 @@ const denySpawn = await new Promise((resolve) => {
 });
 check("relay spawn OPT-IN (default OFF → 403)", denySpawn && denySpawn.status === 403);
 // sync never replicates secrets: peer sees presence-only agent docs
-const boardS2 = fs.mkdtempSync(path.join(os.tmpdir(), "ab-secS2-"));
-execFileSync("node", [CLI, "init", "--harness", "generic"], { env: { ...process.env, AGENTBOARD_DIR: boardS2 } });
-execFileSync("node", [CLI, "sync", "--with", secUrl], { env: { ...process.env, AGENTBOARD_DIR: boardS2 } });
+const boardS2 = fs.mkdtempSync(path.join(os.tmpdir(), "cb-secS2-"));
+execFileSync("node", [CLI, "init", "--harness", "generic"], { env: { ...process.env, CREWBUS_DIR: boardS2 } });
+execFileSync("node", [CLI, "sync", "--with", secUrl], { env: { ...process.env, CREWBUS_DIR: boardS2 } });
 const s2Anna = path.join(boardS2, "agents", "sec1.json");
 check("synced peer holds no secrets", fs.existsSync(s2Anna) && (() => {
   const pb = JSON.parse(fs.readFileSync(s2Anna, "utf8"));
@@ -1272,14 +1272,14 @@ fs.rmSync(secBoard, { recursive: true, force: true });
 
 // ---- BEGIN Phase 1b RBAC + per-board ACLs + group-scoped sends ----
 {
-  const rbBoard = fs.mkdtempSync(path.join(os.tmpdir(), "ab-rb-"));
-  const rbEnv = { ...process.env, AGENTBOARD_DIR: rbBoard };
+  const rbBoard = fs.mkdtempSync(path.join(os.tmpdir(), "cb-rb-"));
+  const rbEnv = { ...process.env, CREWBUS_DIR: rbBoard };
   const rbTok = {};
   const rbRun = (args, extraEnv) => {
     const merged = { ...rbEnv, ...(extraEnv || {}) };
     const fi = args.indexOf("--from");
     const who = fi !== -1 && args[fi + 1] && !String(args[fi + 1]).startsWith("--") ? String(args[fi + 1]).toLowerCase() : null;
-    if (who && rbTok[who] && !merged.AGENTBOARD_TOKEN) merged.AGENTBOARD_TOKEN = rbTok[who];
+    if (who && rbTok[who] && !merged.CREWBUS_TOKEN) merged.CREWBUS_TOKEN = rbTok[who];
     const out = execFileSync("node", [CLI, ...args], { env: merged }).toString();
     const m = out.match(/token (abt-[0-9a-f]+)/);
     if (m && who && !rbTok[who]) rbTok[who] = m[1];
@@ -1330,14 +1330,14 @@ fs.rmSync(secBoard, { recursive: true, force: true });
 
 // ---- BEGIN Phase 2b encrypted backup/restore + quotas/tenancy (temp boards only) ----
 {
-  const b2Board = fs.mkdtempSync(path.join(os.tmpdir(), "ab-2b-"));
-  const b2Env = { ...process.env, AGENTBOARD_DIR: b2Board };
+  const b2Board = fs.mkdtempSync(path.join(os.tmpdir(), "cb-2b-"));
+  const b2Env = { ...process.env, CREWBUS_DIR: b2Board };
   const b2Tok = {};
   const b2Run = (args, extraEnv) => {
     const merged = { ...b2Env, ...(extraEnv || {}) };
     const fi = args.indexOf("--from");
     const who = fi !== -1 && args[fi + 1] && !String(args[fi + 1]).startsWith("--") ? String(args[fi + 1]).toLowerCase() : null;
-    if (who && b2Tok[who] && !merged.AGENTBOARD_TOKEN) merged.AGENTBOARD_TOKEN = b2Tok[who];
+    if (who && b2Tok[who] && !merged.CREWBUS_TOKEN) merged.CREWBUS_TOKEN = b2Tok[who];
     const out = execFileSync("node", [CLI, ...args], { env: merged }).toString();
     const m = out.match(/token (abt-[0-9a-f]+)/);
     if (m && who && !b2Tok[who]) b2Tok[who] = m[1];
@@ -1351,7 +1351,7 @@ fs.rmSync(secBoard, { recursive: true, force: true });
     check(label, bad);
   };
   const B2KEY = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
-  const b2KeyEnv = { AGENTBOARD_BACKUP_KEY: B2KEY };
+  const b2KeyEnv = { CREWBUS_BACKUP_KEY: B2KEY };
   b2Run(["init", "--board", b2Board]);
   b2Run(["register", "--from", "boss"]);
   const b2Grant = b2Run(["register", "--from", "boss", "--for", "aud1", "--role", "auditor"]);
@@ -1359,7 +1359,7 @@ fs.rmSync(secBoard, { recursive: true, force: true });
   if (b2GrantM) b2Tok["aud1"] = b2GrantM[1];
   b2Run(["send", "--from", "boss", "--to", "aud1", "--body", "2b hello"]);
   // export -> wipe -> import round-trip: mail byte-equality, secrets stripped
-  const b2Out = path.join(os.tmpdir(), "ab-2b-" + Date.now() + ".abbackup.json");
+  const b2Out = path.join(os.tmpdir(), "cb-2b-" + Date.now() + ".abbackup.json");
   check("2b auditor export ok", b2Run(["board", "export", "--from", "aud1", "--out", b2Out], b2KeyEnv).includes("exported"));
   const b2Env1 = JSON.parse(fs.readFileSync(b2Out, "utf8"));
   check("2b envelope encrypted aes-256-gcm", b2Env1.encrypted === true && b2Env1.algo === "aes-256-gcm" && typeof b2Env1.data === "string");
@@ -1372,15 +1372,15 @@ fs.rmSync(secBoard, { recursive: true, force: true });
   check("2b restored agents carry no secrets", !JSON.parse(fs.readFileSync(path.join(b2Into, "agents", "boss.json"), "utf8")).tokenHash);
   // wrong-key import refused before any write
   const b2IntoBad = b2Board + "-badkey";
-  b2MustFail("2b wrong-key import refused, nothing written", ["board", "import", "--from", "boss", "--in", b2Out, "--into", b2IntoBad, "--force"], { AGENTBOARD_BACKUP_KEY: "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff" }, "GCM auth failed");
+  b2MustFail("2b wrong-key import refused, nothing written", ["board", "import", "--from", "boss", "--in", b2Out, "--into", b2IntoBad, "--force"], { CREWBUS_BACKUP_KEY: "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff" }, "GCM auth failed");
   check("2b wrong-key wrote nothing", !fs.existsSync(b2IntoBad));
   // password-based key (scrypt) round-trip + plaintext mode
-  const b2PwOut = path.join(os.tmpdir(), "ab-2b-pw-" + Date.now() + ".json");
-  b2Run(["board", "export", "--from", "boss", "--out", b2PwOut], { AGENTBOARD_BACKUP_KEY: "a human password" });
+  const b2PwOut = path.join(os.tmpdir(), "cb-2b-pw-" + Date.now() + ".json");
+  b2Run(["board", "export", "--from", "boss", "--out", b2PwOut], { CREWBUS_BACKUP_KEY: "a human password" });
   check("2b password key uses scrypt", JSON.parse(fs.readFileSync(b2PwOut, "utf8")).kdf === "scrypt");
-  b2Run(["board", "import", "--from", "boss", "--in", b2PwOut, "--into", b2Board + "-pw", "--force"], { AGENTBOARD_BACKUP_KEY: "a human password" });
+  b2Run(["board", "import", "--from", "boss", "--in", b2PwOut, "--into", b2Board + "-pw", "--force"], { CREWBUS_BACKUP_KEY: "a human password" });
   check("2b password round-trip restores mail", fs.existsSync(path.join(b2Board + "-pw", "dm", "aud1")));
-  const b2PlainOut = path.join(os.tmpdir(), "ab-2b-plain-" + Date.now() + ".json");
+  const b2PlainOut = path.join(os.tmpdir(), "cb-2b-plain-" + Date.now() + ".json");
   b2Run(["board", "export", "--from", "boss", "--out", b2PlainOut, "--no-encrypt"]);
   check("2b --no-encrypt plaintext envelope", JSON.parse(fs.readFileSync(b2PlainOut, "utf8")).encrypted === false);
   // quotas: N+1th agent + message refused; storage reports quota vs actual
@@ -1401,7 +1401,7 @@ fs.rmSync(secBoard, { recursive: true, force: true });
   b2MustFail("2b quota refuses N+1th channel", ["channel", "create", "c2"], null, "maxChannels");
   b2Run(["quota", "set", "--from", "boss", "--clear"]);
   // snapshots: schedule + run + --keep pruning
-  const b2SnapDir = fs.mkdtempSync(path.join(os.tmpdir(), "ab-2b-snap-"));
+  const b2SnapDir = fs.mkdtempSync(path.join(os.tmpdir(), "cb-2b-snap-"));
   b2Run(["snapshot", "schedule", "--from", "boss", "--every", "24h", "--keep", "2", "--out-dir", b2SnapDir, "--no-encrypt"]);
   check("2b snapshot schedule recorded", JSON.parse(fs.readFileSync(path.join(b2Board, "board.json"), "utf8")).snapshot.keep === 2);
   b2Run(["snapshot", "run"]);
@@ -1412,7 +1412,7 @@ fs.rmSync(secBoard, { recursive: true, force: true });
   b2MustFail("2b non-admin snapshot-schedule refused", ["snapshot", "schedule", "--from", "aud1", "--every", "24h", "--keep", "2", "--out-dir", b2SnapDir, "--no-encrypt"], null, "need admin");
   // legal-hold interplay: backups preserve held data, never drop it
   b2Run(["hold", "place", "--from", "boss", "--reason", "2b litigation"]);
-  const b2HoldOut = path.join(os.tmpdir(), "ab-2b-hold-" + Date.now() + ".json");
+  const b2HoldOut = path.join(os.tmpdir(), "cb-2b-hold-" + Date.now() + ".json");
   b2Run(["board", "export", "--from", "boss", "--out", b2HoldOut, "--no-encrypt"]);
   const b2HoldEnv = JSON.parse(fs.readFileSync(b2HoldOut, "utf8"));
   check("2b export preserves the hold record", b2HoldEnv.files.some((f) => f.rel === "holds/legal.json"));
@@ -1435,14 +1435,14 @@ fs.rmSync(secBoard, { recursive: true, force: true });
 
 // ---- BEGIN Phase 2a audit export + legal hold (temp boards only) ----
 {
-  const p2Board = fs.mkdtempSync(path.join(os.tmpdir(), "ab-p2a-"));
-  const p2Env = { ...process.env, AGENTBOARD_DIR: p2Board, AGENTBOARD_SECRET: "p2a-test-secret" };
+  const p2Board = fs.mkdtempSync(path.join(os.tmpdir(), "cb-p2a-"));
+  const p2Env = { ...process.env, CREWBUS_DIR: p2Board, CREWBUS_SECRET: "p2a-test-secret" };
   const p2Tok = {};
   const p2Run = (args, extraEnv) => {
     const merged = { ...p2Env, ...(extraEnv || {}) };
     const fi = args.indexOf("--from");
     const who = fi !== -1 && args[fi + 1] && !String(args[fi + 1]).startsWith("--") ? String(args[fi + 1]).toLowerCase() : null;
-    if (who && p2Tok[who] && !merged.AGENTBOARD_TOKEN) merged.AGENTBOARD_TOKEN = p2Tok[who];
+    if (who && p2Tok[who] && !merged.CREWBUS_TOKEN) merged.CREWBUS_TOKEN = p2Tok[who];
     const out = execFileSync("node", [CLI, ...args], { env: merged }).toString();
     const m = out.match(/token (abt-[0-9a-f]+)/);
     if (m && who && !p2Tok[who]) p2Tok[who] = m[1];
@@ -1470,7 +1470,7 @@ fs.rmSync(secBoard, { recursive: true, force: true });
   check("2a audit envelope is v:1 with sig chain", p2ChainRecs.length > 0 && p2ChainRecs.every((r) => r.v === 1 && typeof r.sig === "string" && r.sig.length === 64 && r.prevHash === r.prev && typeof r.role === "string" && typeof r.authMethod === "string"));
   check("2a chain verify passes with sigs", p2Run(["log", "--verify"]).includes("chain OK"));
   // tamper: copy the board, flip one sig hex char in the copy, verify names the seq
-  const p2Copy = fs.mkdtempSync(path.join(os.tmpdir(), "ab-p2a-copy-"));
+  const p2Copy = fs.mkdtempSync(path.join(os.tmpdir(), "cb-p2a-copy-"));
   fs.cpSync(p2Board, p2Copy, { recursive: true });
   const p2CopyChain = path.join(p2Copy, "logs", "chain.jsonl");
   const p2CopyLines = fs.readFileSync(p2CopyChain, "utf8").split("\n");
@@ -1505,14 +1505,14 @@ fs.rmSync(secBoard, { recursive: true, force: true });
 
 // ---- BEGIN caps: capability-degraded sync against a legacy peer ----
 {
-  const capsBoard = fs.mkdtempSync(path.join(os.tmpdir(), "ab-caps-"));
-  const capsEnv = { ...process.env, AGENTBOARD_DIR: capsBoard };
+  const capsBoard = fs.mkdtempSync(path.join(os.tmpdir(), "cb-caps-"));
+  const capsEnv = { ...process.env, CREWBUS_DIR: capsBoard };
   const capsTok = {};
   const capsRun = (a, extra) => {
     const merged = { ...capsEnv, ...(extra || {}) };
     const fi = a.indexOf("--from");
     const who = fi !== -1 && a[fi + 1] && !String(a[fi + 1]).startsWith("--") ? String(a[fi + 1]).toLowerCase() : null;
-    if (who && capsTok[who] && !merged.AGENTBOARD_TOKEN) merged.AGENTBOARD_TOKEN = capsTok[who];
+    if (who && capsTok[who] && !merged.CREWBUS_TOKEN) merged.CREWBUS_TOKEN = capsTok[who];
     const out = execFileSync("node", [CLI, ...a], { env: merged }).toString();
     const m = out.match(/token (abt-[0-9a-f]+)/);
     if (m && who && !capsTok[who]) capsTok[who] = m[1];
@@ -1542,7 +1542,7 @@ fs.rmSync(secBoard, { recursive: true, force: true });
   // while the parent blocks in execFileSync): manifest WITHOUT the
   // `capabilities` field (4.0 baseline) plus one dm file entry, and it
   // records every /sync/put path to putsFile.
-  const stubDir = fs.mkdtempSync(path.join(os.tmpdir(), "ab-caps-stub-"));
+  const stubDir = fs.mkdtempSync(path.join(os.tmpdir(), "cb-caps-stub-"));
   const stubFile = path.join(stubDir, "stub-legacy.mjs");
   const putsFile = path.join(stubDir, "puts.jsonl");
   fs.writeFileSync(stubFile, `import http from "node:http";\nimport fs from "node:fs";\nconst putsFile = process.argv[2];\nconst legacyDoc = { id: "msg-legacy", from: "legacy-peer", to: "capadmin", body: "legacy hello", at: new Date().toISOString() };\nconst srv = http.createServer((req, res) => {\n  const u = new URL(req.url, "http://x");\n  if (req.method === "GET" && u.pathname === "/sync/manifest") {\n    res.writeHead(200, { "content-type": "application/json" });\n    res.end(JSON.stringify({ version: 2, files: { "dm/legacy-peer/msg-legacy.json": { mtime: Date.now(), size: 200 } } }));\n    return;\n  }\n  if (req.method === "GET" && u.pathname === "/sync/file") {\n    if (u.searchParams.get("path") === "dm/legacy-peer/msg-legacy.json") {\n      res.writeHead(200, { "content-type": "application/json" });\n      res.end(JSON.stringify(legacyDoc));\n    } else { res.writeHead(404); res.end("nope"); }\n    return;\n  }\n  if (req.method === "POST" && u.pathname === "/sync/put") {\n    let b = "";\n    req.on("data", (c) => { b += c; });\n    req.on("end", () => {\n      fs.appendFileSync(putsFile, JSON.stringify({ path: u.searchParams.get("path") }) + "\\n");\n      res.writeHead(200, { "content-type": "application/json" });\n      res.end("{}");\n    });\n    return;\n  }\n  res.writeHead(404); res.end("nope");\n});\nsrv.listen(0, "127.0.0.1", () => console.log("STUB_READY http://127.0.0.1:" + srv.address().port));\n`);
@@ -1589,22 +1589,22 @@ fs.rmSync(secBoard, { recursive: true, force: true });
 // ---- BEGIN env-features: spawn --allow-env / --keep-env ----
 {
   // MARK ends in _API_KEY so the default scrub removes it (bin/lib/spawn.js
-  // SCRUB_SUFFIXES); AGENTBOARD_TEST_PLAIN matches no scrub pattern.
+  // SCRUB_SUFFIXES); CREWBUS_TEST_PLAIN matches no scrub pattern.
   // NOTE: bootWorker passes spawnedEnvScrubbed to touchAgent, but touchAgent
   // whitelists agent-record fields and drops it — so it is NOT asserted here;
   // the child-observed files below are the scrub signal.
   const tag = Date.now().toString(36);
-  const MARK = "AGENTBOARD_TEST_KEEP_API_KEY";
+  const MARK = "CREWBUS_TEST_KEEP_API_KEY";
   const canary = "CANARY_" + tag;
   const plainVal = "PLAIN_" + tag;
-  const envBoard = fs.mkdtempSync(path.join(os.tmpdir(), "ab-env-"));
-  const envEnv = { ...process.env, AGENTBOARD_DIR: envBoard };
+  const envBoard = fs.mkdtempSync(path.join(os.tmpdir(), "cb-env-"));
+  const envEnv = { ...process.env, CREWBUS_DIR: envBoard };
   const envTok = {};
   const envRun = (a, extra) => {
     const merged = { ...envEnv, ...(extra || {}) };
     const fi = a.indexOf("--from");
     const who = fi !== -1 && a[fi + 1] && !String(a[fi + 1]).startsWith("--") ? String(a[fi + 1]).toLowerCase() : null;
-    if (who && envTok[who] && !merged.AGENTBOARD_TOKEN) merged.AGENTBOARD_TOKEN = envTok[who];
+    if (who && envTok[who] && !merged.CREWBUS_TOKEN) merged.CREWBUS_TOKEN = envTok[who];
     const out = execFileSync("node", [CLI, ...a], { env: merged }).toString();
     const m = out.match(/token (abt-[0-9a-f]+)/);
     if (m && who && !envTok[who]) envTok[who] = m[1];
@@ -1612,15 +1612,15 @@ fs.rmSync(secBoard, { recursive: true, force: true });
   };
   envRun(["init", "--harness", "generic"]);
   const leadTok = (envRun(["register", "--from", "envlead"]).match(/token (abt-[0-9a-f]+)/) || [])[1];
-  const childEnv = { AGENTBOARD_TOKEN: leadTok, [MARK]: canary, AGENTBOARD_TEST_PLAIN: plainVal };
+  const childEnv = { CREWBUS_TOKEN: leadTok, [MARK]: canary, CREWBUS_TEST_PLAIN: plainVal };
   // Short-lived `node -e` probes (no sleepers): each writes what IT sees.
-  const envCmd = (out) => `node -e "require('fs').writeFileSync('${out}', JSON.stringify({keep: process.env.${MARK} || null, plain: process.env.AGENTBOARD_TEST_PLAIN || null, path: process.env.PATH ? 'yes' : null, token: process.env.AGENTBOARD_TOKEN || null}))"`;
-  const outDef = path.join(os.tmpdir(), `ab-envdef-${tag}.json`).replace(/\\/g, "/");
-  const outAllow = path.join(os.tmpdir(), `ab-envallow-${tag}.json`).replace(/\\/g, "/");
-  const outKeep = path.join(os.tmpdir(), `ab-envkeep-${tag}.json`).replace(/\\/g, "/");
+  const envCmd = (out) => `node -e "require('fs').writeFileSync('${out}', JSON.stringify({keep: process.env.${MARK} || null, plain: process.env.CREWBUS_TEST_PLAIN || null, path: process.env.PATH ? 'yes' : null, token: process.env.CREWBUS_TOKEN || null}))"`;
+  const outDef = path.join(os.tmpdir(), `cb-envdef-${tag}.json`).replace(/\\/g, "/");
+  const outAllow = path.join(os.tmpdir(), `cb-envallow-${tag}.json`).replace(/\\/g, "/");
+  const outKeep = path.join(os.tmpdir(), `cb-envkeep-${tag}.json`).replace(/\\/g, "/");
   // Boot all three detached workers up front, then poll once for every file.
   const spDef = envRun(["spawn", "--from", "envlead", "--harness", "generic", "--cmd", envCmd(outDef), "--to", "envdef", "--body", "env probe"], childEnv);
-  const spAllow = envRun(["spawn", "--from", "envlead", "--harness", "generic", "--cmd", envCmd(outAllow), "--to", "envallow", "--body", "env probe", "--allow-env", "AGENTBOARD_TEST_KEEP"], childEnv);
+  const spAllow = envRun(["spawn", "--from", "envlead", "--harness", "generic", "--cmd", envCmd(outAllow), "--to", "envallow", "--body", "env probe", "--allow-env", "CREWBUS_TEST_KEEP"], childEnv);
   const spKeep = envRun(["spawn", "--from", "envlead", "--harness", "generic", "--cmd", envCmd(outKeep), "--to", "envkeep", "--body", "env probe", "--keep-env"], childEnv);
   check("env-features: all three workers booted",
     spDef.includes("spawned envdef pid ") && spAllow.includes("spawned envallow pid ") && spKeep.includes("spawned envkeep pid "));

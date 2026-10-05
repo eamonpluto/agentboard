@@ -1,4 +1,4 @@
-// bin/lib/channels.js — PURE EXTRACTION (Phase 1) from bin/agentboard.js. DO NOT HAND-EDIT:
+// bin/lib/channels.js — PURE EXTRACTION (Phase 1) from bin/crewbus.js. DO NOT HAND-EDIT:
 // re-extract from the monolith instead. Bodies are verbatim copies with only
 // `export` added; cross-module calls are preserved as-is and resolved in Phase 2.
 // Purpose: Shared channels + locks: channel log IO, per-reader cursors, digest/summarize, group mirrors, advisory locks, channel text-merge. Entry points cmdChannel/cmdLock STAY in the monolith.

@@ -12,13 +12,13 @@
  *
  * The lead hands this summary to the next group (group A's findings
  * seed group B's brief).
- * Auth via --token or AGENTBOARD_TOKEN, same as the CLI.
+ * Auth via --token or CREWBUS_TOKEN, same as the CLI.
  */
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
-const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "bin", "agentboard.js");
+const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "bin", "crewbus.js");
 
 function arg(flag, def = undefined) {
   const i = process.argv.indexOf(flag);
@@ -31,11 +31,11 @@ function fail(msg) {
   process.exit(1);
 }
 
-const from = arg("--from") || process.env.AGENTBOARD_AGENT;
+const from = arg("--from") || process.env.CREWBUS_AGENT;
 const to = arg("--to");
 const batch = arg("--batch");
 const group = arg("--group");
-const board = arg("--board") || process.env.AGENTBOARD_DIR;
+const board = arg("--board") || process.env.CREWBUS_DIR;
 if (!from) fail("missing --from <worker-name>");
 if (!to) fail("missing --to <lead-name>");
 if (!batch) fail("missing --batch <batch-id> (from the send echo)");
@@ -44,7 +44,7 @@ const run = (args) =>
   execFileSync("node", [CLI, ...args, ...(board ? ["--board", board] : [])], { encoding: "utf8" });
 // First send as a new name mints its token (printed once). Harvest it so
 // follow-up calls as the same name authenticate.
-let selfToken = process.env.AGENTBOARD_TOKEN;
+let selfToken = process.env.CREWBUS_TOKEN;
 const harvest = (echo) => {
   const m = String(echo || "").match(/token (abt-[0-9a-f]+)/);
   if (m) selfToken = m[1];

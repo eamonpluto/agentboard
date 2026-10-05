@@ -1,20 +1,20 @@
 #!/usr/bin/env node
 /**
- * agentboard-mcp — zero-dependency stdio MCP server for agent-board (DM-only).
+ * crewbus-mcp — zero-dependency stdio MCP server for crewbus (DM-only).
  *
  * One artifact for every MCP-capable harness (Claude Code, Codex, Antigravity,
  * opencode, grok-build, Cursor): expose the DM bus as tools so sending/reading mail is
  * "just a tool call" with no CLI wrapper needed.
  *
- *   Claude:  claude mcp add --scope project agentboard -- node ./bin/agentboard-mcp.js
- *   Codex:   codex mcp add agentboard -- node ./bin/agentboard-mcp.js
- *            (or [mcp_servers.agentboard] in config.toml)
- *   Antigravity: .agents/mcp_config.json { mcpServers: { agentboard: { command: "node", args: [...] } } }
- *   grok:    grok mcp add --scope project agentboard -- node ./bin/agentboard-mcp.js
- *   Cursor:  .cursor/mcp.json { mcpServers: { agentboard: { command: "node", args: [...] } } }
- *   opencode: { "mcp": { "agentboard": { "type": "local", "command": ["node", "./bin/agentboard-mcp.js"] } } }
+ *   Claude:  claude mcp add --scope project crewbus -- node ./bin/crewbus-mcp.js
+ *   Codex:   codex mcp add crewbus -- node ./bin/crewbus-mcp.js
+ *            (or [mcp_servers.crewbus] in config.toml)
+ *   Antigravity: .agents/mcp_config.json { mcpServers: { crewbus: { command: "node", args: [...] } } }
+ *   grok:    grok mcp add --scope project crewbus -- node ./bin/crewbus-mcp.js
+ *   Cursor:  .cursor/mcp.json { mcpServers: { crewbus: { command: "node", args: [...] } } }
+ *   opencode: { "mcp": { "crewbus": { "type": "local", "command": ["node", "./bin/crewbus-mcp.js"] } } }
  *
- * Board resolution: AGENTBOARD_DIR env wins, else <cwd>/.agentboard (harnesses
+ * Board resolution: CREWBUS_DIR env wins, else <cwd>/.crewbus (harnesses
  * launch stdio servers with cwd = project root, so this just works).
  *
  * Protocol: MCP over newline-delimited JSON-RPC on stdio. Methods handled:
@@ -37,21 +37,21 @@ const SERVER_VERSION = "2.3.0";
 const KNOWN_PROTOCOL_VERSIONS = new Set(["2024-11-05", "2025-03-26", "2025-06-18"]);
 
 // ---------------------------------------------------------------------------
-// board (mirrors bin/agentboard.js layout v2; no import to stay dep-free)
+// board (mirrors bin/crewbus.js layout v2; no import to stay dep-free)
 // ---------------------------------------------------------------------------
 
 function boardRoot(override) {
   if (override) return path.resolve(String(override));
-  if (process.env.AGENTBOARD_DIR) return path.resolve(process.env.AGENTBOARD_DIR);
-  return findBoardUpward(process.cwd()) || path.join(process.cwd(), ".agentboard");
+  if (process.env.CREWBUS_DIR) return path.resolve(process.env.CREWBUS_DIR);
+  return findBoardUpward(process.cwd()) || path.join(process.cwd(), ".crewbus");
 }
 
-// Nearest ancestor (incl. start) containing a .agentboard dir, or null.
+// Nearest ancestor (incl. start) containing a .crewbus dir, or null.
 function findBoardUpward(start) {
   let dir = path.resolve(start);
   for (;;) {
     try {
-      if (fs.statSync(path.join(dir, ".agentboard")).isDirectory()) return path.join(dir, ".agentboard");
+      if (fs.statSync(path.join(dir, ".crewbus")).isDirectory()) return path.join(dir, ".crewbus");
     } catch {}
     const parent = path.dirname(dir);
     if (parent === dir) return null;
@@ -307,7 +307,7 @@ function listVisible(d, recipient) {
     .sort((a, b) => String(a.at).localeCompare(String(b.at)) || String(a.id).localeCompare(String(b.id)));
 }
 
-// §4.2 shared channels (mirrors bin/agentboard.js; throws instead of fail).
+// §4.2 shared channels (mirrors bin/crewbus.js; throws instead of fail).
 function cleanChannelNameMcp(raw) {
   if (raw === undefined || raw === null || String(raw).trim() === "") throw new Error("missing channel (channel name)");
   const c = String(raw).trim().toLowerCase().replace(/[^a-z0-9_.-]/g, "-").slice(0, 60);
@@ -593,7 +593,7 @@ function readAgent(d, name) {
 
 function resolveToken(a) {
   if (a.token !== undefined && a.token !== null && String(a.token) !== "") return String(a.token);
-  const env = process.env.AGENTBOARD_TOKEN;
+  const env = process.env.CREWBUS_TOKEN;
   return env === undefined || env === "" ? undefined : env;
 }
 
@@ -601,11 +601,11 @@ function checkToken(d, agent, token) {
   const rec = readAgent(d, agent);
   if (!rec) throw new Error(`unknown agent "${agent}" — claim it first with dm_register (or dm_send, first send mints its token)`);
   if (rec.tokenHash && rec.salt) {
-    if (!agentTokenMatchesMcp(rec, token)) throw new Error(`bad token for "${agent}" (pass token or set AGENTBOARD_TOKEN)`);
+    if (!agentTokenMatchesMcp(rec, token)) throw new Error(`bad token for "${agent}" (pass token or set CREWBUS_TOKEN)`);
     return rec;
   }
   if (rec.token) {
-    if (!agentTokenMatchesMcp(rec, token)) throw new Error(`bad token for "${agent}" (pass token or set AGENTBOARD_TOKEN)`);
+    if (!agentTokenMatchesMcp(rec, token)) throw new Error(`bad token for "${agent}" (pass token or set CREWBUS_TOKEN)`);
     const salt = newSaltMcp();
     const migrated = { ...rec, tokenHash: hashTokenMcp(String(token), salt), salt };
     delete migrated.token;
@@ -638,7 +638,7 @@ function ensureSender(d, agent, token) {
     if (!won) {
       const again = readAgent(d, agent);
       if (!again || (!again.tokenHash && !again.token) || !agentTokenMatchesMcp(again, token)) {
-        throw new Error(`bad token for "${agent}" (pass token or set AGENTBOARD_TOKEN)`);
+        throw new Error(`bad token for "${agent}" (pass token or set CREWBUS_TOKEN)`);
       }
       return { created: false };
     }
@@ -662,7 +662,7 @@ function ensureSender(d, agent, token) {
     return { created: true, token: fresh };
   }
   if (rec.token && !rec.tokenHash) {
-    if (!agentTokenMatchesMcp(rec, token)) throw new Error(`bad token for "${agent}" (pass token or set AGENTBOARD_TOKEN)`);
+    if (!agentTokenMatchesMcp(rec, token)) throw new Error(`bad token for "${agent}" (pass token or set CREWBUS_TOKEN)`);
     const salt = newSaltMcp();
     rec.tokenHash = hashTokenMcp(String(token), salt);
     rec.salt = salt;
@@ -670,13 +670,13 @@ function ensureSender(d, agent, token) {
     writeAgentHashed(path.join(d.agents, `${agent}.json`), rec);
     return { created: false };
   }
-  if (!agentTokenMatchesMcp(rec, token)) throw new Error(`bad token for "${agent}" (pass token or set AGENTBOARD_TOKEN)`);
+  if (!agentTokenMatchesMcp(rec, token)) throw new Error(`bad token for "${agent}" (pass token or set CREWBUS_TOKEN)`);
   return { created: false };
 }
 
 // ---------------------------------------------------------------------------
 // Phase 1b RBAC + per-board ACLs + group-scoped send permissions (MCP twin).
-// Mirrors the CLI matrix in bin/agentboard.js (authorizeCheck): call
+// Mirrors the CLI matrix in bin/crewbus.js (authorizeCheck): call
 // authorizeMcp() AFTER checkToken()/ensureSender() passes — never before,
 // never instead. Do not merge into checkToken.
 // Roles: {admin, lead, worker, auditor}; legacy records without `role` map
@@ -793,7 +793,7 @@ const TOOLS = [
   {
     name: "dm_send",
     description:
-      "Send a direct message to another AI agent via agent-board. Fire-and-forget like Slack: the peer reads it via dm_inbox (or gets it pushed by their harness hook). `to` accepts a comma list for broadcast (one copy each, shared batch id, up to 10000; fan-outs over 20 use one broadcast file) or @all for everyone — the DM is the task. Pass board (absolute path) when your session runs outside the project so all agents share one board.",
+      "Send a direct message to another AI agent via crewbus. Fire-and-forget like Slack: the peer reads it via dm_inbox (or gets it pushed by their harness hook). `to` accepts a comma list for broadcast (one copy each, shared batch id, up to 10000; fan-outs over 20 use one broadcast file) or @all for everyone — the DM is the task. Pass board (absolute path) when your session runs outside the project so all agents share one board.",
     inputSchema: {
       type: "object",
       properties: {
@@ -807,8 +807,8 @@ const TOOLS = [
         priority: { type: "string", description: "Optional urgency flag: high or normal (default normal). dm_inbox can filter on it." },
         checkpoint: { type: "boolean", description: "Mark as a progress checkpoint on a thread (labeled in transcripts, skipped by unacked triage — never needs ack)." },
         also_channel: { type: "boolean", description: "With to_group: also append the brief to each group's channel (grp-<group>), stamped with the DM batch id so dm_gather picks it up." },
-        token: { type: "string", description: "Your agent token from dm_register (or AGENTBOARD_TOKEN env). First send as a new name mints its token." },
-        board: { type: "string", description: "Optional absolute board path, e.g. C:/proj/.agentboard. Overrides AGENTBOARD_DIR and auto-detection." },
+        token: { type: "string", description: "Your agent token from dm_register (or CREWBUS_TOKEN env). First send as a new name mints its token." },
+        board: { type: "string", description: "Optional absolute board path, e.g. C:/proj/.crewbus. Overrides CREWBUS_DIR and auto-detection." },
       },
       required: ["from", "to", "body"],
     },
@@ -816,7 +816,7 @@ const TOOLS = [
   {
     name: "dm_inbox",
     description:
-      "Read your direct messages on agent-board. No mark-read side effects; page with after. Pass unacked true to show only messages you haven't acked. Reader-side digesting: grep filters subject+body, priority filters urgency (high|normal), max_chars fair-share truncates bodies with [truncated], digest returns one line per message, older_than (e.g. 10m) keeps only messages older than the window (unacked-brief timeout pattern). Poll this often when your harness has no push hook. Pass board (absolute path) when your session runs outside the project so all agents share one board.",
+      "Read your direct messages on crewbus. No mark-read side effects; page with after. Pass unacked true to show only messages you haven't acked. Reader-side digesting: grep filters subject+body, priority filters urgency (high|normal), max_chars fair-share truncates bodies with [truncated], digest returns one line per message, older_than (e.g. 10m) keeps only messages older than the window (unacked-brief timeout pattern). Poll this often when your harness has no push hook. Pass board (absolute path) when your session runs outside the project so all agents share one board.",
     inputSchema: {
       type: "object",
       properties: {
@@ -829,8 +829,8 @@ const TOOLS = [
         max_chars: { type: "number", description: "Per-agent context quota: fair-share body budget with [truncated] marker." },
         older_than: { type: "string", description: "Only messages older than this window (e.g. 10m, 24h) — unacked-brief timeout pattern." },
         digest: { type: "boolean", description: "Compact one-line-per-message rendering." },
-        token: { type: "string", description: "Your agent token from dm_register (or AGENTBOARD_TOKEN env)." },
-        board: { type: "string", description: "Optional absolute board path, e.g. C:/proj/.agentboard. Overrides AGENTBOARD_DIR and auto-detection." },
+        token: { type: "string", description: "Your agent token from dm_register (or CREWBUS_TOKEN env)." },
+        board: { type: "string", description: "Optional absolute board path, e.g. C:/proj/.crewbus. Overrides CREWBUS_DIR and auto-detection." },
       },
       required: ["agent"],
     },
@@ -845,9 +845,9 @@ const TOOLS = [
         agent: { type: "string", description: "Your agent name." },
         id: { type: "string", description: "Message id to ack (must be in your inbox)." },
         all: { type: "boolean", description: "Ack everything currently in your inbox instead." },
-        verify: { type: "string", description: "Verifier command to run first (AGENTBOARD_MSG + AGENTBOARD_BOARD set). Only acks on exit 0." },
-        token: { type: "string", description: "Your agent token from dm_register (or AGENTBOARD_TOKEN env)." },
-        board: { type: "string", description: "Optional absolute board path. Overrides AGENTBOARD_DIR and auto-detection." },
+        verify: { type: "string", description: "Verifier command to run first (CREWBUS_MSG + CREWBUS_BOARD set). Only acks on exit 0." },
+        token: { type: "string", description: "Your agent token from dm_register (or CREWBUS_TOKEN env)." },
+        board: { type: "string", description: "Optional absolute board path. Overrides CREWBUS_DIR and auto-detection." },
       },
       required: ["agent"],
     },
@@ -860,33 +860,33 @@ const TOOLS = [
       type: "object",
       properties: {
         batch: { type: "string", description: "Batch id from the send echo." },
-        board: { type: "string", description: "Optional absolute board path. Overrides AGENTBOARD_DIR and auto-detection." },
+        board: { type: "string", description: "Optional absolute board path. Overrides CREWBUS_DIR and auto-detection." },
       },
       required: ["batch"],
     },
   },
   {
     name: "dm_agents",
-    description: "List agents known to this agent-board (registered names for addressing DMs). Pass active true to list only agents seen within window seconds (default 300). Pass board when your session runs outside the project.",
+    description: "List agents known to this crewbus (registered names for addressing DMs). Pass active true to list only agents seen within window seconds (default 300). Pass board when your session runs outside the project.",
     inputSchema: {
       type: "object",
       properties: {
         active: { type: "boolean", description: "Only agents seen within the window." },
         window: { type: "number", description: "Presence window in seconds. Default 300." },
-        board: { type: "string", description: "Optional absolute board path. Overrides AGENTBOARD_DIR and auto-detection." },
+        board: { type: "string", description: "Optional absolute board path. Overrides CREWBUS_DIR and auto-detection." },
       },
     },
   },
   {
     name: "dm_register",
     description:
-      "Register your agent name on this agent-board (optionally binding a harness session id for push routing). Do this once per session. Pass board when your session runs outside the project.",
+      "Register your agent name on this crewbus (optionally binding a harness session id for push routing). Do this once per session. Pass board when your session runs outside the project.",
     inputSchema: {
       type: "object",
       properties: {
         agent: { type: "string", description: "Your stable agent name." },
         session: { type: "string", description: "Optional harness session/conversation id for push routing." },
-        board: { type: "string", description: "Optional absolute board path. Overrides AGENTBOARD_DIR and auto-detection." },
+        board: { type: "string", description: "Optional absolute board path. Overrides CREWBUS_DIR and auto-detection." },
       },
       required: ["agent"],
     },
@@ -903,8 +903,8 @@ const TOOLS = [
         body: { type: "string", description: "Post text, 1..8000 chars." },
         subject: { type: "string", description: "Optional mission line." },
         priority: { type: "string", description: "Optional urgency flag: high or normal." },
-        token: { type: "string", description: "Your agent token from dm_register (or AGENTBOARD_TOKEN env)." },
-        board: { type: "string", description: "Optional absolute board path. Overrides AGENTBOARD_DIR and auto-detection." },
+        token: { type: "string", description: "Your agent token from dm_register (or CREWBUS_TOKEN env)." },
+        board: { type: "string", description: "Optional absolute board path. Overrides CREWBUS_DIR and auto-detection." },
       },
       required: ["channel", "from", "body"],
     },
@@ -924,7 +924,7 @@ const TOOLS = [
         priority: { type: "string", description: "Urgency filter: high or normal." },
         max_chars: { type: "number", description: "Per-agent context quota: fair-share body budget with [truncated] marker." },
         digest: { type: "boolean", description: "Compact one-line-per-post rendering." },
-        board: { type: "string", description: "Optional absolute board path. Overrides AGENTBOARD_DIR and auto-detection." },
+        board: { type: "string", description: "Optional absolute board path. Overrides CREWBUS_DIR and auto-detection." },
       },
       required: ["channel"],
     },
@@ -952,7 +952,7 @@ function requireBoard(root) {
   } catch {}
   if (!meta || meta.version !== 2) {
     throw new Error(
-      `no board at ${root} (cwd "${process.cwd()}"). Run from your project, pass board (absolute path to .agentboard), or set AGENTBOARD_DIR.`
+      `no board at ${root} (cwd "${process.cwd()}"). Run from your project, pass board (absolute path to .crewbus), or set CREWBUS_DIR.`
     );
   }
   return dirs(root);
@@ -1014,9 +1014,9 @@ function callTool(name, args) {
   const a = args && typeof args === "object" ? args : {};
   const boardArg = a.board === undefined || a.board === null || String(a.board).trim() === "" ? undefined : String(a.board);
   const root = boardRoot(boardArg);
-  if (isDriveRootMissing(root, boardArg || process.env.AGENTBOARD_DIR)) {
+  if (isDriveRootMissing(root, boardArg || process.env.CREWBUS_DIR)) {
     throw new Error(
-      `refusing to create a board at drive root ${root} (cwd "${process.cwd()}") — no project board found above cwd. Pass board (absolute path to .agentboard) or set AGENTBOARD_DIR.`
+      `refusing to create a board at drive root ${root} (cwd "${process.cwd()}") — no project board found above cwd. Pass board (absolute path to .crewbus) or set CREWBUS_DIR.`
     );
   }
   switch (name) {
@@ -1042,7 +1042,7 @@ function callTool(name, args) {
       const minted = ensureSender(d, from, resolveToken(a));
       authorizeMcp(d, from, "send", { toGroups: groupNames });
       touchAgent(d, from);
-      const tokenHint = minted.created ? ` identity '${from}' claimed, token ${minted.token} (set AGENTBOARD_TOKEN=${minted.token})` : "";
+      const tokenHint = minted.created ? ` identity '${from}' claimed, token ${minted.token} (set CREWBUS_TOKEN=${minted.token})` : "";
       const rev = gitRev(root);
       const at = new Date().toISOString();
       const mirror = (batch) => {
@@ -1155,7 +1155,7 @@ function callTool(name, args) {
       }
       const at = new Date().toISOString();
       if (verify !== undefined) {
-        const r = runVerifier(verify, { AGENTBOARD_MSG: ids[0], AGENTBOARD_BOARD: d.root });
+        const r = runVerifier(verify, { CREWBUS_MSG: ids[0], CREWBUS_BOARD: d.root });
         if (r.exit !== 0) throw new Error(`verify failed (exit ${r.exit}): ${r.output}`);
         fs.mkdirSync(path.join(d.root, "acked", agent), { recursive: true });
         writeJson(path.join(d.root, "acked", agent, `${ids[0]}.json`), { by: agent, at, verified: true, exit: r.exit, output: r.output });
@@ -1296,7 +1296,7 @@ function callTool(name, args) {
       const minted = ensureSender(d, from, resolveToken(a));
       authorizeMcp(d, from, "channel-post"); // lead|admin only (worker refused)
       touchAgent(d, from);
-      const tokenHint = minted.created ? ` identity '${from}' claimed, token ${minted.token} (set AGENTBOARD_TOKEN=${minted.token})` : "";
+      const tokenHint = minted.created ? ` identity '${from}' claimed, token ${minted.token} (set CREWBUS_TOKEN=${minted.token})` : "";
       const post = { id: newId("ch"), from, body, at: new Date().toISOString() };
       if (subject) post.subject = subject;
       if (priority === "high") post.priority = "high";
@@ -1361,7 +1361,7 @@ function handleMessage(msg) {
         reply(id, {
           protocolVersion: version,
           capabilities: { tools: {} },
-          serverInfo: { name: "agentboard", version: SERVER_VERSION },
+          serverInfo: { name: "crewbus", version: SERVER_VERSION },
         });
         return;
       }

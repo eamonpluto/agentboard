@@ -1,7 +1,7 @@
 # Storage decision note (§4.1 Scale) — JSON files vs SQLite WAL vs append-only log
 
 Status: **JSON files win, no migration.** `AB_STORAGE=sqlite` is recognized
-by `agentboard storage --json` (reported as an unevaluated experimental note
+by `crewbus storage --json` (reported as an unevaluated experimental note
 only) — it changes nothing on disk. Do NOT add a dependency for this.
 
 ## Measured numbers (Windows, i7-8650U 8x, 8GB, Node 24)
@@ -22,7 +22,7 @@ From `npm run bench` (300 broadcasts + 500-recipient fan-out) and
 | `bench-poll` dm/ scans | ~1900 dir scans/s (100 agents × 10 iters in 522ms) |
 
 Reproduce: `npm run bench`, `npm run bench:load`, `AB_LOAD_N=10000 npm run bench:load`,
-`agentboard bench-poll --agents 100 --iters 10 --json`, `agentboard storage --json`.
+`crewbus bench-poll --agents 100 --iters 10 --json`, `crewbus storage --json`.
 
 ## Why JSON files hold
 

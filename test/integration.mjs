@@ -1,4 +1,4 @@
-// agentboard integration — real-harness spawn --dry-run paths (part of npm test).
+// crewbus integration — real-harness spawn --dry-run paths (part of npm test).
 // Skips any harness whose binary is not installed; otherwise asserts the
 // exact-command preview works. Read-only: --dry-run touches nothing.
 import { execFileSync, spawnSync } from "node:child_process";
@@ -7,9 +7,9 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const CLI = fileURLToPath(new URL("../bin/agentboard.js", import.meta.url));
-const board = fs.mkdtempSync(path.join(os.tmpdir(), "ab-int-"));
-const env = { ...process.env, AGENTBOARD_DIR: board };
+const CLI = fileURLToPath(new URL("../bin/crewbus.js", import.meta.url));
+const board = fs.mkdtempSync(path.join(os.tmpdir(), "cb-int-"));
+const env = { ...process.env, CREWBUS_DIR: board };
 
 let failures = 0;
 let skipped = 0;
@@ -31,7 +31,7 @@ execFileSync("node", [CLI, "init", "--harness", "generic"], { env });
 const leadTok = execFileSync("node", [CLI, "register", "--from", "lead"], { env })
   .toString()
   .match(/token (abt-[0-9a-f]+)/)[1];
-const LEAD = { ...env, AGENTBOARD_TOKEN: leadTok };
+const LEAD = { ...env, CREWBUS_TOKEN: leadTok };
 
 // binary per harness; generic needs none (own --cmd, always exercised)
 const HARNESS_BIN = {
@@ -105,7 +105,7 @@ const startServe = (args, extraEnv) =>
     }, 20000);
     proc.stdout.on("data", (c) => {
       out += c.toString();
-      const m = out.match(/agentboard serve at (https?):\/\/(\S+)/);
+      const m = out.match(/crewbus serve at (https?):\/\/(\S+)/);
       if (m) {
         clearTimeout(timer);
         resolve({ proc, scheme: m[1], addr: m[2] });
@@ -136,16 +136,16 @@ if (!hasOpenssl) {
   skip("phase1c: mTLS relay-to-relay", "openssl not installed");
 } else {
   // --- TLS round-trip: https serve + sync pull/push with --insecure ---
-  const tlsDir = fs.mkdtempSync(path.join(os.tmpdir(), "ab-tls-"));
-  const boardA = fs.mkdtempSync(path.join(os.tmpdir(), "ab-tls-a-"));
-  const boardB = fs.mkdtempSync(path.join(os.tmpdir(), "ab-tls-b-"));
+  const tlsDir = fs.mkdtempSync(path.join(os.tmpdir(), "cb-tls-"));
+  const boardA = fs.mkdtempSync(path.join(os.tmpdir(), "cb-tls-a-"));
+  const boardB = fs.mkdtempSync(path.join(os.tmpdir(), "cb-tls-b-"));
   let srv = null;
   try {
     execFileSync("openssl", ["req", "-x509", "-newkey", "rsa:2048", "-keyout", "key.pem", "-out", "cert.pem", "-days", "2", "-nodes", "-subj", "/CN=localhost"], { cwd: tlsDir, stdio: "pipe", timeout: 60000 });
-    execFileSync("node", [CLI, "init", "--harness", "generic"], { env: { ...process.env, AGENTBOARD_DIR: boardA } });
-    execFileSync("node", [CLI, "init", "--harness", "generic"], { env: { ...process.env, AGENTBOARD_DIR: boardB } });
-    const tokA = execFileSync("node", [CLI, "register", "--from", "alice"], { env: { ...process.env, AGENTBOARD_DIR: boardA } }).toString().match(/token (abt-[0-9a-f]+)/)[1];
-    execFileSync("node", [CLI, "send", "--from", "alice", "--to", "bob", "--body", "tls probe"], { env: { ...process.env, AGENTBOARD_DIR: boardA, AGENTBOARD_TOKEN: tokA } });
+    execFileSync("node", [CLI, "init", "--harness", "generic"], { env: { ...process.env, CREWBUS_DIR: boardA } });
+    execFileSync("node", [CLI, "init", "--harness", "generic"], { env: { ...process.env, CREWBUS_DIR: boardB } });
+    const tokA = execFileSync("node", [CLI, "register", "--from", "alice"], { env: { ...process.env, CREWBUS_DIR: boardA } }).toString().match(/token (abt-[0-9a-f]+)/)[1];
+    execFileSync("node", [CLI, "send", "--from", "alice", "--to", "bob", "--body", "tls probe"], { env: { ...process.env, CREWBUS_DIR: boardA, CREWBUS_TOKEN: tokA } });
     srv = await startServe(["serve", "--board", boardA, "--port", "0", "--tls-cert", path.join(tlsDir, "cert.pem"), "--tls-key", path.join(tlsDir, "key.pem"), "--secret", "s3"], {});
     check("phase1c: serve https comes up", srv.scheme === "https");
     const withUrl = `https://${srv.addr}`;
@@ -169,9 +169,9 @@ if (!hasOpenssl) {
     fs.rmSync(boardB, { recursive: true, force: true });
   }
   // --- mTLS: client cert required on /sync/*, presented via --mtls-cert/key ---
-  const mtlsDir = fs.mkdtempSync(path.join(os.tmpdir(), "ab-mtls-"));
-  const boardC = fs.mkdtempSync(path.join(os.tmpdir(), "ab-mtls-c-"));
-  const boardD = fs.mkdtempSync(path.join(os.tmpdir(), "ab-mtls-d-"));
+  const mtlsDir = fs.mkdtempSync(path.join(os.tmpdir(), "cb-mtls-"));
+  const boardC = fs.mkdtempSync(path.join(os.tmpdir(), "cb-mtls-c-"));
+  const boardD = fs.mkdtempSync(path.join(os.tmpdir(), "cb-mtls-d-"));
   let msrv = null;
   try {
     const run = (a) => execFileSync("openssl", a, { cwd: mtlsDir, stdio: "pipe", timeout: 60000 });
@@ -180,10 +180,10 @@ if (!hasOpenssl) {
     run(["x509", "-req", "-in", "srv.csr", "-CA", "ca.crt", "-CAkey", "ca.key", "-CAcreateserial", "-out", "srv.crt", "-days", "2"]);
     run(["req", "-newkey", "rsa:2048", "-keyout", "cli.key", "-out", "cli.csr", "-nodes", "-subj", "/CN=test-client"]);
     run(["x509", "-req", "-in", "cli.csr", "-CA", "ca.crt", "-CAkey", "ca.key", "-CAcreateserial", "-out", "cli.crt", "-days", "2"]);
-    execFileSync("node", [CLI, "init", "--harness", "generic"], { env: { ...process.env, AGENTBOARD_DIR: boardC } });
-    execFileSync("node", [CLI, "init", "--harness", "generic"], { env: { ...process.env, AGENTBOARD_DIR: boardD } });
-    const tokC = execFileSync("node", [CLI, "register", "--from", "carol"], { env: { ...process.env, AGENTBOARD_DIR: boardC } }).toString().match(/token (abt-[0-9a-f]+)/)[1];
-    execFileSync("node", [CLI, "send", "--from", "carol", "--to", "dave", "--body", "mtls probe"], { env: { ...process.env, AGENTBOARD_DIR: boardC, AGENTBOARD_TOKEN: tokC } });
+    execFileSync("node", [CLI, "init", "--harness", "generic"], { env: { ...process.env, CREWBUS_DIR: boardC } });
+    execFileSync("node", [CLI, "init", "--harness", "generic"], { env: { ...process.env, CREWBUS_DIR: boardD } });
+    const tokC = execFileSync("node", [CLI, "register", "--from", "carol"], { env: { ...process.env, CREWBUS_DIR: boardC } }).toString().match(/token (abt-[0-9a-f]+)/)[1];
+    execFileSync("node", [CLI, "send", "--from", "carol", "--to", "dave", "--body", "mtls probe"], { env: { ...process.env, CREWBUS_DIR: boardC, CREWBUS_TOKEN: tokC } });
     msrv = await startServe(["serve", "--board", boardC, "--port", "0", "--tls-cert", path.join(mtlsDir, "srv.crt"), "--tls-key", path.join(mtlsDir, "srv.key"), "--mtls-ca", path.join(mtlsDir, "ca.crt"), "--secret", "s3"], {});
     const withUrl = `https://${msrv.addr}`;
     let noCertFails = false;
@@ -232,7 +232,7 @@ if (!hasOpenssl) {
   const ecPub = { ...ec.publicKey.export({ format: "jwk" }), kid: "test-ec", alg: "ES256", use: "sig" };
   // The stub issuer runs in its own process: blocking execFileSync calls
   // would starve an in-process server (accept loop blocked -> fake timeouts).
-  const stubDir = fs.mkdtempSync(path.join(os.tmpdir(), "ab-oidc-stub-"));
+  const stubDir = fs.mkdtempSync(path.join(os.tmpdir(), "cb-oidc-stub-"));
   const stubFile = path.join(stubDir, "stub-oidc.mjs");
   fs.writeFileSync(stubFile, `import http from "node:http";\nconst keys = ${JSON.stringify([rsaPub, ecPub])};\nlet base = "";\nconst srv = http.createServer((req, res) => {\n  if (req.url === "/.well-known/openid-configuration") { res.writeHead(200, { "content-type": "application/json" }); res.end(JSON.stringify({ issuer: base, jwks_uri: base + "/jwks" })); return; }\n  if (req.url === "/jwks") { res.writeHead(200, { "content-type": "application/json" }); res.end(JSON.stringify({ keys })); return; }\n  res.writeHead(404); res.end("nope");\n});\nsrv.listen(0, "127.0.0.1", () => { base = "http://127.0.0.1:" + srv.address().port; console.log("STUB_READY " + base); });\n`);
   const stubProc = _spawn("node", [stubFile], { stdio: ["ignore", "pipe", "pipe"] });
@@ -264,8 +264,8 @@ if (!hasOpenssl) {
     return `${h}.${p}.${b64u(sig)}`;
   };
   const nowSec = () => Math.floor(Date.now() / 1000);
-  const boardO = fs.mkdtempSync(path.join(os.tmpdir(), "ab-oidc-"));
-  const OENV = { ...process.env, AGENTBOARD_DIR: boardO };
+  const boardO = fs.mkdtempSync(path.join(os.tmpdir(), "cb-oidc-"));
+  const OENV = { ...process.env, CREWBUS_DIR: boardO };
   try {
     execFileSync("node", [CLI, "init", "--harness", "generic"], { env: OENV });
     const good = mint(rsa.privateKey, "test-rsa", "RS256", { iss: stubBase, aud: AUD, sub: "alice-oidc", iat: nowSec(), exp: nowSec() + 600 });
@@ -299,10 +299,10 @@ if (!hasOpenssl) {
     } catch { audRej = true; }
     check("phase1c: OIDC login rejects wrong aud", audRej);
     // relay: Bearer alternative to --secret (secret set, client sends only Bearer)
-    const boardR = fs.mkdtempSync(path.join(os.tmpdir(), "ab-oidc-r-"));
-    const boardS = fs.mkdtempSync(path.join(os.tmpdir(), "ab-oidc-s-"));
-    execFileSync("node", [CLI, "init", "--harness", "generic"], { env: { ...process.env, AGENTBOARD_DIR: boardR } });
-    execFileSync("node", [CLI, "init", "--harness", "generic"], { env: { ...process.env, AGENTBOARD_DIR: boardS } });
+    const boardR = fs.mkdtempSync(path.join(os.tmpdir(), "cb-oidc-r-"));
+    const boardS = fs.mkdtempSync(path.join(os.tmpdir(), "cb-oidc-s-"));
+    execFileSync("node", [CLI, "init", "--harness", "generic"], { env: { ...process.env, CREWBUS_DIR: boardR } });
+    execFileSync("node", [CLI, "init", "--harness", "generic"], { env: { ...process.env, CREWBUS_DIR: boardS } });
     let osrv = null;
     try {
       osrv = await startServe(["serve", "--board", boardR, "--port", "0", "--secret", "relay-secret", "--oidc-issuer", stubBase, "--oidc-audience", AUD], {});
@@ -343,7 +343,7 @@ if (!hasOpenssl) {
 // only.
 // ---------------------------------------------------------------------------
 {
-  const stubDir = fs.mkdtempSync(path.join(os.tmpdir(), "ab-fwd-stub-"));
+  const stubDir = fs.mkdtempSync(path.join(os.tmpdir(), "cb-fwd-stub-"));
   const stubFile = path.join(stubDir, "stub-siem.mjs");
   const recvFile = path.join(stubDir, "received.jsonl");
   fs.writeFileSync(stubFile, `import http from "node:http";\nimport fs from "node:fs";\nconst out = process.argv[2];\nconst srv = http.createServer((req, res) => {\n  let b = "";\n  req.on("data", (c) => { b += c; });\n  req.on("end", () => {\n    fs.appendFileSync(out, JSON.stringify({ auth: req.headers.authorization || "", body: b }) + "\\n");\n    res.writeHead(200, { "content-type": "application/json" });\n    res.end("{}");\n  });\n});\nsrv.listen(0, "127.0.0.1", () => console.log("STUB_READY http://127.0.0.1:" + srv.address().port));\n`);
@@ -367,14 +367,14 @@ if (!hasOpenssl) {
       reject(e);
     });
   });
-  const boardF = fs.mkdtempSync(path.join(os.tmpdir(), "ab-fwd-"));
-  const FENV = { ...process.env, AGENTBOARD_DIR: boardF, AGENTBOARD_SECRET: "p2a-fwd-secret" };
+  const boardF = fs.mkdtempSync(path.join(os.tmpdir(), "cb-fwd-"));
+  const FENV = { ...process.env, CREWBUS_DIR: boardF, CREWBUS_SECRET: "p2a-fwd-secret" };
   let fsrv = null;
   try {
     execFileSync("node", [CLI, "init", "--harness", "generic"], { env: FENV });
     const fwdReg = execFileSync("node", [CLI, "register", "--from", "boss"], { env: FENV }).toString();
     const fwdTok = fwdReg.match(/token (abt-[0-9a-f]+)/)[1];
-    const FADM = { ...FENV, AGENTBOARD_TOKEN: fwdTok };
+    const FADM = { ...FENV, CREWBUS_TOKEN: fwdTok };
     fsrv = await startServe(["serve", "--board", boardF, "--port", "0", "--audit-forward", `${stubBase}/hook`, "--audit-forward-key", "siem-bearer-1"], FENV);
     check("phase2a: serve comes up with --audit-forward", !!fsrv.addr);
     execFileSync("node", [CLI, "hold", "place", "--board", boardF, "--from", "boss", "--reason", "fwd probe"], { env: FADM, timeout: 60000 });
@@ -423,10 +423,10 @@ if (!hasOpenssl) {
 // relay status. Temp boards + free ports (--port 0) only.
 // ---------------------------------------------------------------------------
 {
-  const boardP = fs.mkdtempSync(path.join(os.tmpdir(), "ab-ha-prim-"));
-  const boardS = fs.mkdtempSync(path.join(os.tmpdir(), "ab-ha-stby-"));
-  const PENV = { ...process.env, AGENTBOARD_DIR: boardP };
-  const SENV = { ...process.env, AGENTBOARD_DIR: boardS };
+  const boardP = fs.mkdtempSync(path.join(os.tmpdir(), "cb-ha-prim-"));
+  const boardS = fs.mkdtempSync(path.join(os.tmpdir(), "cb-ha-stby-"));
+  const PENV = { ...process.env, CREWBUS_DIR: boardP };
+  const SENV = { ...process.env, CREWBUS_DIR: boardS };
   let prim = null, stby = null;
   const httpGet = (base, p) =>
     new Promise((resolve, reject) => {
@@ -461,7 +461,7 @@ if (!hasOpenssl) {
     execFileSync("node", [CLI, "init", "--harness", "generic"], { env: SENV });
     const pReg = execFileSync("node", [CLI, "register", "--from", "boss"], { env: PENV }).toString();
     const pTok = pReg.match(/token (abt-[0-9a-f]+)/)[1];
-    const PADM = { ...PENV, AGENTBOARD_TOKEN: pTok };
+    const PADM = { ...PENV, CREWBUS_TOKEN: pTok };
     execFileSync("node", [CLI, "send", "--board", boardP, "--from", "boss", "--to", "w1", "--body", "ha hello"], { env: PADM });
     prim = await startServe(["serve", "--board", boardP, "--port", "0"], PENV);
     check("phase3: primary serve comes up", !!prim.addr);

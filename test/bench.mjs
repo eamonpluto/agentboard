@@ -1,4 +1,4 @@
-// agentboard bench — scale budgets (run: npm run bench, NOT part of npm test).
+// crewbus bench — scale budgets (run: npm run bench, NOT part of npm test).
 // Builds a board with hundreds of broadcasts + DMs, then times the hot paths.
 // Budgets are generous (loaded-box tolerant); a miss means a real regression.
 import { execFileSync } from "node:child_process";
@@ -7,9 +7,9 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const CLI = fileURLToPath(new URL("../bin/agentboard.js", import.meta.url));
-const board = fs.mkdtempSync(path.join(os.tmpdir(), "ab-bench-"));
-const env = { ...process.env, AGENTBOARD_DIR: board };
+const CLI = fileURLToPath(new URL("../bin/crewbus.js", import.meta.url));
+const board = fs.mkdtempSync(path.join(os.tmpdir(), "cb-bench-"));
+const env = { ...process.env, CREWBUS_DIR: board };
 const run = (args, extraEnv) =>
   execFileSync("node", [CLI, ...args], { env: { ...env, ...(extraEnv || {}) } }).toString();
 
@@ -27,7 +27,7 @@ const timed = (label, fn, budgetMs) => {
 
 run(["init", "--harness", "generic"]);
 const leadTok = run(["register", "--from", "lead"]).match(/token (abt-[0-9a-f]+)/)[1];
-const LEAD = { AGENTBOARD_TOKEN: leadTok };
+const LEAD = { CREWBUS_TOKEN: leadTok };
 {
   const cpu = os.cpus()[0];
   console.log(`hardware: ${os.cpus().length}x ${(cpu && cpu.model || "unknown").trim().replace(/\s+/g, " ")} | mem ${(os.totalmem() / 2 ** 30).toFixed(1)}GB | ${os.platform()} ${os.release()} | ${process.version}`);
@@ -50,7 +50,7 @@ const readerReg = run(["register", "--from", "reader"]);
 const readerTok = readerReg.match(/token (abt-[0-9a-f]+)/)[1];
 
 // 3. inbox read across ~300 broadcasts (manifest fast path + heal for direct writes)
-timed(`inbox across ${N}+ broadcasts`, () => run(["inbox", "--from", "reader", "--json"], { AGENTBOARD_TOKEN: readerTok }), 15000);
+timed(`inbox across ${N}+ broadcasts`, () => run(["inbox", "--from", "reader", "--json"], { CREWBUS_TOKEN: readerTok }), 15000);
 
 // 3b. broadcast index regression: heal path covered the direct writes, and
 // the second read is the pure index-hit path (no full-dir parse).
@@ -61,14 +61,14 @@ timed(`inbox across ${N}+ broadcasts`, () => run(["inbox", "--from", "reader", "
   const healOk = !!healed && JSON.stringify(healed).includes("reader");
   console.log(`${healOk ? "PASS" : "FAIL"}  index heal path: direct-written batch-bench-0000 indexed with reader`);
   budgets.push(healOk);
-  timed(`inbox index-hit across ${N}+ broadcasts`, () => run(["inbox", "--from", "reader", "--json"], { AGENTBOARD_TOKEN: readerTok }), 15000);
+  timed(`inbox index-hit across ${N}+ broadcasts`, () => run(["inbox", "--from", "reader", "--json"], { CREWBUS_TOKEN: readerTok }), 15000);
   // Evict one entry and prove the next read heals it (missing index entry
   // falls back to parsing the file, then repairs the manifest).
   const evicted = "batch-bench-0001";
   const m2 = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
   delete m2[evicted];
   fs.writeFileSync(manifestPath, JSON.stringify(m2, null, 2) + "\n");
-  run(["inbox", "--from", "reader", "--json"], { AGENTBOARD_TOKEN: readerTok });
+  run(["inbox", "--from", "reader", "--json"], { CREWBUS_TOKEN: readerTok });
   const m3 = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
   const rehealed = !!m3[evicted];
   console.log(`${rehealed ? "PASS" : "FAIL"}  index heal path: evicted ${evicted} repaired on read`);
@@ -76,7 +76,7 @@ timed(`inbox across ${N}+ broadcasts`, () => run(["inbox", "--from", "reader", "
 }
 
 // 4. gather over a batch with replies (full history; batch off the reader's copy)
-const readerFull = JSON.parse(run(["inbox", "--from", "reader", "--json", "--limit", "5000"], { AGENTBOARD_TOKEN: readerTok }));
+const readerFull = JSON.parse(run(["inbox", "--from", "reader", "--json", "--limit", "5000"], { CREWBUS_TOKEN: readerTok }));
 const briefMsg = readerFull.find((m) => m.body === "bench brief");
 if (briefMsg) {
   for (let i = 0; i < 20; i++) {

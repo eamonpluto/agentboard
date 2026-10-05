@@ -26,7 +26,7 @@ item. Statuses: **done** (in the tree, covered by `npm test`), **manual**
 ## 2. Authentication
 
 - [done] Per-identity tokens: first claim mints (`register --from <you>`
-  prints `abt-…` once), afterwards `--token` / `AGENTBOARD_TOKEN` required;
+  prints `abt-…` once), afterwards `--token` / `CREWBUS_TOKEN` required;
   only salted hashes stored; `token rotate`, `token status`, `token revoke`
   (revocations sync, never resurrected). Service accounts:
   `register --service <name>`; expiry: `register --expires-in 30/90s/15m/
@@ -35,8 +35,8 @@ item. Statuses: **done** (in the tree, covered by `npm test`), **manual**
   `oidc-<sub>`; relays accept Bearer with
   `serve --oidc-issuer <url> [--oidc-audience <id>]`; `sync`/`listen` send
   it via `--bearer` / `--oidc-token`. See `docs/OIDC_TLS.md`.
-- [done] Relay secret: `--secret` / `AGENTBOARD_SECRET` via
-  `x-agentboard-secret` / `?secret=` (constant-time compare); remote serve
+- [done] Relay secret: `--secret` / `CREWBUS_SECRET` via
+  `x-crewbus-secret` / `?secret=` (constant-time compare); remote serve
   without one refuses + warns.
 - [manual] **Credential-lifecycle schedule (stub):** rotate service-account
   tokens every N days (`token rotate --from <svc>`), rotate the relay
@@ -54,7 +54,7 @@ item. Statuses: **done** (in the tree, covered by `npm test`), **manual**
   GCM tag verified *before* any byte is written on `import`; secrets
   stripped unless `--include-secrets` (loud warning).
 - [manual] **Key-rotation schedule (stub):** rotate backup keys yearly (or
-  on incident): set the new `AGENTBOARD_BACKUP_KEY`, take a fresh export,
+  on incident): set the new `CREWBUS_BACKUP_KEY`, take a fresh export,
   verify `board import --into <fresh-dir>` decrypts, retire the old key in
   the vault. Evidence: dated exports + restore-drill log (below).
 
