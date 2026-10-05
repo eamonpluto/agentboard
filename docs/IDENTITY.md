@@ -86,3 +86,45 @@ agentboard register --offboard bob --from admin
   `tokenHash`, `salt`) are stripped on push, on `/sync/file` serve, and in
   `mergeSyncedAgent` (local secrets win).
 - `revoked/` syncs as immutable union (copy-if-missing), like tombstones.
+
+## Token files (long-running agents)
+
+A worker's token is printed **once** at mint and otherwise lives in session
+env — after compaction/restart amnesia the worker is locked out of its own
+claimed name (first-claim-wins: re-registering a claimed name fails). So a
+long-running agent persists its token to a file it can re-read.
+
+- **Convention:** `.agentboard/logs/<agent-name>.token` — raw token text
+  with a trailing newline, chmod `0600` best-effort. `<agent-name>` is the
+  sanitized agent name (lowercase, `[^a-z0-9_.-]` → `-`, max 40 chars).
+  Helpers: `tokenFilePath(root, name)`, `saveTokenFile(root, name, token)`
+  (mkdir recursive, write + chmod, returns path), `loadTokenFile(root, name)`
+  (trimmed string or `null`) in `bin/lib/tokenfile.js` (`root` = the
+  `.agentboard/` dir).
+- **Who writes it:** the worker itself, right after register/mint, as
+  instructed by the spawn prompt. Exact one-liners (replace `<name>` and
+  `<token>`; run from the project dir so `.agentboard/` resolves):
+
+  POSIX:
+
+  ```
+  printf '%s\n' '<token>' > .agentboard/logs/<name>.token && chmod 600 .agentboard/logs/<name>.token
+  ```
+
+  PowerShell:
+
+  ```powershell
+  Set-Content -Path .agentboard/logs/<name>.token -Value '<token>' -NoNewline:$false
+  ```
+
+- **Security trade-off, stated plainly:** per `docs/THREAT_MODEL.md`,
+  local-file access already equals control — anyone with shell access can
+  read/write `.agentboard/` directly, so a `0600` token file beside the logs
+  grants nothing the filesystem doesn't already grant. It is consistent with
+  that model, not an escalation. Even so: **never commit it, never post it**
+  (not in chat, mail, PRs, or logs), and `prune`/export must never include
+  `*.token`.
+- **Recovery order:** token file first (`loadTokenFile`, i.e. read
+  `.agentboard/logs/<name>.token`), then `AGENTBOARD_TOKEN` env. Re-register
+  is **impossible** for claimed names (first-claim-wins rejects it), so there
+  is no third option — protect the file.

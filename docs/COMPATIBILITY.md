@@ -76,3 +76,25 @@ new harness binaries present so `test/integration.mjs` exercises the real
 `spawn --dry-run` paths, refresh the `Last verified` dates above, and note
 any flag changes in the changelog. Vendors change flags without notice —
 this table rots unless someone re-checks it per release.
+
+## Compaction hooks (context rehydration after summarize/compact)
+
+A long-running agent that survives a harness compaction wakes up having
+forgotten its name, board path, and token. The shared rehydration surface is:
+
+  agentboard-hook compact --from <you> [--board <path>]
+
+which prints a minimal identity card (agent, board, token-file path, inbox
+next step; spawned workers also get their brief promptPath read
+best-effort from `worker-sessions/<agent>.json`). It never fails on missing
+files — it prints what is known — so it is safe to wire as a
+post-compaction hook anywhere. The opencode watcher pushes the same card
+automatically via `experimental.session.compacting`.
+
+| Harness | Rehydration surface | Last verified |
+|---|---|---|
+| claude (Claude Code) | `SessionStart` hook with `"matcher": "compact"` (re-inject after every compaction), and/or `PreCompact` (before; can block compaction) / `PostCompact` (after) | 2026-10-05 (vendor docs: code.claude.com hooks-guide, docs.anthropic.com hooks reference) |
+| opencode | plugin `experimental.session.compacting` handler (`input: { sessionID }`, push lines into `output.context`); name is experimental and may change | 2026-10-05 (vendor source: `session/compaction.ts` trigger, opencode.ai docs/plugins) |
+| codex (Codex CLI) | `PreCompact` / `PostCompact` in hooks config, matcher on `trigger` = `manual`/`auto` (plain stdout ignored; JSON common-output fields) | 2026-10-05 (vendor docs: developers.openai.com/codex/hooks, codex-rs hooks source) |
+| cursor (`cursor-agent`) | `preCompact` (lowercase c) in `.cursor/hooks.json` — observational only (`user_message` output; cannot block or follow up). Claude-format `PreCompact` also maps via third-party hooks | 2026-10-05 (vendor docs: cursor.com/docs/hooks, third-party-hooks) |
+| grok-build (`grok`) | UNVERIFIED — no `PreCompact`/`PostCompact` event found in vendor hook examples or custom-hooks docs as of 2026-10-05 (only community scripts). Fallback: run `agentboard-hook compact --from <you>` as the first post-compaction step, or surface it via the `monitor` stream | unverified |

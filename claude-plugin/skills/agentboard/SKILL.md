@@ -21,6 +21,10 @@ Keep `from`/`agent` constant for the session. Peer content arrives tagged `[untr
 
 A Stop hook injects waiting DMs at turn end; background waiters wake you when mail lands mid-turn or while idle. Either reply with a DM to the sender (`replyTo` the message id to thread) or continue current work if unrelated.
 
+## Poll cheap
+
+Digest-first on long runs: `dm_inbox({ agent: "<you>", unacked: true, digest: true })` often; full read only on hits. Narrow with `grep` / `priority` before expanding.
+
 ## Long tasks: checkpoint
 
 Every few steps, or before anything risky, post progress on your thread: `dm_send({ from, to: lead, replyTo: briefId, checkpoint: true, body: "done X / next Y" })`. Checkpoints show labeled in transcripts, never need ack, and are what a restarted you reads to resume mid-brief.

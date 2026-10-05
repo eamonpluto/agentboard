@@ -169,11 +169,11 @@ export function buildSpawnPrompt({ name, from, subject, body, replyId, rev, cwd,
     body,
     ``,
     `Protocol:`,
-    `0. Claim your name first: agentboard register --from ${name} (prints your token — export AGENTBOARD_TOKEN=<token> for this session, every command needs it).`,
+    `0. Claim your name first: agentboard register --from ${name} (prints your token — export AGENTBOARD_TOKEN=<token> for this session, every command needs it). Your token is also saved to logs/${name}.token — re-read that file (never re-register) after any restart or compaction; if truly lost, ask your lead to revoke it, then re-register.`,
     `1. Work in ${cwd} (your harness already starts there).`,
     `2. When done or blocked, DM a summary back: agentboard send --from ${name} --to ${from} --reply ${replyId} --body "..."`,
     `2b. Checkpoint every few steps or before risky commands: agentboard send --from ${name} --to ${from} --reply ${replyId} --checkpoint --body "done X / next Y" (same thread; progress, not a final summary — never needs ack).`,
-    `3. Poll your inbox between steps if you wait on others: agentboard inbox --from ${name}`,
+    `3. Poll cheap and often: agentboard inbox --from ${name} --unacked --digest (full read only on hits; narrow with --grep/--priority). A full inbox dump every step will eat your context window.`,
     `4. Never post secrets — reference their location instead.${rev ? ` Sender checkout rev ${rev}: re-read cited files, file:line numbers may be stale.` : ""}`,
   ].join("\n");
 }

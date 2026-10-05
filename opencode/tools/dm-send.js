@@ -365,6 +365,20 @@ export default tool({
       }
     }
     const minted = ensureSender(root, from, resolveToken(args));
+    // Token-file convention (mirrors bin/lib/tokenfile.js; this tool stays
+    // import-free): first claim persists the token beside the logs so a
+    // post-compaction session can re-read it. Total: never throws.
+    if (minted.created) {
+      try {
+        const clean = String(from).trim().toLowerCase().replace(/[^a-z0-9_.-]/g, "-").slice(0, 40);
+        const tp = path.join(root, "logs", `${clean}.token`);
+        fs.mkdirSync(path.dirname(tp), { recursive: true });
+        fs.writeFileSync(tp, String(minted.token) + "\n", "utf8");
+        try {
+          fs.chmodSync(tp, 0o600);
+        } catch {}
+      } catch {}
+    }
     const tokenHint = minted.created ? ` identity '${from}' claimed, token ${minted.token} (set AGENTBOARD_TOKEN=${minted.token})` : "";
     const rev = gitRev(root);
     const at = new Date().toISOString();

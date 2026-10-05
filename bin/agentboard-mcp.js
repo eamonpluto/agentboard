@@ -547,6 +547,23 @@ function writeAgentHashed(p, doc) {
   } catch {}
 }
 
+// Token-file convention (mirrors bin/lib/tokenfile.js; duplicated — this
+// server stays import-free). Total: never throws.
+function saveTokenFileMcp(root, name, token) {
+  try {
+    const clean = String(name == null ? "" : name).trim().toLowerCase().replace(/[^a-z0-9_.-]/g, "-").slice(0, 40);
+    const p = path.join(String(root), "logs", `${clean}.token`);
+    fs.mkdirSync(path.dirname(p), { recursive: true });
+    fs.writeFileSync(p, String(token) + "\n", "utf8");
+    try {
+      fs.chmodSync(p, 0o600);
+    } catch {}
+    return p;
+  } catch {
+    return null;
+  }
+}
+
 function agentTokenMatchesMcp(rec, token) {
   if (!rec || token === undefined || token === null || String(token) === "") return false;
   if (rec.tokenHash && rec.salt) {
@@ -1239,6 +1256,7 @@ function callTool(name, args) {
             try {
               fs.chmodSync(p, 0o600);
             } catch {}
+            saveTokenFileMcp(d.root, agent, fresh);
             return toolResult(`registered ${agent}${session ? ` (session ${session})` : ""} token ${fresh} [board ${d.root}] (save it: pass token on every call)`);
           }
         } else {
@@ -1247,6 +1265,7 @@ function callTool(name, args) {
           if (!check || check.tokenHash !== tokenHash) {
             throw new Error(`name "${agent}" is claimed (concurrent registration raced — retry)`);
           }
+          saveTokenFileMcp(d.root, agent, fresh);
           return toolResult(`registered ${agent}${session ? ` (session ${session})` : ""} token ${fresh} [board ${d.root}] (save it: pass token on every call)`);
         }
       }

@@ -38,6 +38,9 @@
  *                   arrives — each write surfaces as a notification — and stays
  *                   silent otherwise. --timeout 0 (default) runs until killed.
  *                   Same shared claims, so doubles are impossible.)
+ *   Compaction:    agentboard-hook compact --from <you>
+ *                  (post-compaction identity card: prints who/where/token-path
+ *                   plus the inbox next step; never fails on missing files.)
  *
  * Styles: claude, codex, grok, antigravity-stop, antigravity-pre.
  */
@@ -461,6 +464,23 @@ async function cmdMonitor(args) {
   }
 }
 
+async function cmdCompact(args) {
+  const root = boardDir(args);
+  const agent = resolveAgent(args, "agent");
+  // Best-effort reads only: a compaction hook must never break its harness,
+  // so missing boards/docs degrade to "what is known", never a loud failure.
+  const doc = readJsonSafe(path.join(root, "agents", `${agent}.json`));
+  console.log(`agentboard: context refreshed after compaction. You are '${agent}' on board ${root}.`);
+  console.log(`Token: read ${path.join(root, "logs", `${agent}.token`)} into AGENTBOARD_TOKEN (0600 file written at register/mint). Lost it? Ask your lead/admin to revoke it, then re-register for a fresh one.`);
+  console.log(`Then: agentboard inbox --from ${agent} --unacked --digest (escalate to full reads on hits).`);
+  if (doc && doc.briefId) {
+    const ws = readJsonSafe(path.join(root, "worker-sessions", `${agent}.json`));
+    const pp = (ws && (ws.promptPath || ws.origPromptPath)) || null;
+    if (pp) console.log(`Your brief: re-read ${pp} from worker-sessions if present.`);
+    else console.log(`Your brief: re-read worker-sessions/${agent}.json promptPath if present.`);
+  }
+}
+
 async function main() {
   const [, , cmd, ...rest] = process.argv;
   switch (cmd) {
@@ -472,6 +492,8 @@ async function main() {
       return await cmdWait(rest);
     case "monitor":
       return await cmdMonitor(rest);
+    case "compact":
+      return await cmdCompact(rest);
     case undefined:
     case "-h":
     case "--help":
@@ -486,11 +508,15 @@ async function main() {
           "     contract — else exits 0 silently on timeout. Defaults: 90s timeout, 3s interval, 5 messages.)\n" +
           "  agentboard-hook monitor --from <you> [--timeout <sec>] [--interval <sec>] [--board <path>]\n" +
           "    (blocking event stream for grok-build's monitor tool: prints each new batch to stdout on arrival,\n" +
-          "     silent otherwise. Defaults: 0s timeout (run until killed), 1s interval.)"
+          "     silent otherwise. Defaults: 0s timeout (run until killed), 1s interval.)\n" +
+          "  agentboard-hook compact --from <you> [--board <path>]\n" +
+          "    (post-compaction identity card: who/where/token-path plus the inbox\n" +
+          "     next step; spawned workers also get their brief promptPath. Never\n" +
+          "     fails on missing files — prints what is known.)"
       );
       return;
     default:
-      fail(`unknown command "${cmd}" (want session-start|poll|wait|monitor)`);
+      fail(`unknown command "${cmd}" (want session-start|poll|wait|monitor|compact)`);
   }
 }
 

@@ -43,6 +43,7 @@ import { execFileSync, spawn } from "node:child_process";
 // mail/groups/channels/web/relay/export) has no evaluation-order hazards.
 import { BOARD_VERSION, BROADCAST_AFTER, MAX_BODY_CHARS, MAX_RECIPIENTS, MAX_SPAWN, VALUE_FLAGS, boardDir, chmodAgentFile, cleanArtifact, cleanBranchPrefix, cleanChannelName, cleanGroupName, cleanPriority, cleanReply, cleanSenderType, cleanSubject, cleanWebName, dirs, ensureBoard, fail, findBoardUpward, getFlag, gitRevForBoard, listJson, newId, optionalAgent, parseDuration, readBoardMeta, readJson, refuseDriveRootBoard, requireBoard, resolveAgent, restArgs, sanitizeName, writeBoardMeta, writeExclusiveJson, writeJson, nextHlc, stampSyncDoc, hlcCompare, SEND_RATE_CAP, SEND_RATE_WINDOW_MS, MAX_FWD_DEPTH, DEDUPE_WINDOW_MS, webErr } from "./lib/store.js";
 import { VALID_ROLES, agentTokenMatches, assertMintWon, authorize, authorizeCheck, checkToken, cleanRole, countAgentRecords, defaultRoleForNew, ensureSender, hashToken, isHashRevoked, mergeSyncedAgent, mintToken, newSalt, readAgent, readBoardAcl, resolveToken, revokedPathForHash, roleOfRecord, sanitizeAgentForSync, stripAgentSecrets, timingSafeEqualStr, touchAgent, writeAgentFile, writeBoardAcl, isBoardFrozen } from "./lib/identity.js";
+import { saveTokenFile } from "./lib/tokenfile.js";
 import { CLIENT_TLS, SYNC_LWW, cleanSyncRel, clientInsecureFromArgs, crewSurvey, httpJson, readPemFlag, readSyncState, readTombstones, relayAuthEntries, relayCredFor, relayCredHeaders, setupClientTls, splitByWeight, syncRound, syncWalk, warnInsecureOnce, writeSyncState, writeTombstone, SYNC_SUBS, SYNC_UNION, RELAY_CAPS, SUB_CAP, SUB_CAP_NOTE, tombstoneIdForRel, readSyncDoc } from "./lib/sync.js";
 import { devicePath, isLoopbackHost, newDeviceCred, newPairToken, pairingPath, parseDeviceCred, readDevice, readRelayState, relaySecretFromArgs, remoteSpawn, requireRelayClientCert, requireRelaySecret, tryAcquireFence, verifyOidcJwt, writeRelayState, relayStatePath, bearerFromReq, getOidcConfig, getOidcJwks, b64urlDecode, b64urlJson, jwsRawToDer, oidcGetJson, OIDC_SKEW_SEC, OIDC_JWKS_TTL_MS, OIDC_ALG_HASH, OIDC_EC_SIZE, deviceFromReq } from "./lib/relay.js";
 import { assertGitCheckout, bootRespawnedWorker, bootWorker, buildRespawnBrief, buildRespawnTarget, buildSpawnPrompt, buildSpawnTarget, formatSpawnCmd, isPidStale, killWorkers, maybeIsolate, parseAllowEnv, pidAlive, provisionBranch, provisionWorktree, readWorkerSession, requireAutoConfirm, sandboxPresent, scrubChildEnv, syncWorkerSession, workerStatus, worktreeStamp, defaultMaxTurnsFor } from "./lib/spawn.js";
@@ -571,6 +572,20 @@ export default tool({
       }
     }
     const minted = ensureSender(root, from, resolveToken(args));
+    // Token-file convention (mirrors bin/lib/tokenfile.js; this tool stays
+    // import-free): first claim persists the token beside the logs so a
+    // post-compaction session can re-read it. Total: never throws.
+    if (minted.created) {
+      try {
+        const clean = String(from).trim().toLowerCase().replace(/[^a-z0-9_.-]/g, "-").slice(0, 40);
+        const tp = path.join(root, "logs", \`\${clean}.token\`);
+        fs.mkdirSync(path.dirname(tp), { recursive: true });
+        fs.writeFileSync(tp, String(minted.token) + "\\n", "utf8");
+        try {
+          fs.chmodSync(tp, 0o600);
+        } catch {}
+      } catch {}
+    }
     const tokenHint = minted.created ? \` identity '\${from}' claimed, token \${minted.token} (set AGENTBOARD_TOKEN=\${minted.token})\` : "";
     const rev = gitRev(root);
     const at = new Date().toISOString();
@@ -1061,6 +1076,24 @@ export const DmWatchPlugin = async ({ client, directory }) => {
   poll().catch(() => {});
 
   return {
+    // Compaction rehydration: opencode summarizes this session, so the agent
+    // wakes up forgetting its name, board, and token. Push the same identity
+    // card \`agentboard-hook compact\` prints into the summary prompt.
+    "experimental.session.compacting": async (input, output) => {
+      try {
+        if (!output || !Array.isArray(output.context)) return;
+        refreshAgentMap();
+        let agent = null;
+        for (const [name, sid] of agentToSession) if (sid === (input && input.sessionID)) agent = name;
+        const who = agent || "unknown";
+        output.context.push(\`agentboard: context refreshed after compaction. You are '\${who}' on board \${root}.\`);
+        output.context.push(\`Token: read \${path.join(root, "logs", who + ".token")} into AGENTBOARD_TOKEN (0600 file written at register/mint). Lost it? Ask your lead/admin to revoke it, then re-register for a fresh one.\`);
+        output.context.push(\`Then: agentboard inbox --from \${who} --unacked --digest (escalate to full reads on hits).\`);
+        const doc = agent ? readJsonSafe(path.join(root, "agents", agent + ".json")) : null;
+        const ws = doc && doc.briefId ? readJsonSafe(path.join(root, "worker-sessions", agent + ".json")) : null;
+        if (ws && (ws.promptPath || ws.origPromptPath)) output.context.push(\`Your brief: re-read \${ws.promptPath || ws.origPromptPath} from worker-sessions if present.\`);
+      } catch {}
+    },
     dispose: async () => {
       clearInterval(timer);
     },
@@ -1252,7 +1285,9 @@ function hookCommand(hookAbs, sub, extra) {
 
 // Merge Claude/Codex style {hooks:{Event:[groups]}}: append our group per
 // event unless a group already references agentboard-hook. Returns changed?
-function mergeHookGroups(file, hookAbs, boardExtra, styles) {
+// `compacts` lists events wired to the `compact` identity-card subcommand
+// (post-compaction rehydration) instead of a poll style.
+function mergeHookGroups(file, hookAbs, boardExtra, styles, compacts) {
   const obj = readJsonFile(file, {});
   if (typeof obj !== "object" || obj === null || Array.isArray(obj)) {
     fail(`cannot merge hooks: ${file} is not a JSON object (edit it by hand)`);
@@ -1267,6 +1302,20 @@ function mergeHookGroups(file, hookAbs, boardExtra, styles) {
     if (!hasOurs) {
       const sub = event === "SessionStart" ? "session-start" : `poll --style ${style}`;
       groups.push({ hooks: [{ type: "command", command: hookCommand(hookAbs, sub, boardExtra) }] });
+      changed = true;
+    }
+    obj.hooks[event] = groups;
+  }
+  for (const event of compacts || []) {
+    const groups = Array.isArray(obj.hooks[event]) ? obj.hooks[event] : [];
+    const hasOurs = groups.some((g) =>
+      (g && g.hooks && g.hooks.some((h) => {
+        const c = String((h && h.command) || "");
+        return c.includes("agentboard-hook") && c.includes(" compact");
+      }))
+    );
+    if (!hasOurs) {
+      groups.push({ hooks: [{ type: "command", command: hookCommand(hookAbs, "compact", boardExtra) }] });
       changed = true;
     }
     obj.hooks[event] = groups;
@@ -1454,10 +1503,12 @@ const HARNESS_SECTIONS = {
     `Every send echoes its board (\`[board <path>]\`): if two agents see different boards, export \`AGENTBOARD_DIR=<board>\` so all sessions share one.`,
   claude: (cli) =>
     `On Claude Code use the \`agentboard\` MCP tools (\`dm_send\` / \`dm_inbox\` / \`dm_agents\` / \`dm_register\`) — approve \`.mcp.json\` when prompted.\n` +
-    `A Stop hook (\`.claude/settings.json\`) injects waiting DMs at turn end, plus background waiters (PostToolUse/SessionStart \`asyncRewake\`) wake the session when mail lands mid-turn or while idle. Set \`AGENTBOARD_AGENT=<you>\` once per terminal so hooks know who you are.`,
+    `A Stop hook (\`.claude/settings.json\`) injects waiting DMs at turn end, plus background
+waiters (PostToolUse/SessionStart \`asyncRewake\`) wake the session when mail lands mid-turn or while idle, and a PostCompact hook rehydrates identity after compaction. Set
+\`AGENTBOARD_AGENT=<you>\` once per terminal so hooks know who you are.`,
   codex: (cli) =>
     `On Codex run \`codex mcp add agentboard -- node "<abs path to>/bin/agentboard-mcp.js"\` for the \`dm_send\`/\`dm_inbox\` tools,\n` +
-    `then open \`/hooks\` and trust the project hooks. A Stop hook (\`.codex/hooks.json\`) injects waiting DMs at turn end. Set \`AGENTBOARD_AGENT=<you>\` once per terminal.`,
+    `then open \`/hooks\` and trust the project hooks. A Stop hook (\`.codex/hooks.json\`) injects waiting DMs at turn end, and a PostCompact hook rehydrates identity after compaction. Set \`AGENTBOARD_AGENT=<you>\` once per terminal.`,
   antigravity: (cli) =>
     `On Antigravity the \`agentboard\` MCP server (\`.agents/mcp_config.json\`) gives you DM tools; Stop/PreInvocation hooks (\`.agents/hooks.json\`) inject waiting DMs.\n` +
     `Set \`AGENTBOARD_AGENT=<you>\` once per terminal so hooks know who you are.`,
@@ -1529,9 +1580,9 @@ function applyHarness(cwd, h, ctx) {
       const changedHooks = mergeHookGroups(claudeHooksFile, hookAbs, boardExtra, {
         SessionStart: "session-start",
         Stop: "claude",
-      });
+      }, ["PostCompact"]);
       const changedWaiters = mergeClaudeWaiters(claudeHooksFile, hookAbs, boardExtra);
-      console.log(changedHooks || changedWaiters ? "Wired Claude hooks: .claude/settings.json (SessionStart + Stop + background waiters)" : "Claude hooks already wired: .claude/settings.json");
+      console.log(changedHooks || changedWaiters ? "Wired Claude hooks: .claude/settings.json (SessionStart + Stop + PostCompact + background waiters)" : "Claude hooks already wired: .claude/settings.json");
       const entry = mcpEntry(ctx, mcpAbs);
       const changedMcp = mergeMcpServers(path.join(cwd, ".mcp.json"), entry);
       console.log(changedMcp ? "Wired Claude MCP: .mcp.json (agentboard stdio)" : "Claude MCP already wired: .mcp.json");
@@ -1541,8 +1592,8 @@ function applyHarness(cwd, h, ctx) {
       const changedHooks = mergeHookGroups(path.join(cwd, ".codex", "hooks.json"), hookAbs, boardExtra, {
         SessionStart: "session-start",
         Stop: "codex",
-      });
-      console.log(changedHooks ? "Wired Codex hooks: .codex/hooks.json (SessionStart + Stop)" : "Codex hooks already wired: .codex/hooks.json");
+      }, ["PostCompact"]);
+      console.log(changedHooks ? "Wired Codex hooks: .codex/hooks.json (SessionStart + Stop + PostCompact)" : "Codex hooks already wired: .codex/hooks.json");
       return [
         `run: ${mcpRunCmd(ctx, mcpAbs, "codex")}  (for dm_send/dm_inbox tools)`,
         "open /hooks and trust the project hooks before they run",
@@ -1723,6 +1774,7 @@ function cmdRegister(args) {
       })) {
         chmodAgentFile(p);
         appendChainRecord(d, admin, "role-grant", { by: admin, target, role });
+        saveTokenFile(d.root, target, fresh);
         console.log(`registered ${target} token ${fresh} [board ${d.root}] (save it: set AGENTBOARD_TOKEN=${fresh})`);
         return;
       }
@@ -1751,6 +1803,7 @@ function cmdRegister(args) {
     });
     assertMintWon(d, target, hashToken(fresh, salt));
     appendChainRecord(d, admin, "role-grant", { by: admin, target, role: wantRole || defaultRoleForNew(d) });
+    saveTokenFile(d.root, target, fresh);
     console.log(`registered ${target} token ${fresh} [board ${d.root}] (save it: set AGENTBOARD_TOKEN=${fresh})`);
     return;
     }
@@ -1828,6 +1881,7 @@ function cmdRegister(args) {
       assertMintWon(d, agent, record.tokenHash);
     }
     appendChainRecord(d, agent, "register", { agent, service: serviceFlag || undefined, role: newRole });
+    saveTokenFile(d.root, agent, fresh);
     console.log(`registered ${agent}${session ? ` (session ${session})` : ""}${serviceFlag ? " [service]" : ""} token ${fresh} [board ${d.root}] (save it: set AGENTBOARD_TOKEN=${fresh})`);
     return;
   }
@@ -1997,6 +2051,7 @@ function cmdToken(args) {
   next.v = v; next.hlc = hlc;
   writeAgentFile(d, agent, next);
   appendChainRecord(d, agent, "token-rotate", { agent });
+  saveTokenFile(d.root, agent, fresh);
   console.log(`rotated ${agent} token ${fresh} [board ${d.root}] (save it: set AGENTBOARD_TOKEN=${fresh}; old token is dead)`);
 }
 
@@ -3877,15 +3932,31 @@ function cmdDoctor(args) {
           })));
         if (hasWaiter) ok("claude background waiter .claude/settings.json (PostToolUse asyncRewake)");
         else no("claude background waiter .claude/settings.json", "run: agentboard init --harness claude");
+        const hasCompact = !!(cwObj && typeof cwObj.hooks === "object" && Array.isArray(cwObj.hooks.PostCompact) &&
+          cwObj.hooks.PostCompact.some((g) => g && g.hooks && g.hooks.some((h) => {
+            const c = String((h && h.command) || "");
+            return c.includes("agentboard-hook") && c.includes(" compact");
+          })));
+        if (hasCompact) ok("claude compact hook .claude/settings.json (PostCompact rehydration)");
+        else no("claude compact hook .claude/settings.json", "run: agentboard init --harness claude");
         if (hasMcpServer(path.join(cwd, ".mcp.json"))) ok("claude MCP .mcp.json");
         else no("claude MCP .mcp.json", "run: agentboard init --harness claude (then approve it in Claude)");
         break;
       }
-      case "codex":
+      case "codex": {
         if (hasHookRef(path.join(cwd, ".codex", "hooks.json"), ["SessionStart", "Stop"])) ok("codex hooks .codex/hooks.json");
         else no("codex hooks .codex/hooks.json", "run: agentboard init --harness codex (then trust them in /hooks)");
+        const cxObj = readJsonFile(path.join(cwd, ".codex", "hooks.json"), null);
+        const cxCompact = !!(cxObj && typeof cxObj.hooks === "object" && Array.isArray(cxObj.hooks.PostCompact) &&
+          cxObj.hooks.PostCompact.some((g) => g && g.hooks && g.hooks.some((h) => {
+            const c = String((h && h.command) || "");
+            return c.includes("agentboard-hook") && c.includes(" compact");
+          })));
+        if (cxCompact) ok("codex compact hook .codex/hooks.json (PostCompact rehydration)");
+        else no("codex compact hook .codex/hooks.json", "run: agentboard init --harness codex (then trust them in /hooks)");
         info("codex MCP is a CLI step: codex mcp add agentboard -- node <board-checkout>/bin/agentboard-mcp.js");
         break;
+      }
       case "antigravity": {
         const obj = readJsonFile(path.join(cwd, ".agents", "hooks.json"), null);
         if (obj && obj["agentboard-dm"] && obj["agentboard-dm"].Stop) ok("antigravity hooks .agents/hooks.json");

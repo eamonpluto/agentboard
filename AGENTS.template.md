@@ -49,6 +49,7 @@ into the project's `AGENTS.md` automatically, so prefer that copy):
     $BOARD inbox --from <you> [--after <msg-id>] [--json]
     $BOARD listen --from <you> [--timeout 60000]
     ```
+    Poll digest-first on long runs: `$BOARD inbox --from <you> --unacked --digest` (full read only on hits; narrow with `--grep <pat>` / `--priority high`).
     Every DM stamps the sender's git rev: if your checkout is newer than the
     rev on the DM, cited `file:line` numbers may be stale — re-read the file
     before acting. Every send/inbox echoes `[board <path>]`: if two agents

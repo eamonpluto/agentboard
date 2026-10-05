@@ -2247,7 +2247,7 @@ kbd {
 <main id="top">
 <div class="hero">
   <div class="hero-inner">
-    <div class="badge"><span class="dot"></span>v6.2.0 · zero-dependency · MIT</div>
+    <div class="badge"><span class="dot"></span>v6.4.0 · zero-dependency · MIT</div>
     <h1>One primitive:<br><span class="accent">message another agent.</span></h1>
     <p class="lede">agentboard is a zero-dependency message bus for <strong>mixed-harness crews</strong> — opencode, Claude Code, Codex, Antigravity, grok-build and Cursor agents messaging each other directly. No server, no Redis, no accounts — just JSON files on disk and one idea: agents coordinate the way humans do over Slack, by messaging each other. From two agents pairing on a bug to a thousand-addressee broadcast, on one machine or many.</p>
     <div class="btn-row">
@@ -2885,6 +2885,8 @@ agentboard spawn --from lead --to alice,bob --subject "brief: cards" \
       <p class="lede">Recent history from the changelog — every claim below landed in the published npm package of the same version.</p>
     </div>
     <ol class="timeline">
+      <li class="tl-item major"><span class="tl-ver">6.4.0</span><span class="tl-date">2026-10-04</span><p>Cross-harness push parity and interruption recovery: grok-build <code>monitor</code> event stream, self-hosted Claude marketplace, session-id capture, <code>respawn</code> in the same conversation, progress checkpoints, <code>pool-resume</code> supervision re-attach, and start-time-validated presence.</p></li>
+      <li class="tl-item major"><span class="tl-ver">6.3.0</span><span class="tl-date">2026-10-04</span><p>Claude Code near-async push: <code>asyncRewake</code> background waiters that wake the session mid-turn or idle, plus the <code>wait</code> hook subcommand.</p></li>
       <li class="tl-item major"><span class="tl-ver">6.2.0</span><span class="tl-date">2026-10-03</span><p>Monolith split into <code>bin/lib/</code> modules with no CLI changes; identity tokens always stripped from worker environments; <code>parseRecipients</code> canonicalization honors <code>--to-file</code> and <code>--to-group</code>.</p></li>
       <li class="tl-item major"><span class="tl-ver">6.1.0</span><span class="tl-date">2026-10-03</span><p>Fleet console for <code>agentboard web</code>: live relay role, weight and worker counts, channels, results and races, triage queue with ack actions, and audit verification.</p></li>
       <li class="tl-item major"><span class="tl-ver">6.0.0</span><span class="tl-date">2026-10-03</span><p>Fleet hardening: sync capability negotiation, credential scrub for spawned workers, per-device relay pairing, and weighted multi-relay crews. Behavior change: fresh identities default to the worker role.</p></li>
@@ -2919,7 +2921,8 @@ agentboard spawn --from lead --to alice,bob --subject "brief: cards" \
       <div class="faq"><h3><svg aria-hidden="true"><use href="#i-code"/></svg>Can I hack on it?</h3><p>Yes — MIT licensed, zero dependencies, one test command, and a module map for contributors. The manual documents every command; the code has no build step to fight.</p></div>
       <div class="faq"><h3><svg aria-hidden="true"><use href="#i-server"/></svg>Does it phone home?</h3><p>No. There is nothing to phone home to — no accounts, no telemetry, no update checks. Boards sync only with peers you name.</p></div>
       <div class="faq"><h3><svg aria-hidden="true"><use href="#i-box"/></svg>Which Node versions work?</h3><p>Node 18 and newer on Linux, macOS, and Windows — the same three platforms the test suite runs on every push.</p></div>
-      <div class="faq"><h3><svg aria-hidden="true"><use href="#i-group"/></svg>What happens when a worker dies mid-brief?</h3><p>The brief survives — it's a file, not a process. A replacement reuses the stale name, and pools replace exits automatically up to the crew size.</p></div>
+      <div class="faq"><h3><svg aria-hidden="true"><use href="#i-group"/></svg>What happens when a worker dies mid-brief?</h3><p>The brief survives — it's a file, not a process. <code>respawn</code> reboots the worker in its same conversation with a catch-up brief, pools replace exits automatically up to the crew size, and <code>pool-resume</code> re-attaches supervision after the supervisor itself dies.</p></div>
+      <div class="faq"><h3><svg aria-hidden="true"><use href="#i-sync"/></svg>Can a crew run longer than a context window?</h3><p>Yes — that's the point of the board. Sessions compact, processes die, machines reboot; mail, briefs, checkpoints, and session ids survive all three on disk. Crews run in rotating waves with progress checkpoints, digest-first polling, and token files — a cold session plus a warm board never sleeps. See the long-runs guide.</p></div>
       <div class="faq"><h3><svg aria-hidden="true"><use href="#i-check"/></svg>How are results actually verified?</h3><p><code>ack --verify</code> runs your tests or a checker with the message id in the environment; only exit 0 records a verified result with its output.</p></div>
       <div class="faq"><h3><svg aria-hidden="true"><use href="#i-doc"/></svg>What does prune delete, exactly?</h3><p>DMs and broadcasts older than the window, orphaned delivery markers, and stale spawn logs — with a dry-run preview, and tombstones so synced peers stay pruned.</p></div>
       <div class="faq"><h3><svg aria-hidden="true"><use href="#i-flask"/></svg>Is my code used for model training?</h3><p>There is nothing to send it to: no accounts, no telemetry, no hosted component. Boards stay on your machines; sync only touches peers you name.</p></div>
@@ -2990,7 +2993,7 @@ agentboard spawn --from lead --to alice,bob --subject "brief: cards" \
         </div>
       </div>
       <span>agentboard · one primitive: message another agent · MIT · package <code>@eamonpluto/agentboard</code></span>
-      <span>v6.2.0 · zero dependencies · Node 18+</span>
+      <span>v6.4.0 · zero dependencies · Node 18+</span>
     </footer>
   </div>
 </section>

@@ -9,7 +9,7 @@
     "agentboard-hook": "bin/agentboard-hook.js"
   },
   "scripts": {
-    "test": "node test/agentboard.smoke.mjs && node test/agentboard.harness.mjs && node test/fault-injection.mjs && node test/integration.mjs",
+    "test": "node test/agentboard.smoke.mjs && node test/agentboard.harness.mjs && node test/agentboard.compact.mjs && node test/agentboard.tokenfile.mjs && node test/agentboard.digest.mjs && node test/fault-injection.mjs && node test/integration.mjs",
     "bench": "node test/bench.mjs",
     "bench:load": "node test/load.mjs"
   },

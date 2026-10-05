@@ -412,6 +412,24 @@ export const DmWatchPlugin = async ({ client, directory }) => {
   poll().catch(() => {});
 
   return {
+    // Compaction rehydration: opencode summarizes this session, so the agent
+    // wakes up forgetting its name, board, and token. Push the same identity
+    // card `agentboard-hook compact` prints into the summary prompt.
+    "experimental.session.compacting": async (input, output) => {
+      try {
+        if (!output || !Array.isArray(output.context)) return;
+        refreshAgentMap();
+        let agent = null;
+        for (const [name, sid] of agentToSession) if (sid === (input && input.sessionID)) agent = name;
+        const who = agent || "unknown";
+        output.context.push(`agentboard: context refreshed after compaction. You are '${who}' on board ${root}.`);
+        output.context.push(`Token: read ${path.join(root, "logs", who + ".token")} into AGENTBOARD_TOKEN (0600 file written at register/mint). Lost it? Ask your lead/admin to revoke it, then re-register for a fresh one.`);
+        output.context.push(`Then: agentboard inbox --from ${who} --unacked --digest (escalate to full reads on hits).`);
+        const doc = agent ? readJsonSafe(path.join(root, "agents", agent + ".json")) : null;
+        const ws = doc && doc.briefId ? readJsonSafe(path.join(root, "worker-sessions", agent + ".json")) : null;
+        if (ws && (ws.promptPath || ws.origPromptPath)) output.context.push(`Your brief: re-read ${ws.promptPath || ws.origPromptPath} from worker-sessions if present.`);
+      } catch {}
+    },
     dispose: async () => {
       clearInterval(timer);
     },

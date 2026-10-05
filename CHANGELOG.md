@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Long-run resilience: `compact` hook subcommand + opencode compacting
+  handler (post-compaction identity cards naming agent, board, token
+  file, and inbox next step); token files auto-written at every mint
+  (`logs/<name>.token`, 0600) across CLI/MCP/opencode paths; PostCompact
+  wiring for claude/codex with doctor coverage; digest-first polling
+  discipline in templates, skills, and spawn briefs; new
+  `docs/LONG_RUNS.md` wave playbook (setup checklist, recovery ladder).
+
 - Harness session-id capture (respawn slice 1, no resume yet): spawn boots
   opencode/claude/grok/codex with JSON log output (`--format json` /
   `--output-format json` / `exec --json`); `spawn-status` lazily extracts

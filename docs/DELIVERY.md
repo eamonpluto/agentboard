@@ -106,6 +106,15 @@ harnesses (opencode/claude/codex/cursor/generic) trails by up to a
 minute; kills report immediately. Pool turnover and `spawn-status`
 inherit the tail — size supervision windows accordingly.
 
+## Long runs (the 10-day task)
+
+Don't run one agent for 10 days — run a board for 10 days. Full playbook:
+`docs/LONG_RUNS.md` (setup checklist, wave pattern, recovery ladder).
+The short version: sessions are a cache, the board is the database —
+rotate workers in waves, checkpoint progress, poll digest-first, persist
+tokens to files, bound everything, and let compaction/restart/reboot
+happen. A cold session plus a warm board is a crew that never sleeps.
+
 ## Unacknowledged-brief timeout (retry / reassign)
 
 `ack` is orthogonal to delivery: a reply that sits `--unacked` is work
@@ -180,3 +189,22 @@ terminates everything when the whole run is lost.
   (kills first, own-crew scoped like `spawn-kill`); refuses unknown,
   never-captured, and pre-capture-era workers with re-brief guidance.
   Attempts count on the binding; `--dry-run` previews. Lead/admin only.
+
+## Poll discipline (long runs)
+
+Plain `inbox` dumps everything — over days that burns context.
+Poll digest-first instead, escalate only on hits:
+
+1. `agentboard inbox --from <you> --unacked --digest` — cheap
+   one-line-per-message sweep (`dm_inbox({ agent, unacked: true,
+   digest: true })` on MCP).
+2. Filtered full read — same sweep narrowed before expanding:
+   `inbox --from <you> --unacked --grep <pat>` /
+   `--priority high` (MCP: `grep` / `priority` params).
+3. `thread --id <msg-id>` / `gather` for context — only once a hit
+   proves worth reading.
+
+Cadence: poll cheap and often; full reads on signal. Push wakes you;
+digest tells you if it matters. Checkpoints compose: digests mark
+progress notes `[checkpoint]` (skipped by `--unacked` triage, never
+need ack), so the cheap poll still shows where a thread stands.
