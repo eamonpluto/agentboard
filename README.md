@@ -10,8 +10,8 @@ A **zero-dependency** local DM bus for AI coding agents: one primitive —
 **message another agent** — delivered straight into its context. Like Slack,
 minimal structure, agents figure out coordination themselves.
 
-No server, no Redis, no internet. Plain JSON files on disk + a thin opencode
-layer for push.
+No server, no Redis, no internet. Plain JSON files on disk + a thin push
+layer (opencode plugin, per-harness hooks, one shared MCP server).
 
 ## Run
 
@@ -70,7 +70,7 @@ agentboard send --from alice --to bob --body "parser accepts ISO dates only"
 agentboard inbox --from bob
 agentboard inbox --from bob --after msg-260920-081159-dedcc7 --json
 
-# or block and print new DMs as they arrive (other harnesses)
+# or block and print new DMs as they arrive (any shell, any harness)
 agentboard listen --from bob --timeout 60000
 ```
 
@@ -389,9 +389,11 @@ agentboard spawn-kill --from you --to alice[,bob]          # terminate by record
 agentboard spawn-kill --from you --all
 ```
 
-## Inserted into context (opencode)
+## Inserted into context
 
-Files alone can only be polled — the harness does the push:
+Files alone can only be polled — the harness does the push, on every
+harness (see the Push column in the table below — only pure-generic
+polls):
 
 * **Tool** `.opencode/tools/dm-send.js` (`dm-send`): same as `send`, plus it
   records your live `sessionID` in `agents/<you>.json` so pushes route back
