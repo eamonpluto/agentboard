@@ -296,7 +296,7 @@ export async function remoteSpawn(d, a, serveOpts) { // line 6770
   for (const { to, id } of res.items) {
     try {
       const r = bootWorker(d, spawnOpts, { to, id, from, subject: cleanSub, body: body.trim(), rev, logDir, spawnedLifetime: lifetime });
-      results.push({ to, id, pid: r.pid, log: r.logPath, lifetime });
+      results.push({ to, id, pid: r.pid, log: r.logPath, lifetime, driver: harness });
     } catch (e) {
       results.push({ to, id, error: (e && e.message) || String(e) });
     }

@@ -118,6 +118,15 @@ export async function fleetSnapshot(d) {
   } catch {
     states = [];
   }
+  let workers = [];
+  try {
+    workers = listJson(d.agents)
+      .map((e) => e.data)
+      .filter((x) => x && x.name && typeof x.spawnedPid === "number")
+      .map((a) => workerStatus(d, a.name, 0));
+  } catch {
+    workers = [];
+  }
   const rows = await Promise.all(states.map(async (s) => {
     const row = { peer: s.peer, lastOk: new Date(s.lastOk).toISOString(), live: null };
     try {
@@ -135,7 +144,7 @@ export async function fleetSnapshot(d) {
     } catch {}
     return row;
   }));
-  return { board: d.root, at: new Date().toISOString(), relays: rows };
+  return { board: d.root, at: new Date().toISOString(), relays: rows, workers };
 }
 
 // Channels: per-channel post counts + latest heads (bodies truncated; full
@@ -544,22 +553,34 @@ async function loadLaunchMeta(){
   }catch(e){}
   refreshLaunchMeta();
 }
+var __launchMetaCache={harnesses:{at:0,data:null},routes:{at:0,data:null}};
+var __launchMetaTtlMs=5000;
+function __launchMetaFresh(entry){return !!(entry&&entry.data&&(Date.now()-entry.at)<__launchMetaTtlMs);}
+async function fetchLaunchMetaCached(kind,url){
+  var entry=__launchMetaCache[kind];
+  if(__launchMetaFresh(entry)){return entry.data;}
+  var r=await fetch(url,{cache:'no-store'});
+  var j=await r.json();
+  __launchMetaCache[kind]={at:Date.now(),data:j};
+  return j;
+}
 function refreshLaunchMeta(){
   // M6-lite: harness presence/version stays live on the 5s poll. Rebuilds
   // the table + routes line only — never the <select>, so a choice
   // mid-form is never clobbered. Failures are silent (stale table stays).
+  // Poll coalescing: /api/harnesses + /api/routes payloads are cached
+  // in-page (__launchMetaCache, __launchMetaTtlMs) and reused within the
+  // poll window instead of refetching per refresh().
   (async function(){
     try{
-      var hr=await fetch('/api/harnesses',{cache:'no-store'});
-      var hj=await hr.json();
+      var hj=await fetchLaunchMetaCached('harnesses','/api/harnesses');
       document.getElementById('harnesses').innerHTML=(hj||[]).map(function(h){
         var ver=h.found?(h.version||'installed'):('missing ('+(h.detail||'not installed')+')');
         return '<tr><td><b>'+esc(h.driver)+'</b></td><td>'+esc(h.binary||'(operator cmd)')+'</td><td>'+esc(ver)+'</td><td>'+esc(h.briefDelivery||'?')+'</td><td>'+esc(h.resume?'yes':'no')+'</td></tr>';
       }).join('')||'<tr><td colspan="5" class="dim">no harness drivers</td></tr>';
     }catch(e){}
     try{
-      var rr=await fetch('/api/routes',{cache:'no-store'});
-      var rj=await rr.json();
+      var rj=await fetchLaunchMetaCached('routes','/api/routes');
       var routes=(rj&&rj.advertisedRoutes)||[];
       document.getElementById('routes-line').textContent='routes: '+(routes.length?routes.join(', '):'(local board — no relay routes; pair via relay pair qr)')+' · caps: '+((rj&&rj.capabilities)||[]).join(', ');
     }catch(e){}
@@ -690,14 +711,22 @@ function syncTopbarHarness(){
 }
 function renderHarnessCards(){
   return (async function(){
-    var hr=await fetch('/api/harnesses',{cache:'no-store'});
-    var hj=await hr.json();
+    var hj=await fetchLaunchMetaCached('harnesses','/api/harnesses');
     window.__harnesses=hj;
     var sel=document.getElementById('launch-harness').value;
+    var counts={};
+    try{
+      var __ws=window.__workers||[];
+      for(var __ci=0;__ci<__ws.length;__ci++){
+        var __dd=__ws[__ci].driver||__ws[__ci].spawnedHarness;
+        if(__dd){counts[__dd]=(counts[__dd]||0)+1;}
+      }
+    }catch(_){}
     document.getElementById('harness-cards').innerHTML=(hj||[]).map(function(h){
       var ver=h.found?(h.version||'installed'):('missing ('+(h.detail||'not installed')+')');
       var cls='harness-card'+(h.driver===sel?' sel':'')+(h.found?'':' missing');
-      return '<div class="'+cls+'" data-driver="'+esc(h.driver)+'"><b>'+esc(h.driver)+'</b><div class="dim">'+esc(ver)+'</div><div class="dim">brief: '+esc(h.briefDelivery||'?')+' · resume: '+esc(h.resume?'yes':'no')+'</div></div>';
+      var badge=counts[h.driver]?'<div class="dim">'+counts[h.driver]+' running</div>':'';
+      return '<div class="'+cls+'" data-driver="'+esc(h.driver)+'"><b>'+esc(h.driver)+'</b><div class="dim">'+esc(ver)+'</div><div class="dim">brief: '+esc(h.briefDelivery||'?')+' · resume: '+esc(h.resume?'yes':'no')+'</div>'+badge+'</div>';
     }).join('')||'<div class="dim">no harness drivers</div>';
     var cards=document.querySelectorAll('#harness-cards [data-driver]');
     for(var i=0;i<cards.length;i++){
@@ -754,6 +783,7 @@ function showInspector(name){
   var rep=w.reply?(esc(w.reply.id)+' — '+esc(w.reply.head||'')):'—';
   var html='<div><b>'+esc(w.name)+'</b> <span class="dim">'+esc(stateOf(w))+'</span></div>'
     +'<div class="dim">state: '+esc(stateOf(w))+' · pid: '+esc(w.pid===null||w.pid===undefined?'—':String(w.pid))+' · spawner: '+esc(w.spawnedBy||'?')+'</div>'
+    +'<div class="dim">harness: '+esc(w.driver||w.spawnedHarness||'—')+'</div>'
     +'<div class="dim">reply: '+rep+' · acked: '+esc(w.acked?'yes':'no')+' · session: '+esc(w.harnessSessionId||'—')+'</div>'
     +'<div class="log">'+tail+'</div>'
     +'<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">'
@@ -1147,7 +1177,7 @@ export async function handleApiLaunch(d, body) {
   for (const { to, id } of res.items) {
     try {
       const r = bootWorker(d, spawnOpts, { to, id, from, subject: p.subject, body: p.body.trim(), rev, logDir });
-      workers.push({ name: to, pid: r.pid, replyId: id, log: r.logPath });
+      workers.push({ name: to, pid: r.pid, replyId: id, log: r.logPath, driver: p.harness });
     } catch (e) {
       workers.push({ name: to, replyId: id, error: String((e && e.message) || e) });
     }

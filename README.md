@@ -437,7 +437,12 @@ itself is an AppRoot: left nav (Boards → Fleet → Audit), top bar with
 harness quick-pick + connection dot + `Ctrl+K` palette, harness cards with
 live detect state, dry-run diff with warnings, a worker inspector
 (kill/ack inline, respawn stays CLI-only), and an Undo toast after every
-live launch.
+live launch. Worker entries now carry their harness `driver` end-to-end
+(spawn record → board/fleet snapshots → inspector + per-driver running
+badges). The shared `packages/client-runtime/` (route walk with learned
+routes, reconnect supervisor, pair-URL auth store, offline cache with
+explicit-retry mutation queue) is the foundation the future desktop and
+mobile shells build on.
 
 ## Inserted into context
 

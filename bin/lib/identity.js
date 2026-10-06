@@ -410,6 +410,7 @@ export function touchAgent(d, name, extra) { // line 2647
     spawnedWorktree: (extra && extra.spawnedWorktree) || (prev && prev.spawnedWorktree) || undefined,
     spawnedBranch: (extra && extra.spawnedBranch) || (prev && prev.spawnedBranch) || undefined,
     spawnedLifetime: (extra && extra.spawnedLifetime) || (prev && prev.spawnedLifetime) || undefined,
+    spawnedHarness: (extra && extra.spawnedHarness) || (prev && prev.spawnedHarness) || undefined,
     spawnedEnvScrubbed: (extra && extra.spawnedEnvScrubbed) || (prev && prev.spawnedEnvScrubbed) || undefined,
     token: (prev && prev.token) || undefined,
     tokenHash: (prev && prev.tokenHash) || undefined,

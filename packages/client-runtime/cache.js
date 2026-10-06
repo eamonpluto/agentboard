@@ -1,0 +1,146 @@
+// CrewBus client-runtime: offline cache + explicitly-retried queue (§4.4).
+// Runtime-agnostic and pure: clock injected, no timers, no network.
+//
+// Rules: inbox/draft reads honor TTLs; drafts use a long lifetime so offline
+// work survives. Mutations queue but NEVER auto-replay — `retry()` /
+// `retryAll()` are the only executors, and both are explicit shell calls.
+
+export const DEFAULT_INBOX_TTL_MS = 5 * 60 * 1000;
+export const DEFAULT_DRAFT_TTL_MS = 30 * 24 * 3600 * 1000;
+
+export function createCache({ now = () => Date.now(), inboxTtlMs = DEFAULT_INBOX_TTL_MS, draftTtlMs = DEFAULT_DRAFT_TTL_MS } = {}) {
+  const inboxes = new Map(); // agent -> { at, items }
+  const drafts = new Map(); // key -> { at, text }
+  const queue = new Map(); // id -> { id, op, status, attempts, enqueuedAt, lastError }
+  let seq = 0;
+
+  const fresh = (at, ttl, t) => (t - at) <= ttl;
+  const copyEntry = (e) => ({ ...e, op: e.op && typeof e.op === "object" ? { ...e.op } : e.op });
+
+  function getInbox(agent, t = now()) {
+    const entry = inboxes.get(String(agent));
+    if (!entry) return null;
+    if (!fresh(entry.at, inboxTtlMs, t)) {
+      inboxes.delete(String(agent));
+      return null;
+    }
+    return entry.items;
+  }
+
+  function getDraft(key, t = now()) {
+    const entry = drafts.get(String(key));
+    if (!entry) return null;
+    if (!fresh(entry.at, draftTtlMs, t)) {
+      drafts.delete(String(key));
+      return null;
+    }
+    return entry.text;
+  }
+
+  // The ONLY executor: run one queued mutation through `worker(op, info)`.
+  // Success (resolve, not false, no `{ ok: false }`) removes it; failure
+  // keeps it queued with attempts/lastError. Nothing else ever runs work.
+  async function retry(id, worker) {
+    if (typeof worker !== "function") throw new TypeError("retry needs worker(op)");
+    const entry = queue.get(String(id));
+    if (!entry) return { ok: false, id: String(id), error: "unknown-mutation" };
+    try {
+      const out = await worker(entry.op, { id: entry.id, attempts: entry.attempts });
+      if (out === false || (out && out.ok === false)) {
+        throw new Error((out && out.error) || "worker declined");
+      }
+      queue.delete(entry.id);
+      return { ok: true, id: entry.id, result: out === undefined ? null : out };
+    } catch (err) {
+      entry.attempts += 1;
+      entry.lastError = err instanceof Error ? err.message : String(err);
+      return { ok: false, id: entry.id, error: entry.lastError };
+    }
+  }
+
+  const api = {
+    setInbox(agent, items, at = now()) {
+      inboxes.set(String(agent), { at, items: Array.isArray(items) ? [...items] : items });
+      return true;
+    },
+    getInbox,
+
+    hasInbox(agent, t = now()) {
+      return getInbox(agent, t) !== null;
+    },
+
+    // Drafts are preserved offline: long TTL, removed only via discard/prune.
+    setDraft(key, text, at = now()) {
+      drafts.set(String(key), { at, text: String(text) });
+      return true;
+    },
+    getDraft,
+
+    hasDraft(key, t = now()) {
+      return getDraft(key, t) !== null;
+    },
+
+    discardDraft(key) {
+      return drafts.delete(String(key));
+    },
+
+    enqueue(op, at = now()) {
+      seq += 1;
+      const entry = {
+        id: `q${seq}`,
+        op: op && typeof op === "object" ? { ...op } : op,
+        status: "queued",
+        attempts: 0,
+        enqueuedAt: at,
+        lastError: null,
+      };
+      queue.set(entry.id, entry);
+      return copyEntry(entry);
+    },
+
+    pending() {
+      return [...queue.values()].map(copyEntry);
+    },
+
+    retry,
+
+    async retryAll(worker) {
+      const ids = [...queue.keys()];
+      const results = [];
+      for (const id of ids) results.push(await retry(id, worker));
+      return results;
+    },
+
+    discard(id) {
+      return queue.delete(String(id));
+    },
+
+    clearQueue() {
+      queue.clear();
+    },
+
+    // Explicit maintenance (shell calls on foreground refresh): drop
+    // expired inbox/draft rows. Never touches the mutation queue.
+    prune(t = now()) {
+      let dropped = 0;
+      for (const [agent, entry] of inboxes) {
+        if (!fresh(entry.at, inboxTtlMs, t)) {
+          inboxes.delete(agent);
+          dropped += 1;
+        }
+      }
+      for (const [key, entry] of drafts) {
+        if (!fresh(entry.at, draftTtlMs, t)) {
+          drafts.delete(key);
+          dropped += 1;
+        }
+      }
+      return dropped;
+    },
+
+    stats() {
+      return { inboxes: inboxes.size, drafts: drafts.size, queued: queue.size };
+    },
+  };
+  return api;
+}

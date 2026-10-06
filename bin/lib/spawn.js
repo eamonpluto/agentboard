@@ -331,6 +331,17 @@ function cleanSessionId(raw) {
   return s === "" ? null : s;
 }
 
+// Harness driver allowlist (mirrors packages/contracts/harness.json drivers;
+// unknown values are omitted, never invented).
+export const KNOWN_HARNESS_DRIVERS = ["opencode", "claude", "codex", "grok", "antigravity", "cursor", "generic"];
+
+export function cleanHarnessDriver(raw) {
+  const s = String(raw === undefined || raw === null ? "" : raw).trim().toLowerCase();
+  if (!s) return undefined;
+  const norm = s === "agy" ? "antigravity" : s;
+  return KNOWN_HARNESS_DRIVERS.includes(norm) ? norm : undefined;
+}
+
 function scanSessionIds(node, depth, out) {
   if (!node || typeof node !== "object" || depth > 4 || out.length > 0) return;
   if (Array.isArray(node)) {
@@ -552,7 +563,7 @@ export function bootWorker(d, spawnOpts, { to, id, from, subject, body, rev, log
   }
   const target = buildSpawnTarget({ ...spawnOpts, name: to, promptPath, prompt, sessionId: preId });
   const { pid } = launchWorkerProcess({ exe: target.exe, args: target.args, shell: target.shell, cwd, env: childEnv, logPath, stdinPath: target.stdinPath });
-  touchAgent(d, to, { spawnedPid: pid, spawnedAt: new Date().toISOString(), spawnedBy: from, briefId: id, lastDir: cwd, budgetTokens, budgetMinutes, budgetSince: (budgetTokens !== undefined || budgetMinutes !== undefined) ? new Date().toISOString() : undefined, deadlineAt, spawnedWorktree, spawnedBranch, spawnedLifetime, spawnedEnvScrubbed: scrub.kept ? 0 : scrub.scrubbed.length });
+  touchAgent(d, to, { spawnedPid: pid, spawnedAt: new Date().toISOString(), spawnedBy: from, briefId: id, lastDir: cwd, budgetTokens, budgetMinutes, budgetSince: (budgetTokens !== undefined || budgetMinutes !== undefined) ? new Date().toISOString() : undefined, deadlineAt, spawnedWorktree, spawnedBranch, spawnedLifetime, spawnedHarness: cleanHarnessDriver(spawnOpts.harness), spawnedEnvScrubbed: scrub.kept ? 0 : scrub.scrubbed.length });
   // Binding doc for the later respawn step (preassigned id lands here
   // synchronously; otherwise the id fills in lazily via syncWorkerSession
   // as the worker's log grows). The spawn-opts snapshot lets respawn
@@ -692,8 +703,11 @@ export function workerStatus(d, name, lines) { // line 4381
     const pastDeadline = doc.deadlineAt ? Date.now() > Date.parse(doc.deadlineAt) : false;
     budget = { tokensEst, budgetTokens: doc.budgetTokens ?? null, budgetMinutes: doc.budgetMinutes ?? null, elapsedMin, deadlineAt: doc.deadlineAt || null, overTokens, overMinutes, pastDeadline, exceeded: !!(overTokens || overMinutes || pastDeadline) };
   }
+  const driver = cleanHarnessDriver(doc.spawnedHarness) || cleanHarnessDriver(ws && ws.harness) || undefined;
   return {
     name, known: true, pid: pid || null, alive, aliveVerified, pidStale, spawnedBy: doc.spawnedBy || null,
+    driver,
+    spawnedHarness: driver || undefined,
     harnessSessionId: (ws && ws.harnessSessionId) || null,
     respawnCount: (ws && ws.respawnCount) || 0,
     briefId: doc.briefId || null, spawnedAt: doc.spawnedAt || null,
