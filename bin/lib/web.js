@@ -333,27 +333,34 @@ export function renderBoardHtml(boardPath) {
   return `<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>crewbus — ${e(boardPath)}</title>
-<style>body{margin:0;background:#0f1419;color:#d7dee6;font:14px/1.5 system-ui,sans-serif}main{max-width:1100px;margin:0 auto;padding:24px 18px 80px}h1{font-size:1.4em}h2{margin-top:2em;color:#4cc38a;font-size:1.05em}.dim{color:#8b98a5;font-size:.85em}table{border-collapse:collapse;width:100%;margin:.5em 0;font-size:.9em}th,td{border:1px solid #2a343e;padding:6px 8px;text-align:left;vertical-align:top}th{background:#182028}.log{font-family:monospace;font-size:.82em;white-space:pre-wrap}.cards{display:flex;gap:12px;flex-wrap:wrap}.card{background:#182028;border:1px solid #2a343e;border-radius:8px;padding:10px 16px}.card b{font-size:1.5em;color:#4cc38a}input,textarea,select{background:#0b0f14;border:1px solid #2a343e;color:#d7dee6;border-radius:5px;padding:4px 8px;font-size:.9em}button{background:#182028;border:1px solid #4cc38a;color:#4cc38a;border-radius:5px;padding:4px 12px;font-size:.9em;cursor:pointer}button.danger{border-color:#e5534b;color:#e5534b}button:disabled{opacity:.4;cursor:default}#result{margin-top:1em;white-space:pre-wrap;font-family:monospace;font-size:.85em}@media (max-width:700px){main{padding:16px 12px 60px}h1{font-size:1.15em}table{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch}input,textarea,select{margin:2px 0}}</style>
+<style>body{margin:0;background:#0f1419;color:#d7dee6;font:14px/1.5 system-ui,sans-serif}main{max-width:1100px;margin:0 auto;padding:24px 18px 80px}h1{font-size:1.4em}h2{margin-top:2em;color:#4cc38a;font-size:1.05em}.dim{color:#8b98a5;font-size:.85em}table{border-collapse:collapse;width:100%;margin:.5em 0;font-size:.9em}th,td{border:1px solid #2a343e;padding:6px 8px;text-align:left;vertical-align:top}th{background:#182028}.log{font-family:monospace;font-size:.82em;white-space:pre-wrap}.cards{display:flex;gap:12px;flex-wrap:wrap}.card{background:#182028;border:1px solid #2a343e;border-radius:8px;padding:10px 16px}.card b{font-size:1.5em;color:#4cc38a}input,textarea,select{background:#0b0f14;border:1px solid #2a343e;color:#d7dee6;border-radius:5px;padding:4px 8px;font-size:.9em}button{background:#182028;border:1px solid #4cc38a;color:#4cc38a;border-radius:5px;padding:4px 12px;font-size:.9em;cursor:pointer}button.danger{border-color:#e5534b;color:#e5534b}button:disabled{opacity:.4;cursor:default}#approot-topbar{position:sticky;top:0;z-index:20;display:flex;gap:12px;align-items:center;background:#0b0f14;border-bottom:1px solid #2a343e;padding:8px 12px;flex-wrap:wrap}#topbar-board{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:40vw}#conn-dot{font-size:1.2em;color:#8b98a5}#approot-nav{display:flex;gap:6px;flex-wrap:wrap;margin:12px 0}#approot-nav button{border-color:#2a343e;color:#d7dee6}#approot-nav button.active{border-color:#4cc38a;color:#4cc38a}.approot-hidden{display:none!important}#palette{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:50;display:none;padding:15vh 20px 20px}#palette.open{display:block}#palette-box{max-width:560px;margin:0 auto;background:#182028;border:1px solid #4cc38a;border-radius:8px;padding:12px}#palette-input{width:95%;font-size:1.1em;padding:6px 10px}#palette-list{max-height:40vh;overflow:auto;margin-top:8px}#palette-list div{padding:4px 8px;cursor:pointer}#palette-list div.sel{background:#0b0f14;color:#4cc38a}#harness-cards{display:flex;gap:8px;flex-wrap:wrap;margin:.5em 0}.harness-card{background:#182028;border:1px solid #2a343e;border-radius:8px;padding:8px 12px;cursor:pointer}.harness-card.sel{border-color:#4cc38a}.harness-card.missing{opacity:.55}#launch-permission-seg{display:inline-flex;gap:4px;margin:4px 0;flex-wrap:wrap}#launch-permission-seg button{border-color:#2a343e;color:#d7dee6}#launch-permission-seg button.sel{border-color:#4cc38a;color:#4cc38a}#launch-diff ul{margin:.4em 0;padding-left:1.2em}#launch-diff .warn{background:#3d1113;border:1px solid #e5534b;color:#ffb4ae;border-radius:5px;padding:6px 10px;margin:.4em 0}#undo-toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#182028;border:1px solid #4cc38a;border-radius:8px;padding:10px 16px;z-index:40;display:none;max-width:90vw}#undo-toast.show{display:block}#inspector{background:#182028;border:1px solid #2a343e;border-radius:8px;padding:10px 16px;margin:.5em 0}tr.worker-row{cursor:pointer}tr.worker-row:hover td{background:#182028}#result{margin-top:1em;white-space:pre-wrap;font-family:monospace;font-size:.85em}@media (max-width:700px){main{padding:16px 12px 60px}h1{font-size:1.15em}table{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch}input,textarea,select{margin:2px 0}}</style>
 </head><body><main>
+<header id="approot-topbar"><b>crewbus</b> <span id="topbar-board" class="dim">${e(boardPath)}</span> <label class="dim">harness <select id="topbar-harness" aria-label="harness quick-pick"></select></label> <span id="conn-dot" title="connection: unknown">●</span> <span class="dim">Ctrl+K palette</span> <button id="palette-open">command palette (Ctrl+K)</button></header>
+<nav id="approot-nav" aria-label="sections"><button data-nav="sec-boards" class="active">Boards</button> <button data-nav="sec-crews">Crews</button> <button data-nav="sec-fleet">Fleet</button> <button data-nav="sec-channels">Channels</button> <button data-nav="sec-triage">Triage</button> <button data-nav="sec-approvals">Approvals</button> <button data-nav="sec-results">Results</button> <button data-nav="sec-audit">Audit</button> <button data-nav="sec-settings">Settings</button> <button data-nav="all">All</button></nav>
+<div id="palette"><div id="palette-box"><input id="palette-input" placeholder="type a section or worker name (Enter jumps, Esc closes)"><div id="palette-list"></div><div class="dim">Enter jumps to the first match · Esc closes · Ctrl+K toggles</div></div></div>
+<section id="sec-boards" data-section="Boards">
 <h1>crewbus <span class="dim">${e(boardPath)}</span></h1>
-<div class="card" style="margin-bottom:1em">acting as <input id="who" size="12" placeholder="agent name"> token <input id="tok" type="password" size="28" placeholder="abt-…"> <button id="save">save</button> <span id="ident" class="dim"></span></div>
-<div class="cards"><div class="card"><b id="c-agents">–</b><br>agents (<span id="c-active">–</span> active)</div><div class="card"><b id="c-workers">–</b><br>workers</div><div class="card"><b id="c-unacked">–</b><br>unacked</div><div class="card"><b id="c-bcast">–</b><br>broadcasts</div><div class="card"><b id="c-groups">–</b><br>groups</div><div class="card"><b id="c-peers">–</b><br>peers</div></div>
-<h2>Workers <button id="killall" class="danger">kill all</button></h2><table><tr><th>worker</th><th>state</th><th>pid</th><th>reply</th><th>log tail</th><th></th></tr><tbody id="workers"></tbody></table>
+<div id="sec-settings" class="card" style="margin-bottom:1em">acting as <input id="who" size="12" placeholder="agent name"> token <input id="tok" type="password" size="28" placeholder="abt-…"> <button id="save">save</button> <span id="ident" class="dim"></span></div>
+<div class="cards"><div class="card"><b id="c-agents">–</b><br>agents (<span id="c-active">–</span> active)</div><div class="card"><b id="c-workers">–</b><br>workers</div><div class="card"><b id="c-unacked">–</b><br>unacked</div><div class="card"><b id="c-bcast">–</b><br>broadcasts</div><div class="card"><b id="c-groups">–</b><br>groups</div><div class="card"><b id="c-peers">–</b><br>peers</div></div></section>
+<section id="sec-crews" data-section="Crews"><h2>Workers <button id="killall" class="danger">kill all</button></h2><table><tr><th>worker</th><th>state</th><th>pid</th><th>reply</th><th>log tail</th><th></th></tr><tbody id="workers"></tbody></table>
+<aside id="inspector"><b>Inspector</b> <span class="dim">click a worker row to inspect (kill/respawn/ack reuse the same handlers)</span><div id="inspector-body" class="dim">no worker selected</div></aside>
 <h2>Agents</h2><table><tr><th>name</th><th>presence</th><th>last seen</th><th>session</th><th>DMs</th><th>unacked</th></tr><tbody id="agents"></tbody></table>
-<h2>Groups</h2><table><tr><th>name</th><th>members</th></tr><tbody id="groups"></tbody></table>
+<h2>Groups</h2><table><tr><th>name</th><th>members</th></tr><tbody id="groups"></tbody></table></section>
 <h2>Peers</h2><table><tr><th>relay</th><th>last sync</th></tr><tbody id="peers"></tbody></table>
-<h2>Fleet <span class="dim">every relay this board syncs with, live /healthz</span></h2><table><tr><th>relay</th><th>role</th><th>weight</th><th>workers</th><th>lag</th><th>last sync</th></tr><tbody id="fleet"></tbody></table>
-<h2>Channels <span class="dim">shared append-only logs, latest heads</span></h2><div id="channels"></div>
-<h2>Results &amp; races <span class="dim">verified outcomes + live runners (kill closes losers out)</span></h2><table><tr><th>group</th><th>telemetry</th><th>verified result</th><th>running</th><th></th></tr><tbody id="results"></tbody></table>
- <h2>Triage <span class="dim">unacked mail for the identity above</span> <button id="ackall">ack all</button></h2><table><tr><th>id</th><th>from</th><th>message</th><th></th></tr><tbody id="triage"></tbody></table>
- <h2>Approvals <span class="dim">unacked approval: requests for the identity above</span></h2><table><tr><th>id</th><th>from</th><th>request</th><th>reason</th><th></th></tr><tbody id="approvals"></tbody></table>
+<section id="sec-fleet" data-section="Fleet"><h2>Fleet <span class="dim">every relay this board syncs with, live /healthz</span></h2><table><tr><th>relay</th><th>role</th><th>weight</th><th>workers</th><th>lag</th><th>last sync</th></tr><tbody id="fleet"></tbody></table></section>
+<section id="sec-channels" data-section="Channels"><h2>Channels <span class="dim">shared append-only logs, latest heads</span></h2><div id="channels"></div></section>
+<section id="sec-results" data-section="Results"><h2>Results &amp; races <span class="dim">verified outcomes + live runners (kill closes losers out)</span></h2><table><tr><th>group</th><th>telemetry</th><th>verified result</th><th>running</th><th></th></tr><tbody id="results"></tbody></table></section>
+  <section id="sec-triage" data-section="Triage"><h2>Triage <span class="dim">unacked mail for the identity above</span> <button id="ackall">ack all</button></h2><table><tr><th>id</th><th>from</th><th>message</th><th></th></tr><tbody id="triage"></tbody></table></section>
+   <section id="sec-approvals" data-section="Approvals"><h2>Approvals <span class="dim">unacked approval: requests for the identity above</span></h2><table><tr><th>id</th><th>from</th><th>request</th><th>reason</th><th></th></tr><tbody id="approvals"></tbody></table></section>
 <h2>Broadcasts</h2><table><tr><th>id</th><th>from</th><th>to</th><th>subject</th><th>body</th></tr><tbody id="bcast"></tbody></table>
 <h2>Recent activity</h2><table><tr><th>id</th><th>route</th><th>message</th></tr><tbody id="recent"></tbody></table>
- <h2>Audit <span class="dim">tamper-evident chain + recent events (payloads never leave the server)</span></h2><div id="auditver" class="dim"></div><table><tr><th>seq</th><th>at</th><th>actor</th><th>event</th><th>target</th><th>result</th></tr><tbody id="audit"></tbody></table>
- <h2>Launch <span class="dim">harness picker + dry-run preview + live boot (M1)</span></h2><table><tr><th>driver</th><th>binary</th><th>version</th><th>brief</th><th>resume</th></tr><tbody id="harnesses"></tbody></table>
+   <section id="sec-audit" data-section="Audit"><h2>Audit <span class="dim">tamper-evident chain + recent events (payloads never leave the server)</span></h2><div id="auditver" class="dim"></div><table><tr><th>seq</th><th>at</th><th>actor</th><th>event</th><th>target</th><th>result</th></tr><tbody id="audit"></tbody></table></section>
+ <h2>Launch <span class="dim">harness picker + dry-run preview + live boot (M1)</span></h2><div id="harness-cards" class="cards" aria-label="harness picker"></div><table><tr><th>driver</th><th>binary</th><th>version</th><th>brief</th><th>resume</th></tr><tbody id="harnesses"></tbody></table>
  <div id="routes-line" class="dim">routes: loading…</div>
- <div class="card">harness <select id="launch-harness"></select> to <input id="launch-to" size="18" placeholder="w-1,w-2 (or count)"> count <input id="launch-count" size="4" value="1"> permission <select id="launch-permission"><option>supervised</option><option>autoEdits</option><option>auto</option><option>full</option></select> <label><input id="launch-dry" type="checkbox" checked> dry-run</label><br>brief <span id="launch-brief-count" class="dim">0/8000</span><br><textarea id="launch-brief" rows="4" cols="80" maxlength="8000" placeholder="task brief (max 8000 chars)"></textarea><br>from <input id="launch-from" size="12" placeholder="agent name"> token <input id="launch-token" type="password" size="28" placeholder="abt-…"> <button id="launch-preview">Preview</button> <button id="launch-go" class="danger">Launch</button></div>
+ <div class="card">harness <select id="launch-harness"></select> to <input id="launch-to" size="18" placeholder="w-1,w-2 (or count)"> count <button id="launch-count-minus" title="fewer workers">-</button> <input id="launch-count" size="4" value="1"> <button id="launch-count-plus" title="more workers">+</button> permission <select id="launch-permission"><option>supervised</option><option>autoEdits</option><option>auto</option><option>full</option></select> <span id="launch-permission-seg"><button data-perm="supervised" class="sel">supervised</button> <button data-perm="autoEdits">autoEdits</button> <button data-perm="auto">auto</button> <button data-perm="full">full</button></span> <label><input id="launch-dry" type="checkbox" checked> dry-run</label><br>brief <span id="launch-brief-count" class="dim">0/8000</span><br><textarea id="launch-brief" rows="4" cols="80" maxlength="8000" placeholder="task brief (max 8000 chars)"></textarea><br>from <input id="launch-from" size="12" placeholder="agent name"> token <input id="launch-token" type="password" size="28" placeholder="abt-…"> <button id="launch-preview">Preview</button> <button id="launch-go" class="danger">Launch</button></div>
  <div id="launch-out" class="log"></div>
+  <div id="launch-diff"></div>
+  <div id="undo-toast" role="status"></div>
  <div id="result"></div>
 <p class="dim">polls <a href="/api/board">/api/board</a> <a href="/api/fleet">/api/fleet</a> <a href="/api/channels">/api/channels</a> <a href="/api/results">/api/results</a> <a href="/api/audit">/api/audit</a> every 5s · kill/ack need the identity above (same token as the CLI) · tokens stay in this browser tab · ack is plain accept only, verifiers stay on the CLI</p>
 <script>
@@ -422,7 +429,7 @@ async function refresh(){
       var tail=(w.tail||[]).slice(-3).map(function(l){return '<div class=\\'log\\'>'+esc(l)+'</div>';}).join('')||'<span class=\\'dim\\'>no log</span>';
       var rep=w.reply?esc(w.reply.id)+'<div class=\\'dim\\'>'+esc(w.reply.head)+'</div>':'—';
       var btn=(w.known&&typeof w.pid==='number')?'<button class=\\'danger\\' data-kill=\\''+esc(w.name)+'\\'>kill</button>':'';
-      return '<tr><td><b>'+esc(w.name)+'</b><div class=\\'dim\\'>by '+esc(w.spawnedBy||'?')+'</div></td><td>'+esc(stateOf(w))+'</td><td>'+(w.pid===null||w.pid===undefined?'—':esc(String(w.pid)))+'</td><td>'+rep+'</td><td>'+tail+'</td><td>'+btn+'</td></tr>';
+      return '<tr data-worker="'+esc(w.name)+'" class="worker-row"><td><b>'+esc(w.name)+'</b><div class=\\'dim\\'>by '+esc(w.spawnedBy||'?')+'</div></td><td>'+esc(stateOf(w))+'</td><td>'+(w.pid===null||w.pid===undefined?'—':esc(String(w.pid)))+'</td><td>'+rep+'</td><td>'+tail+'</td><td>'+btn+'</td></tr>';
     }).join('')||'<tr><td colspan=\\'6\\' class=\\'dim\\'>no spawned workers</td></tr>';
     Array.prototype.forEach.call(document.querySelectorAll('[data-kill]'),function(b){b.onclick=function(){kill([b.getAttribute('data-kill')]);};});
     document.getElementById('agents').innerHTML=s.agents.map(function(a){
@@ -498,7 +505,8 @@ async function refresh(){
     Array.prototype.forEach.call(document.querySelectorAll('[data-approve]'),function(b){b.onclick=function(){decide(b.getAttribute('data-approve'),'approved');};});
     Array.prototype.forEach.call(document.querySelectorAll('[data-deny]'),function(b){b.onclick=function(){decide(b.getAttribute('data-deny'),'denied');};});
     refreshLaunchMeta();
-  }catch(e){say('refresh failed: '+e.message);}
+    try{var _cd=document.getElementById('conn-dot');if(_cd){_cd.style.color='#4cc38a';_cd.title='connected: last poll ok';}}catch(_){}
+  }catch(e){try{var _cd2=document.getElementById('conn-dot');if(_cd2){_cd2.style.color='#e5534b';_cd2.title='poll failed';}}catch(_){}say('refresh failed: '+e.message);}
 }
 async function ackOne(id){
   var c=creds();
@@ -576,9 +584,9 @@ async function doLaunch(dry){
     if(!r.ok){out.textContent='HTTP '+r.status+' '+(j.error||JSON.stringify(j));return;}
     if(j.dryRun){
       var warn=(j.warnings||[]).length?('warnings: '+j.warnings.join('; ')+'\\n'):'';
-      out.textContent=warn+(j.commands||[]).map(function(c){return c.to+': '+c.command;}).join('\\n')+'\\n(dry-run — booted nothing)';
+      try{renderLaunchDiff(j);}catch(_){}out.textContent=warn+(j.commands||[]).map(function(c){return c.to+': '+c.command;}).join('\\n')+'\\n(dry-run — booted nothing)';
     }else{
-      out.textContent='launched: '+(j.workers||[]).map(function(w){return w.name+(w.pid?(' (pid '+w.pid+')'):'')+(w.error?(' ERROR '+w.error):'');}).join(', ');
+      try{showUndoToast((j.workers||[]).map(function(w){return w.name;}));}catch(_){}out.textContent='launched: '+(j.workers||[]).map(function(w){return w.name+(w.pid?(' (pid '+w.pid+')'):'')+(w.error?(' ERROR '+w.error):'');}).join(', ');
     }
   }catch(e){out.textContent='launch failed: '+e.message;}
   refresh();
@@ -589,6 +597,244 @@ document.getElementById('launch-go').onclick=function(){
   if(!dry&&!confirm('live boot: spawn real workers from this board?'))return;
   doLaunch(dry);
 };
+// M2 AppRoot (additive only): left nav, Ctrl+K palette, harness cards,
+// count stepper, permission segmented, dry-run diff, undo toast, inspector.
+// Reuses creds()/say()/kill()/ackOne()/decide() and tab-memory tokens only.
+function approotShowAll(){
+  var secs=document.querySelectorAll('section[data-section]');
+  for(var i=0;i<secs.length;i++){secs[i].classList.remove('approot-hidden');}
+  markApprootNav('all');
+}
+function markApprootNav(id){
+  var btns=document.querySelectorAll('#approot-nav [data-nav]');
+  for(var i=0;i<btns.length;i++){
+    if(btns[i].getAttribute('data-nav')===id){btns[i].classList.add('active');}
+    else{btns[i].classList.remove('active');}
+  }
+}
+function approotNavTo(id){
+  if(id==='all'){approotShowAll();try{window.scrollTo({top:0,behavior:'smooth'});}catch(_){window.scrollTo(0,0);}return;}
+  var el=document.getElementById(id);
+  if(!el)return;
+  var isSec=el.tagName==='SECTION';
+  var secs=document.querySelectorAll('section[data-section]');
+  var i;
+  if(isSec){for(i=0;i<secs.length;i++){if(secs[i]===el){secs[i].classList.remove('approot-hidden');}else{secs[i].classList.add('approot-hidden');}}}
+  else{for(i=0;i<secs.length;i++){secs[i].classList.remove('approot-hidden');}}
+  markApprootNav(id);
+  try{el.scrollIntoView({behavior:'smooth',block:'start'});}catch(_){try{el.scrollIntoView();}catch(_2){}}
+}
+function paletteSections(){
+  return [
+    {kind:'section',label:'Boards',id:'sec-boards'},
+    {kind:'section',label:'Crews',id:'sec-crews'},
+    {kind:'section',label:'Fleet',id:'sec-fleet'},
+    {kind:'section',label:'Channels',id:'sec-channels'},
+    {kind:'section',label:'Triage',id:'sec-triage'},
+    {kind:'section',label:'Approvals',id:'sec-approvals'},
+    {kind:'section',label:'Results',id:'sec-results'},
+    {kind:'section',label:'Audit',id:'sec-audit'},
+    {kind:'section',label:'Settings',id:'sec-settings'},
+    {kind:'section',label:'Launch',id:'launch-harness'}
+  ];
+}
+function paletteOpen(){return document.getElementById('palette').classList.contains('open');}
+function openPalette(){
+  document.getElementById('palette').classList.add('open');
+  var inp=document.getElementById('palette-input');
+  inp.value='';
+  renderPaletteList('');
+  try{inp.focus();}catch(_){}
+}
+function closePalette(){document.getElementById('palette').classList.remove('open');}
+function renderPaletteList(filter){
+  var f=String(filter||'').toLowerCase();
+  var items=paletteSections();
+  var workers=window.__workers||[];
+  var i,matches=[];
+  for(i=0;i<items.length;i++){if(!f||items[i].label.toLowerCase().indexOf(f)>=0){matches.push(items[i]);}}
+  for(i=0;i<workers.length;i++){
+    var nm=String(workers[i].name||'');
+    if(nm&&(!f||nm.toLowerCase().indexOf(f)>=0)){matches.push({kind:'worker',label:'worker '+nm,id:nm});}
+  }
+  window.__paletteMatches=matches.slice(0,30);
+  var html='';
+  for(i=0;i<window.__paletteMatches.length;i++){
+    var m=window.__paletteMatches[i];
+    html+='<div data-idx="'+i+'" class="'+(i===0?'sel':'')+'">'+esc(m.kind+': '+m.label)+'</div>';
+  }
+  var list=document.getElementById('palette-list');
+  list.innerHTML=html||'<div class="dim">no matches</div>';
+  var rows=list.querySelectorAll('[data-idx]');
+  for(i=0;i<rows.length;i++){
+    rows[i].onclick=(function(idx){return function(){paletteActivate(window.__paletteMatches[idx]);};})(i);
+  }
+}
+function paletteActivate(m){
+  if(!m)return;
+  closePalette();
+  if(m.kind==='section'){approotNavTo(m.id);}
+  else{approotNavTo('sec-crews');showInspector(m.id);}
+}
+function syncTopbarHarness(){
+  var main=document.getElementById('launch-harness');
+  var quick=document.getElementById('topbar-harness');
+  if(!main||!quick)return;
+  var cur=quick.value||main.value;
+  var opts=main.querySelectorAll('option');
+  var i,html='';
+  for(i=0;i<opts.length;i++){html+='<option value="'+esc(opts[i].value)+'">'+esc(opts[i].textContent||opts[i].value)+'</option>';}
+  if(html&&quick.innerHTML!==html){quick.innerHTML=html;}
+  if(cur){try{quick.value=cur;}catch(_){}}
+  if(!quick.value&&main.value){try{quick.value=main.value;}catch(_){}}
+}
+function renderHarnessCards(){
+  return (async function(){
+    var hr=await fetch('/api/harnesses',{cache:'no-store'});
+    var hj=await hr.json();
+    window.__harnesses=hj;
+    var sel=document.getElementById('launch-harness').value;
+    document.getElementById('harness-cards').innerHTML=(hj||[]).map(function(h){
+      var ver=h.found?(h.version||'installed'):('missing ('+(h.detail||'not installed')+')');
+      var cls='harness-card'+(h.driver===sel?' sel':'')+(h.found?'':' missing');
+      return '<div class="'+cls+'" data-driver="'+esc(h.driver)+'"><b>'+esc(h.driver)+'</b><div class="dim">'+esc(ver)+'</div><div class="dim">brief: '+esc(h.briefDelivery||'?')+' · resume: '+esc(h.resume?'yes':'no')+'</div></div>';
+    }).join('')||'<div class="dim">no harness drivers</div>';
+    var cards=document.querySelectorAll('#harness-cards [data-driver]');
+    for(var i=0;i<cards.length;i++){
+      cards[i].onclick=(function(d){return function(){
+        document.getElementById('launch-harness').value=d;
+        syncTopbarHarness();
+        try{renderHarnessCards();}catch(_){}
+      };})(cards[i].getAttribute('data-driver'));
+    }
+    syncTopbarHarness();
+  })();
+}
+function renderLaunchDiff(j){
+  var box=document.getElementById('launch-diff');
+  if(!box)return;
+  if(!j||(!j.commands&&!j.warnings)){box.innerHTML='';return;}
+  var html='';
+  var warns=j.warnings||[];
+  if(warns.length){
+    html+='<div class="warn"><b>'+warns.length+' warning(s) — review before live boot:</b><ul>';
+    for(var i=0;i<warns.length;i++){html+='<li>'+esc(warns[i])+'</li>';}
+    html+='</ul></div>';
+  }
+  var cmds=j.commands||[];
+  if(cmds.length){
+    html+='<ul>';
+    for(var k=0;k<cmds.length;k++){html+='<li><b>'+esc(cmds[k].to)+'</b>: <span class="log">'+esc(cmds[k].command)+'</span></li>';}
+    html+='</ul>';
+  }
+  box.innerHTML=html;
+}
+function showUndoToast(names){
+  var toast=document.getElementById('undo-toast');
+  if(!toast)return;
+  if(!names||!names.length){toast.classList.remove('show');toast.innerHTML='';return;}
+  var label=names.length===1?names[0]:(names.length+' workers ('+names.join(', ')+')');
+  toast.innerHTML='<span>launched '+esc(label)+' </span><button id="undo-toast-btn">Undo (kill just-launched)</button> <button id="undo-toast-x">dismiss</button>';
+  toast.classList.add('show');
+  document.getElementById('undo-toast-x').onclick=function(){toast.classList.remove('show');};
+  document.getElementById('undo-toast-btn').onclick=function(){
+    toast.classList.remove('show');
+    kill(names.slice());
+  };
+  try{setTimeout(function(){toast.classList.remove('show');},30000);}catch(_){}
+}
+function showInspector(name){
+  var body=document.getElementById('inspector-body');
+  if(!body)return;
+  var rows=window.__workers||[];
+  var w=null;
+  for(var i=0;i<rows.length;i++){if(rows[i].name===name){w=rows[i];break;}}
+  if(!w){body.innerHTML='<span class="dim">unknown worker '+esc(name)+'</span>';return;}
+  var tail=((w.tail||[]).slice(-10).map(function(l){return esc(l);}).join('\n'))||'no log';
+  var rep=w.reply?(esc(w.reply.id)+' — '+esc(w.reply.head||'')):'—';
+  var html='<div><b>'+esc(w.name)+'</b> <span class="dim">'+esc(stateOf(w))+'</span></div>'
+    +'<div class="dim">state: '+esc(stateOf(w))+' · pid: '+esc(w.pid===null||w.pid===undefined?'—':String(w.pid))+' · spawner: '+esc(w.spawnedBy||'?')+'</div>'
+    +'<div class="dim">reply: '+rep+' · acked: '+esc(w.acked?'yes':'no')+' · session: '+esc(w.harnessSessionId||'—')+'</div>'
+    +'<div class="log">'+tail+'</div>'
+    +'<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">'
+    +((w.known&&typeof w.pid==='number')?'<button class="danger" id="insp-kill">kill</button>':'')
+    +(w.reply?'<button id="insp-ack">ack reply</button>':'')
+    +'<button id="insp-respawn">respawn (CLI-only)</button></div>'
+    +'<div class="dim" id="insp-respawn-cmd"></div>';
+  body.innerHTML=html;
+  var kb=document.getElementById('insp-kill');
+  if(kb){kb.onclick=function(){kill([w.name]);};}
+  var ab=document.getElementById('insp-ack');
+  if(ab){ab.onclick=function(){ackOne(w.reply.id);};}
+  var rb=document.getElementById('insp-respawn');
+  if(rb){rb.onclick=function(){
+    var cmd='crewbus respawn --to '+w.name;
+    document.getElementById('insp-respawn-cmd').textContent='respawn is CLI-only — run: '+cmd;
+    try{if(navigator&&navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(cmd);}}catch(_){}
+    say('respawn is CLI-only — run: '+cmd);
+  };}
+}
+var _refreshLaunchMetaOrig=refreshLaunchMeta;
+refreshLaunchMeta=function(){try{_refreshLaunchMetaOrig();}catch(_){}try{renderHarnessCards();}catch(_){}};
+document.getElementById('topbar-harness').onchange=function(){
+  document.getElementById('launch-harness').value=this.value;
+  try{renderHarnessCards();}catch(_){}
+};
+document.getElementById('launch-harness').onchange=function(){
+  document.getElementById('topbar-harness').value=this.value;
+  try{renderHarnessCards();}catch(_){}
+};
+document.getElementById('launch-count-minus').onclick=function(){
+  var el=document.getElementById('launch-count');
+  var n=Number(el.value)||1;
+  el.value=String(Math.max(1,n-1));
+};
+document.getElementById('launch-count-plus').onclick=function(){
+  var el=document.getElementById('launch-count');
+  var n=Number(el.value)||1;
+  el.value=String(Math.min(20,n+1));
+};
+(function(){
+  var btns=document.querySelectorAll('#launch-permission-seg [data-perm]');
+  var sel=document.getElementById('launch-permission');
+  var paint=function(){
+    for(var i=0;i<btns.length;i++){
+      if(btns[i].getAttribute('data-perm')===sel.value){btns[i].classList.add('sel');}
+      else{btns[i].classList.remove('sel');}
+    }
+  };
+  for(var i=0;i<btns.length;i++){
+    btns[i].onclick=(function(v){return function(){sel.value=v;paint();};})(btns[i].getAttribute('data-perm'));
+  }
+  sel.onchange=paint;
+  paint();
+})();
+(function(){
+  var btns=document.querySelectorAll('#approot-nav [data-nav]');
+  for(var i=0;i<btns.length;i++){
+    btns[i].onclick=(function(id){return function(){approotNavTo(id);};})(btns[i].getAttribute('data-nav'));
+  }
+})();
+document.getElementById('palette-open').onclick=function(){openPalette();};
+document.getElementById('palette-input').oninput=function(){renderPaletteList(this.value);};
+document.getElementById('palette-input').onkeydown=function(e){
+  if((e.key||'')==='Enter'){paletteActivate((window.__paletteMatches||[])[0]);}
+};
+document.addEventListener('keydown',function(e){
+  var k=e.key||'';
+  if((e.ctrlKey||e.metaKey)&&(k==='k'||k==='K')){e.preventDefault();if(paletteOpen()){closePalette();}else{openPalette();}}
+  else if(k==='Escape'||k==='Esc'){closePalette();}
+});
+document.getElementById('palette').addEventListener('click',function(e){
+  if(e.target===this){closePalette();}
+});
+document.getElementById('workers').addEventListener('click',function(e){
+  try{
+    if(e.target&&e.target.tagName==='BUTTON')return;
+    var tr=e.target&&e.target.closest?e.target.closest('tr.worker-row'):null;
+    if(tr&&tr.getAttribute('data-worker')){showInspector(tr.getAttribute('data-worker'));}
+  }catch(_){}
+});
 loadLaunchMeta();
 refresh();
 setInterval(refresh,5000);

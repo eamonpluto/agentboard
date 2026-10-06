@@ -432,7 +432,12 @@ pairing URL on boot. The dashboard (`crewbus web`) and relay both serve
 live boots locally or via the relay core). The relay additionally exposes
 the pairing flow over HTTP for mobile/desktop clients (`POST
 /api/pair/issue` + `POST /api/pair/exchange` + `GET /api/pair/devices` +
-`POST /api/pair/revoke`, admin-gated, narrow-only scopes).
+`POST /api/pair/revoke`, admin-gated, narrow-only scopes). The dashboard
+itself is an AppRoot: left nav (Boards → Fleet → Audit), top bar with
+harness quick-pick + connection dot + `Ctrl+K` palette, harness cards with
+live detect state, dry-run diff with warnings, a worker inspector
+(kill/ack inline, respawn stays CLI-only), and an Undo toast after every
+live launch.
 
 ## Inserted into context
 
