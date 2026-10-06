@@ -497,6 +497,7 @@ async function refresh(){
     Array.prototype.forEach.call(document.querySelectorAll('[data-ack]'),function(b){b.onclick=function(){ackOne(b.getAttribute('data-ack'));};});
     Array.prototype.forEach.call(document.querySelectorAll('[data-approve]'),function(b){b.onclick=function(){decide(b.getAttribute('data-approve'),'approved');};});
     Array.prototype.forEach.call(document.querySelectorAll('[data-deny]'),function(b){b.onclick=function(){decide(b.getAttribute('data-deny'),'denied');};});
+    refreshLaunchMeta();
   }catch(e){say('refresh failed: '+e.message);}
 }
 async function ackOne(id){
@@ -524,23 +525,37 @@ async function decide(id,verdict){
   refresh();
 }
 async function loadLaunchMeta(){
+  // One-time harness <select> options; the table itself refreshes every poll
+  // via refreshLaunchMeta() (selection-preserving).
   try{
     var hr=await fetch('/api/harnesses',{cache:'no-store'});
     var hj=await hr.json();
-    document.getElementById('harnesses').innerHTML=(hj||[]).map(function(h){
-      var ver=h.found?(h.version||'installed'):('missing ('+(h.detail||'not installed')+')');
-      return '<tr><td><b>'+esc(h.driver)+'</b></td><td>'+esc(h.binary||'(operator cmd)')+'</td><td>'+esc(ver)+'</td><td>'+esc(h.briefDelivery||'?')+'</td><td>'+esc(h.resume?'yes':'no')+'</td></tr>';
-    }).join('')||'<tr><td colspan="5" class="dim">no harness drivers</td></tr>';
     document.getElementById('launch-harness').innerHTML=(hj||[]).map(function(h){
       return '<option value="'+esc(h.driver)+'">'+esc(h.driver)+'</option>';
     }).join('');
   }catch(e){}
-  try{
-    var rr=await fetch('/api/routes',{cache:'no-store'});
-    var rj=await rr.json();
-    var routes=(rj&&rj.advertisedRoutes)||[];
-    document.getElementById('routes-line').textContent='routes: '+(routes.length?routes.join(', '):'(local board — no relay routes; pair via relay pair qr)')+' · caps: '+((rj&&rj.capabilities)||[]).join(', ');
-  }catch(e){}
+  refreshLaunchMeta();
+}
+function refreshLaunchMeta(){
+  // M6-lite: harness presence/version stays live on the 5s poll. Rebuilds
+  // the table + routes line only — never the <select>, so a choice
+  // mid-form is never clobbered. Failures are silent (stale table stays).
+  (async function(){
+    try{
+      var hr=await fetch('/api/harnesses',{cache:'no-store'});
+      var hj=await hr.json();
+      document.getElementById('harnesses').innerHTML=(hj||[]).map(function(h){
+        var ver=h.found?(h.version||'installed'):('missing ('+(h.detail||'not installed')+')');
+        return '<tr><td><b>'+esc(h.driver)+'</b></td><td>'+esc(h.binary||'(operator cmd)')+'</td><td>'+esc(ver)+'</td><td>'+esc(h.briefDelivery||'?')+'</td><td>'+esc(h.resume?'yes':'no')+'</td></tr>';
+      }).join('')||'<tr><td colspan="5" class="dim">no harness drivers</td></tr>';
+    }catch(e){}
+    try{
+      var rr=await fetch('/api/routes',{cache:'no-store'});
+      var rj=await rr.json();
+      var routes=(rj&&rj.advertisedRoutes)||[];
+      document.getElementById('routes-line').textContent='routes: '+(routes.length?routes.join(', '):'(local board — no relay routes; pair via relay pair qr)')+' · caps: '+((rj&&rj.capabilities)||[]).join(', ');
+    }catch(e){}
+  })();
 }
 document.getElementById('launch-brief').oninput=function(){
   document.getElementById('launch-brief-count').textContent=document.getElementById('launch-brief').value.length+'/8000';

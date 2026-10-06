@@ -177,7 +177,38 @@ const devAfter = await httpCall(base, "GET", devQ);
 const rowAfter = Array.isArray(devAfter.json) ? devAfter.json.find((r) => r.id === deviceId) : null;
 check("devices: shows revoked", !!rowAfter && rowAfter.revoked === true);
 
+// ---- M6-lite: per-call scope enforcement on relay RPCs ----
+const scopeIss = await httpCall(base, "POST", "/api/pair/issue", { from: "ops", token: adminTok, label: "scoped", scopes: ["mail:send"] });
+const scopeToken = String(scopeIss.json.pairUrl.split("#")[1] || "");
+const scopeEx = await httpCall(base, "POST", "/api/pair/exchange", { pairToken: scopeToken });
+const scopedCred = scopeEx.json.credential;
+const scopedLaunch = await httpCall(base, "POST", "/api/launch", { from: "ops", token: adminTok, harness: "grok", body: "x", dryRun: true }, { "x-crewbus-device": scopedCred });
+check("scope: narrowed device refused launch:spawn 403", scopedLaunch.status === 403 && String((scopedLaunch.json && scopedLaunch.json.error) || "").includes('lacks scope "launch:spawn"'));
+const scopedSync = await httpCall(base, "GET", "/sync/manifest", undefined, { "x-crewbus-device": scopedCred });
+check("scope: sync transport unaffected by RPC scopes", scopedSync.status === 200);
+const fullIss = await httpCall(base, "POST", "/api/pair/issue", { from: "ops", token: adminTok, label: "fulldev" });
+const fullToken = String(fullIss.json.pairUrl.split("#")[1] || "");
+const fullEx = await httpCall(base, "POST", "/api/pair/exchange", { pairToken: fullToken });
+const fullLaunch = await httpCall(base, "POST", "/api/launch", { from: "ops", token: adminTok, harness: "grok", body: "x", dryRun: true }, { "x-crewbus-device": fullEx.json.credential });
+check("scope: full device passes scope gate (reaches OPT-IN 403)", fullLaunch.status === 403 && String((fullLaunch.json && fullLaunch.json.error) || "").includes("OPT-IN"));
+const secLaunch = await httpCall(base, "POST", "/api/launch", { from: "ops", token: adminTok, harness: "grok", body: "x", dryRun: true }, { "x-crewbus-secret": secret });
+check("scope: shared secret unaffected (reaches OPT-IN 403)", secLaunch.status === 403 && String((secLaunch.json && secLaunch.json.error) || "").includes("OPT-IN"));
+
 relay.kill();
+
+// ---- M6-lite: standby relay refuses pair writes (503 + primary hint) ----
+const standby = startServer(["serve", "--port", "0", "--board", board, "--secret", secret, "--standby", "http://127.0.0.1:9", "--relay-interval", "60"]);
+const standbyAt = await standby.waitFor(/crewbus serve at http:\/\/(\S+)/);
+const standbyBase = `http://${standbyAt[1]}`;
+const sbIssue = await httpCall(standbyBase, "POST", "/api/pair/issue", { from: "ops", token: adminTok, label: "x" });
+check("standby: pair issue 503", sbIssue.status === 503 && String((sbIssue.json && sbIssue.json.error) || sbIssue.text).includes("standby"));
+const sbExchange = await httpCall(standbyBase, "POST", "/api/pair/exchange", { pairToken: "abp-00000000000000000000000000000000" });
+check("standby: pair exchange 503 (no token oracle)", sbExchange.status === 503);
+const sbRevoke = await httpCall(standbyBase, "POST", "/api/pair/revoke", { from: "ops", token: adminTok, deviceId: "deadbeef" });
+check("standby: pair revoke 503", sbRevoke.status === 503);
+const sbDevices = await httpCall(standbyBase, "GET", `/api/pair/devices?from=ops&token=${adminTok}`);
+check("standby: pair devices reads serve locally", sbDevices.status === 200 && Array.isArray(sbDevices.json));
+standby.kill();
 fs.rmSync(board, { recursive: true, force: true });
 
 if (failures > 0) {

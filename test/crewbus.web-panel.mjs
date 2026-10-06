@@ -73,6 +73,7 @@ check("panel: launch token is a password input", /id="launch-token"[^>]*type="pa
 check("panel: Preview renders commands, boots nothing (dry-run note)", page.text.includes("dry-run") && page.text.includes("booted nothing"));
 check("panel: no token material rendered into HTML", !/abt-[0-9a-f]{4,}/.test(page.text) && !page.text.includes('value="abt-'));
 check("panel: existing kill/ack wiring untouched", page.text.includes("/api/kill") && page.text.includes("/api/ack"));
+check("panel: harness table live-refreshes on poll (selection-preserving)", page.text.includes("refreshLaunchMeta()") && page.text.includes("never the <select>"));
 
 web.kill();
 

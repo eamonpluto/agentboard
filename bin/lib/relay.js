@@ -392,7 +392,7 @@ export async function requireRelaySecret(req, res, url, ctx) { // lines 7706-774
           rec.lastSeen = new Date().toISOString();
           writeJson(devicePath(d, rec.id), rec);
         } catch {}
-        req.device = { id: rec.id, label: rec.label || "" };
+        req.device = { id: rec.id, label: rec.label || "", scopes: Array.isArray(rec.scopes) ? rec.scopes : null };
         return true;
       }
     }
@@ -408,6 +408,22 @@ export async function requireRelaySecret(req, res, url, ctx) { // lines 7706-774
     return false;
   }
   return true;
+}
+// Per-call scope enforcement for narrowed device credentials
+// (packages/contracts/pairing.json). Shared secret, OIDC Bearer, and
+// localhost-open callers are full access (no req.device, or scopes null =
+// today's full device, backward compatible). Narrowed devices (scopes array)
+// pass only when it includes the required scope; anything else is a 403
+// naming the missing scope, never a 500. /sync/* stays transport-gated
+// (scopes cover control-plane RPCs, not the sync transport).
+export function requireScope(req, res, scope) { // control-plane M6-lite
+  const dev = req.device;
+  if (!dev) return true;
+  if (!Array.isArray(dev.scopes)) return true;
+  if (dev.scopes.includes(scope)) return true;
+  res.writeHead(403, { "content-type": "application/json; charset=utf-8" });
+  res.end(JSON.stringify({ error: `device credential lacks scope "${scope}" (has: ${dev.scopes.join(",") || "none"})` }));
+  return false;
 }
 // Context-param adjustment (documented): the monolith defines this as a
 // cmdServe closure over tlsClientCaPem. Body is otherwise verbatim.

@@ -45,7 +45,7 @@ import { BOARD_VERSION, BROADCAST_AFTER, MAX_BODY_CHARS, MAX_RECIPIENTS, MAX_SPA
 import { VALID_ROLES, agentTokenMatches, assertMintWon, authorize, authorizeCheck, checkToken, cleanRole, countAgentRecords, defaultRoleForNew, ensureSender, hashToken, isHashRevoked, mergeSyncedAgent, mintToken, newSalt, readAgent, readBoardAcl, resolveToken, revokedPathForHash, roleOfRecord, sanitizeAgentForSync, stripAgentSecrets, timingSafeEqualStr, touchAgent, writeAgentFile, writeBoardAcl, isBoardFrozen } from "./lib/identity.js";
 import { saveTokenFile } from "./lib/tokenfile.js";
 import { CLIENT_TLS, SYNC_LWW, cleanSyncRel, clientInsecureFromArgs, crewSurvey, httpJson, readPemFlag, readSyncState, readTombstones, relayAuthEntries, relayCredFor, relayCredHeaders, setupClientTls, splitByWeight, syncRound, syncWalk, warnInsecureOnce, writeSyncState, writeTombstone, SYNC_SUBS, SYNC_UNION, RELAY_CAPS, SUB_CAP, SUB_CAP_NOTE, tombstoneIdForRel, readSyncDoc } from "./lib/sync.js";
-import { devicePath, isLoopbackHost, newDeviceCred, newPairToken, pairingPath, parseDeviceCred, readDevice, readRelayState, relaySecretFromArgs, remoteSpawn, requireRelayClientCert, requireRelaySecret, tryAcquireFence, verifyOidcJwt, writeRelayState, relayStatePath, bearerFromReq, getOidcConfig, getOidcJwks, b64urlDecode, b64urlJson, jwsRawToDer, oidcGetJson, OIDC_SKEW_SEC, OIDC_JWKS_TTL_MS, OIDC_ALG_HASH, OIDC_EC_SIZE, deviceFromReq } from "./lib/relay.js";
+import { devicePath, isLoopbackHost, newDeviceCred, newPairToken, pairingPath, parseDeviceCred, readDevice, readRelayState, relaySecretFromArgs, remoteSpawn, requireRelayClientCert, requireRelaySecret, requireScope, tryAcquireFence, verifyOidcJwt, writeRelayState, relayStatePath, bearerFromReq, getOidcConfig, getOidcJwks, b64urlDecode, b64urlJson, jwsRawToDer, oidcGetJson, OIDC_SKEW_SEC, OIDC_JWKS_TTL_MS, OIDC_ALG_HASH, OIDC_EC_SIZE, deviceFromReq } from "./lib/relay.js";
 import { assertGitCheckout, bootRespawnedWorker, bootWorker, buildRespawnBrief, buildRespawnTarget, buildSpawnPrompt, buildSpawnTarget, formatSpawnCmd, isPidStale, killWorkers, maybeIsolate, parseAllowEnv, pidAlive, provisionBranch, provisionWorktree, readWorkerSession, requireAutoConfirm, sandboxPresent, scrubChildEnv, syncWorkerSession, workerStatus, worktreeStamp, defaultMaxTurnsFor } from "./lib/spawn.js";
 import { appendChainRecord, auditHmacKey, boardTotalBytes, chainFilePath, countChannels, dirSize, doExportToFile, enforceAgentQuota, enforceBytesQuota, enforceChannelQuota, holdActive, holdDocPath, holdRefusal, parseQuotaBytes, parseQuotaCount, readBackupInner, readBoardQuotas, readChainRecords, readHold, readSnapshotSchedule, resolveBackupKeyMaterial, setAuditForward, snapshotStamp, startAuditForwarder, verifyChainRecords, collectBoardFiles, encryptBackupPayload, decryptBackupPayload, rawKeyFromMaterial, deriveBackupKey, toAuditExport, spoolAuditEvent, postAuditEvent, auditSpoolDir, drainAuditSpool, enqueueAuditForward, signAuditRecord, chainRecordHash, AUDIT_FORWARD_URL, AUDIT_FORWARD_KEY } from "./lib/export.js";
 import { ackedIds, checkSendRateLimit, deliverDMs, enforceMaxChars, filterDigest, findDuplicateSend, findMessageById, heartbeat, isVerified, loadManifest, manifestPath, msgTimeMs, parseRecipients, printDigest, printMsg, readDMs, readVisible, recordBroadcastManifest, requireFanoutConfirm, resolveFwdDepth, runVerifier, verifyMessageSig, isHigh, signMessage, untrustedEnvelope, relTime, rateFilePath, broadcastTargets, readBroadcastsFor, formatTo, msgHeader, readAckMarker, splitCommand, readRecipientsFile } from "./lib/mail.js";
@@ -5149,6 +5149,8 @@ async function cmdServe(args) {
           // relay-secret-checked, same validation as CLI spawn.
           if (isStandbyWriter()) { standbyRefuse(res, "POST /api/spawn"); return; }
           if (!(await requireRelaySecret(req, res, url, relayCtx))) return;
+          // Control-plane M6-lite: narrowed device creds need launch:spawn.
+          if (!requireScope(req, res, "launch:spawn")) return;
           if (!allowRemoteSpawn) {
             res.writeHead(403, { "content-type": "application/json; charset=utf-8" });
             res.end(JSON.stringify({ error: "remote spawn is OPT-IN: restart the relay with --allow-remote-spawn" }));
@@ -5208,6 +5210,8 @@ async function cmdServe(args) {
           // launch-plan validation, then the SAME remoteSpawn core.
           if (isStandbyWriter()) { standbyRefuse(res, "POST /api/launch"); return; }
           if (!(await requireRelaySecret(req, res, url, relayCtx))) return;
+          // Control-plane M6-lite: narrowed device creds need launch:spawn.
+          if (!requireScope(req, res, "launch:spawn")) return;
           if (!allowRemoteSpawn) {
             res.writeHead(403, { "content-type": "application/json; charset=utf-8" });
             res.end(JSON.stringify({ error: "remote launch is OPT-IN: restart the relay with --allow-remote-spawn" }));
@@ -5280,6 +5284,8 @@ async function cmdServe(args) {
         if (req.method === "POST" && url.pathname === "/api/kill") {
           if (isStandbyWriter()) { standbyRefuse(res, "POST /api/kill"); return; }
           if (!(await requireRelaySecret(req, res, url, relayCtx))) return;
+          // Control-plane M6-lite: narrowed device creds need launch:kill.
+          if (!requireScope(req, res, "launch:kill")) return;
           if (!allowRemoteSpawn) {
             res.writeHead(403, { "content-type": "application/json; charset=utf-8" });
             res.end(JSON.stringify({ error: "remote kill is OPT-IN: restart the relay with --allow-remote-spawn" }));
