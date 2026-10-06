@@ -52,6 +52,7 @@ import { ackedIds, checkSendRateLimit, deliverDMs, enforceMaxChars, filterDigest
 import { batchReplyIds, collectBatch, contributingGroups, expandGroups, expandGroupsOrFail, gatherTelemetry, groupTelemetryData, heuristicSenderType, readGroup, ensureGroupCreatedAt, readResultRecord, writeResultRecord, findFirstVerifiedReply } from "./lib/groups.js";
 import { appendChannelPost, channelLogPath, groupChannelName, lockAlive, lockPath, mergeChannelText, mirrorToGroupChannels, printChannelPost, readChannelPosts, readLock, summarizePosts, writeChannelCursor, SUMMARY_STOP, channelCursorPath, readChannelCursor, lockHash, acquireLockDoc, releaseLockDoc, tailChannelPosts, listLocks, parseChannelText } from "./lib/channels.js";
 import { boardSnapshot, cmdWeb, escapeHtml, fleetSnapshot, channelsSnapshot, resultsSnapshot, auditSnapshot, handleApiAck, renderBoardHtml, handleApiKill } from "./lib/web.js";
+import { LAUNCH_DRIVER_FALLBACK, PAIR_SCOPES, advertiseEnv, buildPairUrl, detectHarnessBinaries, launchDrivers, probeBinary, validateLaunchPlan } from "./lib/launch.js";
 
 // spawn boots live OS processes (heavyweight: a whole harness per worker),
 // so the default cap sits far below the DM fan-out limit — big crews get a
@@ -2925,6 +2926,123 @@ function cmdSpawn(args) {
   }
 }
 
+// Control-plane M1: `launch` validates the plan against
+// packages/contracts/launch.json, previews with --dry-run (exact commands,
+// zero boots), otherwise delegates to the SAME spawn path cmdSpawn uses
+// (same flags, same RBAC, same audit). No new spawn logic lives here.
+function cmdLaunch(args) {
+  const root = boardDir(args);
+  refuseDriveRootBoard(root, args);
+  const from = resolveAgent(args, "sender");
+  const bodyFile = getFlag(args, "--body-file");
+  let body = getFlag(args, "--body");
+  if (bodyFile !== undefined) {
+    try {
+      body = fs.readFileSync(path.resolve(String(bodyFile)), "utf8");
+    } catch (e) {
+      fail(`cannot read --body-file "${bodyFile}" (${(e && e.message) || e})`);
+    }
+  }
+  const raw = {
+    harness: getFlag(args, "--harness"),
+    body,
+    to: getFlag(args, "--to"),
+    count: getFlag(args, "--count"),
+    prefix: getFlag(args, "--prefix"),
+    subject: getFlag(args, "--subject"),
+    priority: getFlag(args, "--priority"),
+    model: getFlag(args, "--model"),
+    maxTurns: getFlag(args, "--max-turns"),
+    allowTools: getFlag(args, "--allow-tools"),
+    permission: getFlag(args, "--permission"),
+    isolate: args.includes("--isolate") || undefined,
+    worktree: getFlag(args, "--worktree"),
+    branch: getFlag(args, "--branch"),
+    lifetime: args.includes("--persistent") ? "persistent" : args.includes("--oneshot") ? "oneshot" : undefined,
+    budgetTokens: getFlag(args, "--budget-tokens"),
+    budgetMinutes: getFlag(args, "--budget-minutes"),
+    timeout: getFlag(args, "--timeout"),
+    dryRun: args.includes("--dry-run") || undefined,
+    iUnderstandDanger: args.includes("--i-understand-danger") || undefined,
+    // --yes is the headless danger confirm (requireAutoConfirm has no --yes
+    // of its own: only --i-understand-danger or a TTY "yes" counts there).
+    yes: args.includes("--yes") || undefined,
+    target: "local",
+  };
+  const v = validateLaunchPlan(raw);
+  const asJson = args.includes("--json");
+  if (!v.ok) {
+    if (asJson) {
+      console.log(JSON.stringify({ ok: false, errors: v.errors, warnings: v.warnings }, null, 2));
+      process.exit(1);
+    }
+    fail("launch plan invalid:\n  - " + v.errors.join("\n  - "));
+  }
+  for (const w of v.warnings) process.stderr.write(`crewbus: launch warning: ${w}\n`);
+  // --dry-run: print the exact commands cmdSpawn would run (formatSpawnCmd),
+  // booting nothing. Reuses the spawn arg builder against a scratch prompt
+  // path so previews match reality.
+  if (v.plan.dryRun) {
+    const p = v.plan;
+    const names = p.to ? String(p.to).split(",").map((s) => s.trim()).filter(Boolean)
+      : Array.from({ length: p.count }, (_, i) => `${p.prefix || "w"}-${i + 1}`);
+    if (p.harness === "generic" && !getFlag(args, "--cmd")) {
+      fail("launch --harness generic needs --cmd \"...\" (no command to preview)");
+    }
+    const rev = gitRevForBoard(root);
+    const rows = names.map((to) => {
+      const previewPrompt = buildSpawnPrompt({ name: to, from, subject: p.subject, body: p.body.trim(), replyId: "msg-<id>", rev, cwd: getFlag(args, "--cwd") || process.cwd(), root });
+      const t = buildSpawnTarget({
+        harness: p.harness, cmd: getFlag(args, "--cmd"), model: p.model,
+        auto: p.permission === "auto" || p.permission === "full" ? true : undefined,
+        maxTurns: p.maxTurns, allowTools: p.allowTools, cwd: getFlag(args, "--cwd") || process.cwd(),
+        name: to, promptPath: path.join("<board>", "logs", `${to}-<stamp>.prompt.md`), prompt: previewPrompt,
+      });
+      return { to, command: formatSpawnCmd(t), resume: launchDrivers().find((x) => x.driver === p.harness)?.resume !== false };
+    });
+    if (asJson) console.log(JSON.stringify({ ok: true, dryRun: true, plan: p, warnings: v.warnings, commands: rows }, null, 2));
+    else {
+      console.log(`launch dry-run: ${p.harness} x${rows.length} [board ${root}]`);
+      for (const r of rows) console.log(`  ${r.to}: ${r.command}`);
+      if (p.permission === "full") console.log("  (permission full: unattended + isolate recommended)");
+    }
+    return;
+  }
+  // Live launch: translate the plan into cmdSpawn args and delegate.
+  // This keeps ONE spawn implementation (cmdSpawn owns boots, RBAC, audit).
+  const fwd = ["--from", from, "--harness", v.plan.harness, "--body", v.plan.body];
+  if (v.plan.to) fwd.push("--to", v.plan.to);
+  else fwd.push("--count", String(v.plan.count), "--prefix", v.plan.prefix || "w");
+  for (const [flag, val] of [["--subject", v.plan.subject], ["--priority", v.plan.priority], ["--model", v.plan.model], ["--max-turns", v.plan.maxTurns], ["--allow-tools", v.plan.allowTools], ["--cmd", getFlag(args, "--cmd")], ["--cwd", getFlag(args, "--cwd")], ["--worktree", v.plan.worktree], ["--branch", v.plan.branch], ["--budget-tokens", v.plan.budgetTokens], ["--budget-minutes", v.plan.budgetMinutes], ["--timeout", v.plan.timeout], ["--sender-type", getFlag(args, "--sender-type")]]) {
+    if (val !== undefined) fwd.push(flag, String(val));
+  }
+  if (v.plan.isolate) fwd.push("--isolate");
+  if (v.plan.lifetime === "persistent") fwd.push("--persistent");
+  if (v.plan.permission === "auto" || v.plan.permission === "full") fwd.push("--auto");
+  if (v.plan.iUnderstandDanger) fwd.push("--i-understand-danger");
+  if (resolveToken(args)) fwd.push("--token", resolveToken(args));
+  if (args.includes("--board")) fwd.push("--board", root);
+  if (process.env.CREWBUS_DIR && !args.includes("--board")) fwd.push("--board", root);
+  return cmdSpawn(fwd);
+}
+
+// Control-plane M1: `harnesses [detect]` lists the 7 drivers with live
+// binary presence. Missing binaries = "not installed", never FAIL.
+function cmdHarnesses(args) {
+  const rows = detectHarnessBinaries();
+  if (args.includes("--json")) {
+    console.log(JSON.stringify(rows, null, 2));
+    return;
+  }
+  console.log("harness      binary         found  version                    brief   resume");
+  for (const r of rows) {
+    const found = r.found ? "yes" : "no";
+    const ver = (r.version || r.detail || "").slice(0, 26).padEnd(26);
+    console.log(`${r.driver.padEnd(12)} ${(r.binary || "(operator --cmd)").padEnd(14)} ${found.padEnd(6)} ${ver} ${(r.briefDelivery || "").padEnd(7)} ${r.resume ? "yes" : "NO (honest)"}`);
+  }
+  console.log("missing binaries mean not installed — install + authenticate per docs/COMPATIBILITY.md");
+}
+
 // Shared boot core for CLI spawn + remote POST /api/spawn: writes the brief
 // prompt file, launches the harness detached on THIS machine, records
 // pid/lineage. Returns { pid, logPath, promptPath }. Throws on launch
@@ -4393,6 +4511,23 @@ async function cmdRelayPair(d, admin, rest) {
   fs.mkdirSync(path.join(d.root, "pairing"), { recursive: true });
   writeJson(pairingPath(d, doc.tokenHash), doc);
   appendChainRecord(d, admin, "pair", { label, expiresAt: doc.expiresAt });
+  // Control-plane M1: `relay pair qr` prints the one-time crewbus://pair URL
+  // (secret in #fragment, never query) alongside the plain token. Same mint,
+  // same audit — only the presentation differs.
+  if (rest.includes("qr")) {
+    const routesRaw = getFlag(rest, "--routes");
+    const routes = routesRaw ? String(routesRaw).split(",").map((s) => s.trim()).filter(Boolean) : [];
+    const envId = (readRelayState(d) && readRelayState(d).envId) || `board:${path.basename(d.root)}`;
+    const url = buildPairUrl({ envId, routes, caps: ["hlc", "tombstones", "channels", "revoked", "holds", "launch"], pairToken: token });
+    if (rest.includes("--json")) {
+      console.log(JSON.stringify({ token, pairUrl: url, expiresAt: doc.expiresAt, label, envId, routes }, null, 2));
+    } else {
+      console.log(`pairing token ${token} [board ${d.root}] (single-use, expires ${doc.expiresAt})`);
+      console.log(`pair URL: ${url}`);
+      console.log("secret travels in #fragment only — scan into the mobile/desktop client, never paste in chat/logs");
+    }
+    return;
+  }
   console.log(`pairing token ${token} [board ${d.root}] (single-use, expires ${doc.expiresAt}; exchange: sync --with <url> --pair-token ${token})`);
 }
 
@@ -4543,6 +4678,17 @@ async function cmdServe(args) {
   const weightRaw = getFlag(args, "--weight");
   const serveWeight = weightRaw === undefined ? 100 : Number(weightRaw);
   if (!(serveWeight > 0)) fail("--weight must be a positive number");
+  // Control-plane M1: reachability hints + boot pairing QR.
+  // --advertise-routes publishes hints clients can try (served at relay.json,
+  // GET /healthz, GET /api/routes — hints only, the client proves what works).
+  // --pair-qrcode mints one one-time crewbus://pair URL at boot (same mint,
+  // same audit as `relay pair`; secret in #fragment, never query).
+  const advertiseRoutesRaw = getFlag(args, "--advertise-routes");
+  const advertisedRoutes = advertiseRoutesRaw ? String(advertiseRoutesRaw).split(",").map((s) => s.trim()).filter(Boolean) : [];
+  for (const u of advertisedRoutes) {
+    if (!/^https?:\/\//.test(u)) fail(`--advertise-routes URL must be http(s):// (got "${u}")`);
+  }
+  const pairQrcode = args.includes("--pair-qrcode");
   // Phase 3: HA standby (active/passive, no consensus). --standby runs a
   // read-replica relay: pull-only sync from the primary on --relay-interval,
   // GET reads served locally, writes refused 503. Promotion via
@@ -5055,6 +5201,82 @@ async function cmdServe(args) {
           });
           return;
         }
+        if (req.method === "POST" && url.pathname === "/api/launch") {
+          // Control-plane M1: launch RPC (POST /api/launch per
+          // packages/contracts/launch.json). Same gates as /api/spawn
+          // (standby 503, relay secret, --allow-remote-spawn OPT-IN), then
+          // launch-plan validation, then the SAME remoteSpawn core.
+          if (isStandbyWriter()) { standbyRefuse(res, "POST /api/launch"); return; }
+          if (!(await requireRelaySecret(req, res, url, relayCtx))) return;
+          if (!allowRemoteSpawn) {
+            res.writeHead(403, { "content-type": "application/json; charset=utf-8" });
+            res.end(JSON.stringify({ error: "remote launch is OPT-IN: restart the relay with --allow-remote-spawn" }));
+            return;
+          }
+          if (!String(req.headers["content-type"] || "").includes("application/json")) {
+            res.writeHead(415, { "content-type": "application/json; charset=utf-8" });
+            res.end(JSON.stringify({ error: "content-type must be application/json" }));
+            return;
+          }
+          const chunks = [];
+          let size = 0;
+          let tooBig = false;
+          req.on("data", (c) => {
+            size += c.length;
+            if (size <= 65536) chunks.push(c);
+            else tooBig = true;
+          });
+          req.on("end", async () => {
+            try {
+              if (tooBig) {
+                res.writeHead(413, { "content-type": "application/json; charset=utf-8" });
+                res.end(JSON.stringify({ error: "body too large (max 64KB)" }));
+                return;
+              }
+              let a = null;
+              try {
+                a = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+              } catch {
+                res.writeHead(400, { "content-type": "application/json; charset=utf-8" });
+                res.end(JSON.stringify({ error: "invalid JSON body" }));
+                return;
+              }
+              const v = validateLaunchPlan(a || {});
+              if (!v.ok) {
+                res.writeHead(400, { "content-type": "application/json; charset=utf-8" });
+                res.end(JSON.stringify({ error: "launch plan invalid", errors: v.errors, warnings: v.warnings }));
+                return;
+              }
+              for (const w of v.warnings) process.stderr.write(`crewbus: launch warning: ${w}\n`);
+              if (v.plan.dryRun) {
+                res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+                res.end(JSON.stringify({ ok: true, dryRun: true, plan: v.plan, warnings: v.warnings }));
+                return;
+              }
+              if (a && typeof a === "object") a._authMethod = req.oidc ? "oidc" : "secret";
+              // Permission ladder → remoteSpawn shape (auto/full need --auto
+              // semantics + danger confirm; full additionally wants isolation).
+              const mapped = { ...(a || {}), harness: v.plan.harness, body: v.plan.body };
+              if (v.plan.permission === "auto" || v.plan.permission === "full") mapped.auto = true;
+              if (v.plan.permission === "full") mapped.iUnderstandDanger = true;
+              const out = await remoteSpawn(d, mapped, { allowCmd, workdirRoot });
+              appendChainRecord(d, (a && a.from) || "unknown", "api-launch", { ok: true, harness: v.plan.harness }, "audit", { authMethod: req.oidc ? "oidc" : "secret" });
+              res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+              res.end(JSON.stringify(out));
+            } catch (e) {
+              const code = e && (e.code === 400 || e.code === 403 || e.code === 500) ? e.code : 400;
+              res.writeHead(code, { "content-type": "application/json; charset=utf-8" });
+              res.end(JSON.stringify({ error: (e && e.message) || String(e) }));
+            }
+          });
+          req.on("error", () => {
+            try {
+              res.writeHead(400, { "content-type": "application/json; charset=utf-8" });
+              res.end(JSON.stringify({ error: "unreadable body" }));
+            } catch {}
+          });
+          return;
+        }
         if (req.method === "POST" && url.pathname === "/api/kill") {
           if (isStandbyWriter()) { standbyRefuse(res, "POST /api/kill"); return; }
           if (!(await requireRelaySecret(req, res, url, relayCtx))) return;
@@ -5100,6 +5322,399 @@ async function cmdServe(args) {
                 res.writeHead(500, { "content-type": "application/json; charset=utf-8" });
                 res.end(JSON.stringify({ error: (e && e.message) || String(e) }));
               } catch {}
+            }
+          });
+          req.on("error", () => {
+            try {
+              res.writeHead(400, { "content-type": "application/json; charset=utf-8" });
+              res.end(JSON.stringify({ error: "unreadable body" }));
+            } catch {}
+          });
+          return;
+        }
+        // Pair-API endpoints (packages/contracts/pairing.json, frozen M0):
+        // admin-issued one-time links (fragment-secret pairUrl), one-time
+        // exchange for a device credential (narrow-only scopes), admin
+        // device list + immediate revoke. Same mint/exchange core as
+        // `relay pair` + POST /sync/pair (hashed at rest, exclusive
+        // .used.json single-use claim); same gates as the neighboring
+        // routes (standby 503 on writes, JSON-only 415, 64KB cap). Admin
+        // endpoints token-check --from + authorize pairing exactly like
+        // `relay pair/devices/revoke-device` (deny/unknown are 403/404,
+        // never fail()). Secrets hygiene: token/credential material only
+        // ever in response bodies, never logged. Devices stay relay-local:
+        // pairing/ + devices/ are outside SYNC_SUBS and export skips them,
+        // and nothing below adds a sync/export surface.
+        if (req.method === "POST" && url.pathname === "/api/pair/issue") {
+          if (isStandbyWriter()) { standbyRefuse(res, "POST /api/pair/issue"); return; }
+          if (!String(req.headers["content-type"] || "").includes("application/json")) {
+            res.writeHead(415, { "content-type": "application/json; charset=utf-8" });
+            res.end(JSON.stringify({ error: "content-type must be application/json" }));
+            return;
+          }
+          const chunks = [];
+          let size = 0;
+          let tooBig = false;
+          req.on("data", (c) => {
+            size += c.length;
+            if (size <= 65536) chunks.push(c);
+            else tooBig = true;
+          });
+          req.on("end", () => {
+            try {
+              if (tooBig) {
+                res.writeHead(413, { "content-type": "application/json; charset=utf-8" });
+                res.end(JSON.stringify({ error: "body too large (max 64KB)" }));
+                return;
+              }
+              let body = null;
+              try {
+                body = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+              } catch {
+                res.writeHead(400, { "content-type": "application/json; charset=utf-8" });
+                res.end(JSON.stringify({ error: "invalid JSON body" }));
+                return;
+              }
+              const from = cleanWebName(body && body.from);
+              const token = body && body.token !== undefined && body.token !== null && String(body.token) !== "" ? String(body.token) : undefined;
+              if (!from) {
+                res.writeHead(400, { "content-type": "application/json; charset=utf-8" });
+                res.end(JSON.stringify({ error: "missing from (your agent name)" }));
+                return;
+              }
+              const arec = readAgent(d, from);
+              if (!arec || !(arec.tokenHash || arec.token) || !agentTokenMatches(arec, token)) {
+                res.writeHead(403, { "content-type": "application/json; charset=utf-8" });
+                res.end(JSON.stringify({ error: "bad token" }));
+                return;
+              }
+              const chk = authorizeCheck(d, from, "pairing");
+              if (!chk.ok) {
+                res.writeHead(403, { "content-type": "application/json; charset=utf-8" });
+                res.end(JSON.stringify({ error: chk.reason }));
+                return;
+              }
+              const label = String((body && body.label) || "").slice(0, 80);
+              // ttl: duration string (default 10m, same units as --ttl) or
+              // raw milliseconds. Pre-validated here: parseDuration fail()s
+              // (process exit) and must never see untrusted input.
+              let ttlMs;
+              const ttlRaw = body && body.ttl !== undefined ? body.ttl : "10m";
+              if (typeof ttlRaw === "number") {
+                if (!Number.isFinite(ttlRaw) || !(ttlRaw > 0)) {
+                  res.writeHead(400, { "content-type": "application/json; charset=utf-8" });
+                  res.end(JSON.stringify({ error: "bad ttl (want a positive duration like 10m, or milliseconds)" }));
+                  return;
+                }
+                ttlMs = ttlRaw;
+              } else {
+                const m = /^(\d+(?:\.\d+)?)\s*(s|sec|secs|m|min|mins|h|d|w)?$/i.exec(String(ttlRaw).trim());
+                if (!m) {
+                  res.writeHead(400, { "content-type": "application/json; charset=utf-8" });
+                  res.end(JSON.stringify({ error: "bad ttl (want like 30, 90s, 15m, 24h, 7d, 2w)" }));
+                  return;
+                }
+                ttlMs = parseDuration(String(ttlRaw).trim());
+                if (!(ttlMs > 0)) {
+                  res.writeHead(400, { "content-type": "application/json; charset=utf-8" });
+                  res.end(JSON.stringify({ error: "bad ttl (must be positive)" }));
+                  return;
+                }
+              }
+              let scopes = null;
+              if (body && body.scopes !== undefined && body.scopes !== null) {
+                if (!Array.isArray(body.scopes)) {
+                  res.writeHead(400, { "content-type": "application/json; charset=utf-8" });
+                  res.end(JSON.stringify({ error: "scopes must be an array" }));
+                  return;
+                }
+                scopes = [];
+                for (const s of body.scopes) {
+                  const c = String(s).trim();
+                  if (!PAIR_SCOPES.includes(c)) {
+                    res.writeHead(400, { "content-type": "application/json; charset=utf-8" });
+                    res.end(JSON.stringify({ error: `unknown scope "${c.slice(0, 60)}" (want ${PAIR_SCOPES.join("|")})` }));
+                    return;
+                  }
+                  if (!scopes.includes(c)) scopes.push(c);
+                }
+              }
+              // Same mint as cmdRelayPair: hashed-at-rest single-use token.
+              const ptoken = newPairToken();
+              const salt = newSalt();
+              const now = Date.now();
+              const doc = {
+                tokenHash: hashToken(ptoken, salt), salt, label,
+                createdBy: from, createdAt: new Date(now).toISOString(),
+                expiresAt: new Date(now + ttlMs).toISOString(),
+                scopes,
+              };
+              fs.mkdirSync(path.join(d.root, "pairing"), { recursive: true });
+              writeJson(pairingPath(d, doc.tokenHash), doc);
+              appendChainRecord(d, from, "pair", { label, expiresAt: doc.expiresAt });
+              // Same presentation as serve --pair-qrcode (reuse buildPairUrl):
+              // secret in #fragment only, never query.
+              const envId = (readRelayState(d) && readRelayState(d).envId) || `board:${path.basename(d.root)}`;
+              const pairUrl = buildPairUrl({ envId, routes: advertisedRoutes, caps: ["hlc", "tombstones", "channels", "revoked", "holds", "launch"], pairToken: ptoken });
+              res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+              res.end(JSON.stringify({ pairUrl, expiresAt: doc.expiresAt }));
+            } catch (e) {
+              res.writeHead(500, { "content-type": "application/json; charset=utf-8" });
+              res.end(JSON.stringify({ error: `pair issue failed: ${(e && e.message) || e}` }));
+            }
+          });
+          req.on("error", () => {
+            try {
+              res.writeHead(400, { "content-type": "application/json; charset=utf-8" });
+              res.end(JSON.stringify({ error: "unreadable body" }));
+            } catch {}
+          });
+          return;
+        }
+        if (req.method === "POST" && url.pathname === "/api/pair/exchange") {
+          // Same exchange core as POST /sync/pair (the unauthenticated relay
+          // write: the one-time token IS the credential), plus narrow-only
+          // scope enforcement (requested ⊆ granted, never widen).
+          if (isStandbyWriter()) { standbyRefuse(res, "POST /api/pair/exchange"); return; }
+          if (!String(req.headers["content-type"] || "").includes("application/json")) {
+            res.writeHead(415, { "content-type": "application/json; charset=utf-8" });
+            res.end(JSON.stringify({ error: "content-type must be application/json" }));
+            return;
+          }
+          const chunks = [];
+          let size = 0;
+          let tooBig = false;
+          req.on("data", (c) => {
+            size += c.length;
+            if (size <= 65536) chunks.push(c);
+            else tooBig = true;
+          });
+          req.on("end", () => {
+            try {
+              if (tooBig) {
+                res.writeHead(413, { "content-type": "application/json; charset=utf-8" });
+                res.end(JSON.stringify({ error: "body too large (max 64KB)" }));
+                return;
+              }
+              let body = null;
+              try {
+                body = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+              } catch {
+                res.writeHead(400, { "content-type": "application/json; charset=utf-8" });
+                res.end(JSON.stringify({ error: "invalid JSON body" }));
+                return;
+              }
+              const presented = String((body && body.pairToken) || "");
+              const label = String((body && body.label) || "").slice(0, 80);
+              let requested = null;
+              if (body && body.scopes !== undefined && body.scopes !== null) {
+                if (!Array.isArray(body.scopes)) {
+                  res.writeHead(400, { "content-type": "application/json; charset=utf-8" });
+                  res.end(JSON.stringify({ error: "scopes must be an array" }));
+                  return;
+                }
+                requested = [];
+                for (const s of body.scopes) {
+                  const c = String(s).trim();
+                  if (!PAIR_SCOPES.includes(c)) {
+                    res.writeHead(400, { "content-type": "application/json; charset=utf-8" });
+                    res.end(JSON.stringify({ error: `unknown scope "${c.slice(0, 60)}" (want ${PAIR_SCOPES.join("|")})` }));
+                    return;
+                  }
+                  if (!requested.includes(c)) requested.push(c);
+                }
+              }
+              let rec = null;
+              let recPath = null;
+              try {
+                const dir = path.join(d.root, "pairing");
+                for (const f of fs.readdirSync(dir)) {
+                  if (!f.endsWith(".json") || f.endsWith(".used.json")) continue;
+                  try {
+                    const pdoc = readJson(path.join(dir, f));
+                    if (pdoc && pdoc.tokenHash && pdoc.salt && timingSafeEqualStr(hashToken(presented, String(pdoc.salt)), String(pdoc.tokenHash))) {
+                      rec = pdoc;
+                      recPath = path.join(dir, f);
+                      break;
+                    }
+                  } catch {}
+                }
+              } catch {}
+              if (!rec) {
+                res.writeHead(403, { "content-type": "application/json; charset=utf-8" });
+                res.end(JSON.stringify({ error: "unknown pairing token" }));
+                return;
+              }
+              if (Date.parse(rec.expiresAt) <= Date.now()) {
+                res.writeHead(403, { "content-type": "application/json; charset=utf-8" });
+                res.end(JSON.stringify({ error: "pairing token expired" }));
+                return;
+              }
+              // Narrow-only: requested scopes must be a subset of granted
+              // (granted null = full device, any valid scope allowed).
+              // Checked BEFORE the single-use claim so a scope typo or a
+              // widen attempt never burns the token.
+              const granted = Array.isArray(rec.scopes) ? rec.scopes : null;
+              if (requested !== null && granted !== null) {
+                const wider = requested.filter((s) => !granted.includes(s));
+                if (wider.length > 0) {
+                  res.writeHead(403, { "content-type": "application/json; charset=utf-8" });
+                  res.end(JSON.stringify({ error: `scope widen refused (not granted: ${wider.join(",")})` }));
+                  return;
+                }
+              }
+              // Atomic single-use claim: a raced second exchange 403s.
+              const usedPath = recPath.replace(/\.json$/, ".used.json");
+              if (!writeExclusiveJson(usedPath, { at: new Date().toISOString(), label })) {
+                res.writeHead(403, { "content-type": "application/json; charset=utf-8" });
+                res.end(JSON.stringify({ error: "pairing token already used" }));
+                return;
+              }
+              const dc = newDeviceCred();
+              const salt = newSalt();
+              fs.mkdirSync(path.join(d.root, "devices"), { recursive: true });
+              writeJson(devicePath(d, dc.id), {
+                id: dc.id, label, secretHash: hashToken(dc.secret, salt), salt,
+                createdBy: rec.createdBy || "", createdAt: new Date().toISOString(),
+                lastSeen: "", revoked: false,
+                scopes: requested !== null ? requested : granted,
+              });
+              try {
+                appendChainRecord(d, "relay", "device-issue", { id: dc.id, label, by: rec.createdBy || "" });
+              } catch {}
+              res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+              res.end(JSON.stringify({ deviceId: dc.id, credential: dc.cred }));
+            } catch (e) {
+              res.writeHead(500, { "content-type": "application/json; charset=utf-8" });
+              res.end(JSON.stringify({ error: `pair exchange failed: ${(e && e.message) || e}` }));
+            }
+          });
+          req.on("error", () => {
+            try {
+              res.writeHead(400, { "content-type": "application/json; charset=utf-8" });
+              res.end(JSON.stringify({ error: "unreadable body" }));
+            } catch {}
+          });
+          return;
+        }
+        if (req.method === "GET" && url.pathname === "/api/pair/devices") {
+          // Admin list (relay-local). Token-checked like `relay devices`;
+          // a read, so it serves locally even on a standby (no 503 gate).
+          const from = cleanWebName(url.searchParams.get("from") || url.searchParams.get("agent"));
+          const dtoken = url.searchParams.get("token") || undefined;
+          if (!from) {
+            res.writeHead(400, { "content-type": "application/json; charset=utf-8" });
+            res.end(JSON.stringify({ error: "missing from (your agent name)" }));
+            return;
+          }
+          const arec = readAgent(d, from);
+          if (!arec || !(arec.tokenHash || arec.token) || !agentTokenMatches(arec, dtoken)) {
+            res.writeHead(403, { "content-type": "application/json; charset=utf-8" });
+            res.end(JSON.stringify({ error: "bad token" }));
+            return;
+          }
+          const chk = authorizeCheck(d, from, "pairing");
+          if (!chk.ok) {
+            res.writeHead(403, { "content-type": "application/json; charset=utf-8" });
+            res.end(JSON.stringify({ error: chk.reason }));
+            return;
+          }
+          let rows = [];
+          try {
+            for (const f of fs.readdirSync(path.join(d.root, "devices"))) {
+              if (!f.endsWith(".json")) continue;
+              try {
+                const ddoc = readJson(path.join(d.root, "devices", f));
+                if (ddoc && ddoc.id) rows.push({ id: ddoc.id, label: ddoc.label || "", by: ddoc.createdBy || "", createdAt: ddoc.createdAt || "", lastSeen: ddoc.lastSeen || "", revoked: !!ddoc.revoked });
+              } catch {}
+            }
+          } catch {}
+          rows.sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
+          res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+          res.end(JSON.stringify(rows.map(({ id, label, by, lastSeen, revoked }) => ({ id, label, by, lastSeen, revoked }))));
+          return;
+        }
+        if (req.method === "POST" && url.pathname === "/api/pair/revoke") {
+          if (isStandbyWriter()) { standbyRefuse(res, "POST /api/pair/revoke"); return; }
+          if (!String(req.headers["content-type"] || "").includes("application/json")) {
+            res.writeHead(415, { "content-type": "application/json; charset=utf-8" });
+            res.end(JSON.stringify({ error: "content-type must be application/json" }));
+            return;
+          }
+          const chunks = [];
+          let size = 0;
+          let tooBig = false;
+          req.on("data", (c) => {
+            size += c.length;
+            if (size <= 65536) chunks.push(c);
+            else tooBig = true;
+          });
+          req.on("end", () => {
+            try {
+              if (tooBig) {
+                res.writeHead(413, { "content-type": "application/json; charset=utf-8" });
+                res.end(JSON.stringify({ error: "body too large (max 64KB)" }));
+                return;
+              }
+              let body = null;
+              try {
+                body = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+              } catch {
+                res.writeHead(400, { "content-type": "application/json; charset=utf-8" });
+                res.end(JSON.stringify({ error: "invalid JSON body" }));
+                return;
+              }
+              const from = cleanWebName(body && body.from);
+              const token = body && body.token !== undefined && body.token !== null && String(body.token) !== "" ? String(body.token) : undefined;
+              if (!from) {
+                res.writeHead(400, { "content-type": "application/json; charset=utf-8" });
+                res.end(JSON.stringify({ error: "missing from (your agent name)" }));
+                return;
+              }
+              const arec = readAgent(d, from);
+              if (!arec || !(arec.tokenHash || arec.token) || !agentTokenMatches(arec, token)) {
+                res.writeHead(403, { "content-type": "application/json; charset=utf-8" });
+                res.end(JSON.stringify({ error: "bad token" }));
+                return;
+              }
+              const chk = authorizeCheck(d, from, "pairing");
+              if (!chk.ok) {
+                res.writeHead(403, { "content-type": "application/json; charset=utf-8" });
+                res.end(JSON.stringify({ error: chk.reason }));
+                return;
+              }
+              // deviceId like the CLI (also tolerates a full abd- credential).
+              const targetRaw = String((body && (body.deviceId || body.id)) || "");
+              if (!targetRaw) {
+                res.writeHead(400, { "content-type": "application/json; charset=utf-8" });
+                res.end(JSON.stringify({ error: "missing deviceId" }));
+                return;
+              }
+              const asCred = parseDeviceCred(targetRaw);
+              // Same derivation as `relay revoke-device` but fail()-free
+              // (sanitizeName exits the process and must never run here).
+              const targetId = asCred ? asCred.id : String(targetRaw).trim().toLowerCase().replace(/[^a-z0-9_.-]/g, "-").replace(/-/g, "").slice(0, 8);
+              if (!targetId) {
+                res.writeHead(400, { "content-type": "application/json; charset=utf-8" });
+                res.end(JSON.stringify({ error: "invalid deviceId" }));
+                return;
+              }
+              const doc = readDevice(d, targetId);
+              if (!doc) {
+                res.writeHead(404, { "content-type": "application/json; charset=utf-8" });
+                res.end(JSON.stringify({ error: "unknown device (see GET /api/pair/devices)" }));
+                return;
+              }
+              doc.revoked = true;
+              doc.revokedAt = new Date().toISOString();
+              doc.revokedBy = from;
+              writeJson(devicePath(d, doc.id), doc);
+              appendChainRecord(d, from, "device-revoke", { id: doc.id, label: doc.label || "" });
+              res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+              res.end(JSON.stringify({ ok: true, id: doc.id }));
+            } catch (e) {
+              res.writeHead(500, { "content-type": "application/json; charset=utf-8" });
+              res.end(JSON.stringify({ error: `pair revoke failed: ${(e && e.message) || e}` }));
             }
           });
           req.on("error", () => {
@@ -5163,6 +5778,23 @@ async function cmdServe(args) {
           req.on("close", () => clearInterval(timer));
           return;
         }
+        if (req.method === "GET" && url.pathname === "/api/routes") {
+          // Control-plane M1: reachability hints (no auth — hints only).
+          refreshRelayState();
+          const envId = (readRelayState(d) && readRelayState(d).envId) || `board:${path.basename(d.root)}`;
+          const body = JSON.stringify(advertiseEnv({ envId, routes: advertisedRoutes, capabilities: ["hlc", "tombstones", "channels", "revoked", "holds", "launch"] }));
+          res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+          res.end(body);
+          return;
+        }
+        if (req.method === "GET" && url.pathname === "/api/harnesses") {
+          // Control-plane M1: driver table with live binary presence (no auth —
+          // missing binary = "not installed", never FAIL).
+          const body = JSON.stringify(detectHarnessBinaries());
+          res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+          res.end(body);
+          return;
+        }
         if (req.method === "GET" && url.pathname === "/healthz") {
           // Phase 3: load-balancer health (no auth): role + replication lag.
           refreshRelayState();
@@ -5180,6 +5812,7 @@ async function cmdServe(args) {
             role,
             weight: serveWeight,
             workers,
+            advertisedRoutes,
             primary: relay.primary,
             lagMs: relay.lastSyncOk > 0 ? now - relay.lastSyncOk : null,
             lastSyncOk: relay.lastSyncOk > 0 ? new Date(relay.lastSyncOk).toISOString() : null,
@@ -5251,6 +5884,41 @@ async function cmdServe(args) {
     persistRelayState();
   };
   let relayTimer = null;
+  if (advertisedRoutes.length > 0) {
+    console.log(`advertised routes: ${advertisedRoutes.join(",")} [board ${d.root}] (hints only — clients prove what works; see GET /api/routes)`);
+  }
+  if (pairQrcode) {
+    // Control-plane M1: boot pairing QR. Same mint + audit as `relay pair`
+    // (admin-gated: needs --from <admin> + token, authorize pairing).
+    const qrActorRaw = getFlag(args, "--from") || process.env.CREWBUS_AGENT;
+    if (!qrActorRaw) {
+      process.stderr.write("crewbus: --pair-qrcode needs --from <admin> (+ token); skipping boot pairing URL\n");
+    } else {
+      const qrActor = sanitizeName(qrActorRaw, "agent");
+      try {
+        checkToken(d, qrActor, resolveToken(args));
+        authorize(d, qrActor, "pairing");
+        const token = newPairToken();
+        const salt = newSalt();
+        const now = Date.now();
+        const ttlMs = parseDuration("10m");
+        const doc = {
+          tokenHash: hashToken(token, salt), salt, label: "serve-boot",
+          createdBy: qrActor, createdAt: new Date(now).toISOString(),
+          expiresAt: new Date(now + ttlMs).toISOString(),
+        };
+        fs.mkdirSync(path.join(d.root, "pairing"), { recursive: true });
+        writeJson(pairingPath(d, doc.tokenHash), doc);
+        appendChainRecord(d, qrActor, "pair", { label: "serve-boot", expiresAt: doc.expiresAt });
+        const envId = (readRelayState(d) && readRelayState(d).envId) || `board:${path.basename(d.root)}`;
+        const url = buildPairUrl({ envId, routes: advertisedRoutes, caps: ["hlc", "tombstones", "channels", "revoked", "holds", "launch"], pairToken: token });
+        console.log(`pair URL: ${url}`);
+        console.log("secret travels in #fragment only — scan into the mobile/desktop client, never paste in chat/logs");
+      } catch (e) {
+        process.stderr.write(`crewbus: --pair-qrcode mint failed: ${(e && e.message) || e}\n`);
+      }
+    }
+  }
   await new Promise((resolve, reject) => {
     server.on("error", reject);
     server.listen(port, host, () => {
@@ -5583,10 +6251,11 @@ Messaging (primitive — just a tool call, whenever you want):
   crewbus web [--port 0] [--host 127.0.0.1]
     (local dashboard: workers, presence, broadcasts, recent mail. Reads are
      open; the per-worker kill button POSTs /api/kill with your name+token.
-     JSON at /api/board. Fleet console: read-only /api/fleet|channels|
-     results|audit|inbox; token-checked POST /api/ack (plain accept only,
-     verifiers stay CLI-only). Binds localhost; tokens are never rendered.)
-  crewbus serve [--port 0] [--host 127.0.0.1] [--secret <s>] [--weight N] [--allow-remote-spawn] [--allow-cmd <regex>] [--workdir-root <dir>] [--tls-cert <pem> --tls-key <pem> [--tls-ca <pem>|--mtls-ca <pem>]] [--oidc-issuer <url> --oidc-audience <id>] [--audit-forward <https-url> [--audit-forward-key <bearer>]]
+      JSON at /api/board. Fleet console: read-only /api/fleet|channels|
+      results|audit|inbox|harnesses|routes; token-checked POST /api/ack (plain accept only,
+      verifiers stay CLI-only) + POST /api/launch (dry-run preview or local boot,
+      same validation as the CLI). Binds localhost; tokens are never rendered.)
+  crewbus serve [--port 0] [--host 127.0.0.1] [--secret <s>] [--weight N] [--allow-remote-spawn] [--allow-cmd <regex>] [--workdir-root <dir>] [--advertise-routes <url,url>] [--pair-qrcode] [--tls-cert <pem> --tls-key <pem> [--tls-ca <pem>|--mtls-ca <pem>]] [--oidc-issuer <url> --oidc-audience <id>] [--audit-forward <https-url> [--audit-forward-key <bearer>]]
     (sync relay for one board: peers pull/push via /sync/manifest+file+put,
      boot crews via POST /api/spawn (JSON, token-checked, same rules as the
      spawn command — crews launch on the relay machine). Binds localhost by
@@ -5597,10 +6266,16 @@ Messaging (primitive — just a tool call, whenever you want):
      In-box TLS: --tls-cert/--tls-key serve https (same routes); --tls-ca /
      --mtls-ca additionally requires verified client certs on /sync/* (mTLS,
      opt-in; tunnel alternative -- plain http behind your terminator -- stays
-     fine). /api/spawn + /api/kill are OPT-IN (default OFF
-     → 403) via --allow-remote-spawn. Remote generic --cmd is refused unless
-     it matches --allow-cmd (default harness-only); remote cwd must sit under
-     --workdir-root      when set. Remote spawn/kill append to logs/audit.jsonl.
+      fine). /api/spawn + /api/kill are OPT-IN (default OFF
+      → 403) via --allow-remote-spawn. Remote generic --cmd is refused unless
+      it matches --allow-cmd (default harness-only); remote cwd must sit under
+      --workdir-root      when set. Remote spawn/kill append to logs/audit.jsonl.
+      Control plane (M1): POST /api/launch validates the launch plan then
+      boots via the same core (same OPT-IN + secret gates; --dry-run previews
+      without booting); GET /api/harnesses lists the 7 drivers with binary
+      presence; GET /api/routes + /healthz publish --advertise-routes hints;
+      --pair-qrcode prints a one-time crewbus://pair URL at boot (needs
+      --from <admin>; same mint + audit as relay pair).
      --audit-forward <https-url> POSTs each audit event off-box (same v:1
      schema) with an audit-spool/ retry queue, at-least-once, never
       blocking the relay path — see docs/AUDIT_EXPORT.md.
@@ -5634,6 +6309,21 @@ Messaging (primitive — just a tool call, whenever you want):
      Topology: star/tree via relays, gossip via pairwise sync rounds.
      capabilities[] negotiated (mixed-version peers degrade with warnings).)
   crewbus doctor [--harness <list>] [--board <path>]
+
+  crewbus launch --from <you> --harness <driver> --body "..." [--to <a,b> | --count N [--prefix p]] [--subject ...] [--priority high|normal] [--model <m>] [--max-turns <n>] [--allow-tools "..."] [--permission supervised|autoEdits|auto|full] [--isolate] [--worktree <prefix>|--branch <prefix>] [--oneshot|--persistent] [--budget-tokens N] [--budget-minutes M] [--timeout 10m] [--cmd "..."] [--cwd <dir>] [--sender-type ...] [--dry-run] [--yes] [--json]
+    (control-plane launch: validates the plan against packages/contracts
+     (permission full needs --i-understand-danger); --dry-run prints the
+     exact spawn commands via formatSpawnCmd without booting; otherwise
+     delegates to the same spawn loop (same RBAC, same audit). --yes skips
+     the interactive confirm; --json prints the crewId/batch/workers shape.)
+  crewbus harnesses [detect] [--json]
+    (control-plane detect: lists the 7 drivers with binary presence +
+     version + brief channel + resume support. Missing binaries mean
+     "not installed", never FAIL.)
+  crewbus relay pair qr --from <admin> [--label <device>] [--ttl 10m] [--routes <url,url>] [--json]
+    (prints the one-time crewbus://pair URL (secret in #fragment, never
+     query) alongside the plain pairing token. Scan/paste into the mobile
+     or desktop client to pair.)
 
 Tips:
   set CREWBUS_AGENT=<name> to skip --from on every command
@@ -6352,6 +7042,8 @@ async function main() {
     case "group": return cmdGroup(rest);
     case "gather": return cmdGather(rest);
     case "spawn": return cmdSpawn(rest);
+    case "launch": return cmdLaunch(rest);
+    case "harnesses": return cmdHarnesses(rest);
     case "spawn-kill": return await cmdSpawnKill(rest);
     case "spawn-status": return cmdSpawnStatus(rest);
     case "respawn": return await cmdRespawn(rest);

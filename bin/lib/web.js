@@ -15,13 +15,14 @@
 import fs from "node:fs";
 import path from "node:path";
 import http from "node:http";
-import { boardDir, requireBoard, getFlag, fail, writeJson, listJson, cleanWebName } from "./store.js";
-import { readAgent, agentTokenMatches, authorizeCheck } from "./identity.js";
-import { readDMs, readVisible, ackedIds, findMessageById, deliverDMs } from "./mail.js";
-import { workerStatus, pidAlive, killWorkers } from "./spawn.js";
+import { boardDir, requireBoard, getFlag, fail, writeJson, listJson, cleanWebName, readJson, gitRevForBoard, newId, MAX_SPAWN, MAX_BODY_CHARS } from "./store.js";
+import { readAgent, agentTokenMatches, authorizeCheck, mintToken, newSalt, hashToken, touchAgent } from "./identity.js";
+import { readDMs, readVisible, ackedIds, findMessageById, deliverDMs, parseRecipients } from "./mail.js";
+import { workerStatus, pidAlive, killWorkers, bootWorker, buildSpawnPrompt, buildSpawnTarget, formatSpawnCmd } from "./spawn.js";
 import { groupTelemetryData } from "./groups.js";
 import { httpJson } from "./sync.js";
-import { readChainRecords, verifyChainRecords } from "./export.js";
+import { readChainRecords, verifyChainRecords, appendChainRecord } from "./export.js";
+import { launchDrivers, detectHarnessBinaries, validateLaunchPlan, advertiseEnv } from "./launch.js";
 
 export function escapeHtml(s) {
   return String(s === undefined || s === null ? "" : s).replace(/[&<>"']/g, (c) => ({
@@ -332,7 +333,7 @@ export function renderBoardHtml(boardPath) {
   return `<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>crewbus — ${e(boardPath)}</title>
-<style>body{margin:0;background:#0f1419;color:#d7dee6;font:14px/1.5 system-ui,sans-serif}main{max-width:1100px;margin:0 auto;padding:24px 18px 80px}h1{font-size:1.4em}h2{margin-top:2em;color:#4cc38a;font-size:1.05em}.dim{color:#8b98a5;font-size:.85em}table{border-collapse:collapse;width:100%;margin:.5em 0;font-size:.9em}th,td{border:1px solid #2a343e;padding:6px 8px;text-align:left;vertical-align:top}th{background:#182028}.log{font-family:monospace;font-size:.82em;white-space:pre-wrap}.cards{display:flex;gap:12px;flex-wrap:wrap}.card{background:#182028;border:1px solid #2a343e;border-radius:8px;padding:10px 16px}.card b{font-size:1.5em;color:#4cc38a}input{background:#0b0f14;border:1px solid #2a343e;color:#d7dee6;border-radius:5px;padding:4px 8px;font-size:.9em}button{background:#182028;border:1px solid #4cc38a;color:#4cc38a;border-radius:5px;padding:4px 12px;font-size:.9em;cursor:pointer}button.danger{border-color:#e5534b;color:#e5534b}button:disabled{opacity:.4;cursor:default}#result{margin-top:1em;white-space:pre-wrap;font-family:monospace;font-size:.85em}@media (max-width:700px){main{padding:16px 12px 60px}h1{font-size:1.15em}table{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch}input{margin:2px 0}}</style>
+<style>body{margin:0;background:#0f1419;color:#d7dee6;font:14px/1.5 system-ui,sans-serif}main{max-width:1100px;margin:0 auto;padding:24px 18px 80px}h1{font-size:1.4em}h2{margin-top:2em;color:#4cc38a;font-size:1.05em}.dim{color:#8b98a5;font-size:.85em}table{border-collapse:collapse;width:100%;margin:.5em 0;font-size:.9em}th,td{border:1px solid #2a343e;padding:6px 8px;text-align:left;vertical-align:top}th{background:#182028}.log{font-family:monospace;font-size:.82em;white-space:pre-wrap}.cards{display:flex;gap:12px;flex-wrap:wrap}.card{background:#182028;border:1px solid #2a343e;border-radius:8px;padding:10px 16px}.card b{font-size:1.5em;color:#4cc38a}input,textarea,select{background:#0b0f14;border:1px solid #2a343e;color:#d7dee6;border-radius:5px;padding:4px 8px;font-size:.9em}button{background:#182028;border:1px solid #4cc38a;color:#4cc38a;border-radius:5px;padding:4px 12px;font-size:.9em;cursor:pointer}button.danger{border-color:#e5534b;color:#e5534b}button:disabled{opacity:.4;cursor:default}#result{margin-top:1em;white-space:pre-wrap;font-family:monospace;font-size:.85em}@media (max-width:700px){main{padding:16px 12px 60px}h1{font-size:1.15em}table{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch}input,textarea,select{margin:2px 0}}</style>
 </head><body><main>
 <h1>crewbus <span class="dim">${e(boardPath)}</span></h1>
 <div class="card" style="margin-bottom:1em">acting as <input id="who" size="12" placeholder="agent name"> token <input id="tok" type="password" size="28" placeholder="abt-…"> <button id="save">save</button> <span id="ident" class="dim"></span></div>
@@ -348,8 +349,12 @@ export function renderBoardHtml(boardPath) {
  <h2>Approvals <span class="dim">unacked approval: requests for the identity above</span></h2><table><tr><th>id</th><th>from</th><th>request</th><th>reason</th><th></th></tr><tbody id="approvals"></tbody></table>
 <h2>Broadcasts</h2><table><tr><th>id</th><th>from</th><th>to</th><th>subject</th><th>body</th></tr><tbody id="bcast"></tbody></table>
 <h2>Recent activity</h2><table><tr><th>id</th><th>route</th><th>message</th></tr><tbody id="recent"></tbody></table>
-<h2>Audit <span class="dim">tamper-evident chain + recent events (payloads never leave the server)</span></h2><div id="auditver" class="dim"></div><table><tr><th>seq</th><th>at</th><th>actor</th><th>event</th><th>target</th><th>result</th></tr><tbody id="audit"></tbody></table>
-<div id="result"></div>
+ <h2>Audit <span class="dim">tamper-evident chain + recent events (payloads never leave the server)</span></h2><div id="auditver" class="dim"></div><table><tr><th>seq</th><th>at</th><th>actor</th><th>event</th><th>target</th><th>result</th></tr><tbody id="audit"></tbody></table>
+ <h2>Launch <span class="dim">harness picker + dry-run preview + live boot (M1)</span></h2><table><tr><th>driver</th><th>binary</th><th>version</th><th>brief</th><th>resume</th></tr><tbody id="harnesses"></tbody></table>
+ <div id="routes-line" class="dim">routes: loading…</div>
+ <div class="card">harness <select id="launch-harness"></select> to <input id="launch-to" size="18" placeholder="w-1,w-2 (or count)"> count <input id="launch-count" size="4" value="1"> permission <select id="launch-permission"><option>supervised</option><option>autoEdits</option><option>auto</option><option>full</option></select> <label><input id="launch-dry" type="checkbox" checked> dry-run</label><br>brief <span id="launch-brief-count" class="dim">0/8000</span><br><textarea id="launch-brief" rows="4" cols="80" maxlength="8000" placeholder="task brief (max 8000 chars)"></textarea><br>from <input id="launch-from" size="12" placeholder="agent name"> token <input id="launch-token" type="password" size="28" placeholder="abt-…"> <button id="launch-preview">Preview</button> <button id="launch-go" class="danger">Launch</button></div>
+ <div id="launch-out" class="log"></div>
+ <div id="result"></div>
 <p class="dim">polls <a href="/api/board">/api/board</a> <a href="/api/fleet">/api/fleet</a> <a href="/api/channels">/api/channels</a> <a href="/api/results">/api/results</a> <a href="/api/audit">/api/audit</a> every 5s · kill/ack need the identity above (same token as the CLI) · tokens stay in this browser tab · ack is plain accept only, verifiers stay on the CLI</p>
 <script>
 'use strict';
@@ -518,6 +523,58 @@ async function decide(id,verdict){
   }catch(e){say('approve failed: '+e.message);}
   refresh();
 }
+async function loadLaunchMeta(){
+  try{
+    var hr=await fetch('/api/harnesses',{cache:'no-store'});
+    var hj=await hr.json();
+    document.getElementById('harnesses').innerHTML=(hj||[]).map(function(h){
+      var ver=h.found?(h.version||'installed'):('missing ('+(h.detail||'not installed')+')');
+      return '<tr><td><b>'+esc(h.driver)+'</b></td><td>'+esc(h.binary||'(operator cmd)')+'</td><td>'+esc(ver)+'</td><td>'+esc(h.briefDelivery||'?')+'</td><td>'+esc(h.resume?'yes':'no')+'</td></tr>';
+    }).join('')||'<tr><td colspan="5" class="dim">no harness drivers</td></tr>';
+    document.getElementById('launch-harness').innerHTML=(hj||[]).map(function(h){
+      return '<option value="'+esc(h.driver)+'">'+esc(h.driver)+'</option>';
+    }).join('');
+  }catch(e){}
+  try{
+    var rr=await fetch('/api/routes',{cache:'no-store'});
+    var rj=await rr.json();
+    var routes=(rj&&rj.advertisedRoutes)||[];
+    document.getElementById('routes-line').textContent='routes: '+(routes.length?routes.join(', '):'(local board — no relay routes; pair via relay pair qr)')+' · caps: '+((rj&&rj.capabilities)||[]).join(', ');
+  }catch(e){}
+}
+document.getElementById('launch-brief').oninput=function(){
+  document.getElementById('launch-brief-count').textContent=document.getElementById('launch-brief').value.length+'/8000';
+};
+async function doLaunch(dry){
+  var out=document.getElementById('launch-out');
+  var lf=document.getElementById('launch-from').value.trim()||creds().from;
+  var lt=document.getElementById('launch-token').value||creds().token;
+  if(!lf||!lt){out.textContent='set launch from+token (or the identity above) first';return;}
+  var to=document.getElementById('launch-to').value.trim();
+  var count=Number(document.getElementById('launch-count').value)||1;
+  var payload={from:lf,token:lt,harness:document.getElementById('launch-harness').value,body:document.getElementById('launch-brief').value,permission:document.getElementById('launch-permission').value,dryRun:dry};
+  if(to)payload.to=to;else payload.count=count;
+  out.textContent=(dry?'previewing …':'launching …');
+  try{
+    var r=await fetch('/api/launch',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(payload)});
+    var j=await r.json();
+    if(!r.ok){out.textContent='HTTP '+r.status+' '+(j.error||JSON.stringify(j));return;}
+    if(j.dryRun){
+      var warn=(j.warnings||[]).length?('warnings: '+j.warnings.join('; ')+'\\n'):'';
+      out.textContent=warn+(j.commands||[]).map(function(c){return c.to+': '+c.command;}).join('\\n')+'\\n(dry-run — booted nothing)';
+    }else{
+      out.textContent='launched: '+(j.workers||[]).map(function(w){return w.name+(w.pid?(' (pid '+w.pid+')'):'')+(w.error?(' ERROR '+w.error):'');}).join(', ');
+    }
+  }catch(e){out.textContent='launch failed: '+e.message;}
+  refresh();
+}
+document.getElementById('launch-preview').onclick=function(){doLaunch(true);};
+document.getElementById('launch-go').onclick=function(){
+  var dry=document.getElementById('launch-dry').checked;
+  if(!dry&&!confirm('live boot: spawn real workers from this board?'))return;
+  doLaunch(dry);
+};
+loadLaunchMeta();
 refresh();
 setInterval(refresh,5000);
 </script>
@@ -671,6 +728,41 @@ export async function cmdWeb(args) {
           res.end(JSON.stringify(out.payload));
           return;
         }
+        if (req.method === "GET" && url.pathname === "/api/harnesses") {
+          // Control-plane M1: driver table with live binary presence.
+          // Open read like /api/board (missing = "not installed", never FAIL).
+          res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+          res.end(JSON.stringify(detectHarnessBinaries()));
+          return;
+        }
+        if (req.method === "GET" && url.pathname === "/api/routes") {
+          // Control-plane M1: reachability hints. The local dashboard is not
+          // a relay, so routes are empty — pair via `relay pair qr` on the
+          // relay instead. Same shape as the relay's /api/routes.
+          const envId = `board:${path.basename(d.root)}`;
+          res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+          res.end(JSON.stringify(advertiseEnv({ envId, routes: [], capabilities: ["hlc", "tombstones", "channels", "revoked", "holds", "launch"] })));
+          return;
+        }
+        if (req.method === "POST" && url.pathname === "/api/launch") {
+          // Control-plane M1: launch RPC (JSON-only, token-checked, same
+          // trust zone as /api/kill). Dry-run previews; live boots locally.
+          if (!String(req.headers["content-type"] || "").includes("application/json")) {
+            res.writeHead(415, { "content-type": "application/json; charset=utf-8" });
+            res.end(JSON.stringify({ error: "content-type must be application/json" }));
+            return;
+          }
+          const { body, error } = await readKillBody(req);
+          if (error) {
+            res.writeHead(error[0], { "content-type": "application/json; charset=utf-8" });
+            res.end(JSON.stringify({ error: error[1] }));
+            return;
+          }
+          const out = await handleApiLaunch(d, body);
+          res.writeHead(out.status, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+          res.end(JSON.stringify(out.payload));
+          return;
+        }
         if (req.method === "GET" && (url.pathname === "/" || url.pathname === "/index.html")) {
           const body = renderBoardHtml(d.root);
           res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
@@ -678,7 +770,7 @@ export async function cmdWeb(args) {
           return;
         }
         res.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
-        res.end("not found (try / or /api/board /api/fleet /api/channels /api/results /api/audit /api/inbox)");
+        res.end("not found (try / or /api/board /api/fleet /api/channels /api/results /api/audit /api/inbox /api/harnesses /api/routes)");
       } catch (e) {
         try {
           res.writeHead(500, { "content-type": "text/plain; charset=utf-8" });
@@ -734,4 +826,70 @@ export async function handleApiKill(d, body) {
     if (!r.ok) return { status: 403, payload: { error: r.reason } };
   }
   return { status: 200, payload: { results: await killWorkers(d, names) } };
+}
+
+// Control-plane M1: launch RPC for the local dashboard (POST /api/launch per
+// packages/contracts/launch.json). Token-checked + authorizeCheck(spawn) like
+// /api/kill, never calls fail(). Validates via validateLaunchPlan (same as
+// CLI); dryRun previews exact commands without booting; live delivers the
+// brief + boots via bootWorker (same core as CLI spawn/remoteSpawn).
+export async function handleApiLaunch(d, body) {
+  const from = cleanWebName(body && body.from);
+  const token = body && body.token !== undefined && body.token !== null && String(body.token) !== "" ? String(body.token) : undefined;
+  if (!from) return { status: 400, payload: { error: "missing from (your agent name)" } };
+  const rec = readAgent(d, from);
+  if (!rec || !(rec.tokenHash || rec.token) || !agentTokenMatches(rec, token)) return { status: 403, payload: { error: "bad token" } };
+  {
+    const r = authorizeCheck(d, from, "spawn");
+    if (!r.ok) return { status: 403, payload: { error: r.reason } };
+  }
+  const v = validateLaunchPlan(body || {});
+  if (!v.ok) return { status: 400, payload: { error: "launch plan invalid", errors: v.errors, warnings: v.warnings } };
+  const p = v.plan;
+  const names = p.to ? String(p.to).split(",").map((s) => cleanWebName(s)).filter(Boolean)
+    : Array.from({ length: p.count }, (_, i) => `${cleanWebName(p.prefix || "w") || "w"}-${i + 1}`);
+  if (names.length === 0) return { status: 400, payload: { error: "no worker names (pass to or count)" } };
+  const rev = gitRevForBoard(d.root);
+  const cwd = body && body.cwd ? path.resolve(String(body.cwd)) : path.dirname(d.root);
+  let cwdOk = false;
+  try { cwdOk = fs.statSync(cwd).isDirectory(); } catch {}
+  if (!cwdOk) return { status: 400, payload: { error: `cwd is not a directory: ${cwd}` } };
+  if (p.harness === "generic" && !(body && body.cmd && String(body.cmd).trim())) {
+    return { status: 400, payload: { error: 'generic harness needs cmd "..."' } };
+  }
+  if (v.plan.dryRun) {
+    const rows = names.map((to) => {
+      const previewPrompt = buildSpawnPrompt({ name: to, from, subject: p.subject, body: p.body.trim(), replyId: "msg-<id>", rev, cwd, root: d.root });
+      const t = buildSpawnTarget({
+        harness: p.harness, cmd: body && body.cmd ? String(body.cmd) : undefined, model: p.model,
+        auto: p.permission === "auto" || p.permission === "full" ? true : undefined,
+        maxTurns: p.maxTurns, allowTools: p.allowTools, cwd,
+        name: to, promptPath: path.join("<board>", "logs", `${to}-<stamp>.prompt.md`), prompt: previewPrompt,
+      });
+      return { to, command: formatSpawnCmd(t) };
+    });
+    return { status: 200, payload: { ok: true, dryRun: true, plan: p, warnings: v.warnings, commands: rows } };
+  }
+  const auto = p.permission === "auto" || p.permission === "full" ? true : undefined;
+  const at = new Date().toISOString();
+  const logDir = path.join(d.root, "logs");
+  fs.mkdirSync(logDir, { recursive: true });
+  const spawnOpts = { harness: p.harness, cmd: body && body.cmd ? String(body.cmd) : undefined, model: p.model, auto, maxTurns: p.maxTurns, allowTools: p.allowTools, cwd, root: d.root, prompt: null };
+  let res;
+  try {
+    res = deliverDMs(d, { from, recipients: names, body: p.body.trim(), subject: p.subject, priority: p.priority, rev, at, forceBroadcast: false, forceDirect: true });
+  } catch (e) {
+    return { status: 400, payload: { error: String((e && e.message) || e) } };
+  }
+  if (!res || res.mode !== "direct") return { status: 500, payload: { error: "launch: internal error — expected direct delivery" } };
+  const workers = [];
+  for (const { to, id } of res.items) {
+    try {
+      const r = bootWorker(d, spawnOpts, { to, id, from, subject: p.subject, body: p.body.trim(), rev, logDir });
+      workers.push({ name: to, pid: r.pid, replyId: id, log: r.logPath });
+    } catch (e) {
+      workers.push({ name: to, replyId: id, error: String((e && e.message) || e) });
+    }
+  }
+  return { status: 200, payload: { ok: true, workers, warnings: v.warnings } };
 }

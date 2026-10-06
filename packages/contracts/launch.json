@@ -1,0 +1,32 @@
+{
+  "contract": "crewbus launch RPC",
+  "version": 1,
+  "status": "frozen-M0",
+  "endpoint": "POST /api/launch",
+  "note": "Same validation as CLI launch wizard. Thin over bootWorker (local) or remoteSpawn (per relay). dryRun previews exact commands without booting.",
+  "request": {
+    "required": ["harness", "body"],
+    "optional": ["board", "count", "prefix", "to", "subject", "priority", "model", "maxTurns", "allowTools", "permission", "isolate", "worktree", "branch", "lifetime", "budgetTokens", "budgetMinutes", "timeout", "target", "dryRun"],
+    "defaults": { "count": 1, "permission": "supervised", "lifetime": "oneshot", "target": "local", "dryRun": false },
+    "constraints": {
+      "harness": "one of harness.json drivers",
+      "body": "max 8000 chars (MAX_BODY_CHARS)",
+      "count": "1..20 default cap (MAX_SPAWN), override per call",
+      "permission": "supervised|autoEdits|auto|full",
+      "lifetime": "oneshot|persistent",
+      "priority": "high|normal",
+      "target": "local | {relays:[{url,weight}]}"
+    },
+    "permissionMapping": {
+      "supervised": "no --auto",
+      "autoEdits": "harness middle ground (acceptEdits-class) or supervised + loud note",
+      "auto": "--auto + sandbox warning",
+      "full": "--auto --i-understand-danger + isolate recommended"
+    }
+  },
+  "response": {
+    "required": ["crewId", "batch", "workers"],
+    "optional": ["warnings"],
+    "worker": ["name", "pid?", "replyId", "relay?"]
+  }
+}

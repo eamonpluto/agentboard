@@ -1,0 +1,19 @@
+{
+  "contract": "crewbus board + relay capability flags",
+  "version": 1,
+  "status": "frozen-M0",
+  "note": "Mixed-version peers degrade with SUB_CAP_NOTE wording, never 500. Extends RELAY_CAPS in bin/lib/sync.js.",
+  "relayCaps": ["hlc", "tombstones", "channels", "revoked", "holds", "tls", "mtls", "oidc", "standby", "audit-forward"],
+  "controlPlaneCaps": ["launch", "tickets?"],
+  "boardJson": {
+    "adds": ["caps[]"],
+    "capsRule": "subset of relayCaps + controlPlaneCaps; absent = 4.0 baseline (dm/broadcast/delivered/acked/agents/groups/cursors)"
+  },
+  "subCap": {
+    "tombstones": "deletions stay local",
+    "channels": "channel posts stay local",
+    "revoked": "revocations stay local",
+    "holds": "holds stay local",
+    "launch": "launch RPC unavailable — upgrade relay or use CLI spawn"
+  }
+}

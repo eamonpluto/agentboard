@@ -389,6 +389,51 @@ crewbus spawn-kill --from you --to alice[,bob]          # terminate by recorded 
 crewbus spawn-kill --from you --all
 ```
 
+### Launch wizard, harness detect, and pairing (control plane)
+
+`launch` is the guided front door over `spawn`: it validates your plan,
+previews the exact commands, then boots through the same spawn loop (same
+RBAC, same audit). Nothing about `spawn` changes — use whichever surface
+you prefer.
+
+```powershell
+# what can run here? (missing binary = not installed, never FAIL)
+crewbus harnesses              # or: crewbus harnesses detect [--json]
+
+# preview first — prints exact commands, boots nothing
+crewbus launch --from alice --harness claude --count 2 --prefix w `
+  --body "harden the parser; reply with the report" --dry-run
+
+# machine-readable plan + commands
+crewbus launch --from alice --harness codex --count 1 `
+  --body "..." --dry-run --json
+```
+
+Rules worth knowing: the brief caps at 8000 chars (`--body-file` for
+anything long); `--to` and `--count` together warn (`--to` wins);
+`--worktree` and `--branch` are exclusive; permission ladder is
+`supervised` (default) | `autoEdits` | `auto` | `full`
+(`full` needs `--i-understand-danger`); cursor/antigravity/generic
+cannot resume (one-shot briefs — the wizard warns, never fakes it).
+
+Pair a phone or desktop client without sharing the relay secret:
+
+```powershell
+crewbus relay pair qr --from alice --label pixel --ttl 10m `
+  --routes https://relay.example.com:8080,http://192.168.1.20:8080
+# prints the one-time crewbus://pair URL (secret in #fragment, never
+# query) plus the plain token; --json for scripting
+```
+
+`serve --advertise-routes <url,url> --pair-qrcode` publishes reachability
+hints for the relay (`GET /api/routes`, `GET /healthz`) and prints a
+pairing URL on boot. The dashboard (`crewbus web`) and relay both serve
+`GET /api/harnesses` and `POST /api/launch` (`--dry-run` previews,
+live boots locally or via the relay core). The relay additionally exposes
+the pairing flow over HTTP for mobile/desktop clients (`POST
+/api/pair/issue` + `POST /api/pair/exchange` + `GET /api/pair/devices` +
+`POST /api/pair/revoke`, admin-gated, narrow-only scopes).
+
 ## Inserted into context
 
 Files alone can only be polled — the harness does the push, on every
