@@ -149,6 +149,24 @@ if (window.__TAURI__ && window.__TAURI__.event && typeof window.__TAURI__.event.
   });
 }
 
+// 2b. Race-proof catch-up: the backend may emit dashboard-ready/error
+// BEFORE this webview loads (setup spawns at boot). Query sidecar_status
+// once at startup — a learned URL or terminal error still lands.
+try {
+  var invoke2 = window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke;
+  if (typeof invoke2 === 'function') {
+    invoke2('sidecar_status').then(function (st) {
+      if (!st) return;
+      if (st.url && !dashboardUrl) setDashboardUrl(String(st.url), 'status catch-up');
+      else if (st.status === 'error' && st.detail) {
+        stopPoll();
+        markConn(false, 'sidecar error');
+        say('sidecar failed: ' + st.detail + ' — board untouched. Restart the app; if it repeats, run the sidecar by hand: node <core> serve --port 0 --board <app-data>/board');
+      }
+    }).catch(function () { /* backend older than status command */ });
+  }
+} catch (_) { /* static fallback: events only */ }
+
 // 3. manual entry fallback for dev without Tauri.
 if (!dashboardUrl) {
   say('no sidecar URL yet (pass ?dashboard=http://127.0.0.1:PORT, or run under Tauri).');

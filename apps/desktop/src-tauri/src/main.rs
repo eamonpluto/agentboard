@@ -32,6 +32,11 @@ use tauri_plugin_shell::{ShellExt, process::{CommandChild, CommandEvent}};
 struct SidecarState {
     child: Mutex<Option<CommandChild>>,
     url: Mutex<Option<String>>,
+    /// Last terminal status: set once the supervisor task finishes or fails.
+    /// Lets a late frontend (missed the one-shot event) catch up on demand.
+    status: Mutex<Option<String>>,
+    /// Human detail for the status above (port-learned URL, or error text).
+    detail: Mutex<Option<String>>,
 }
 
 // Days-since-epoch to civil date (Howard Hinnant's algorithm): board.json
@@ -161,12 +166,22 @@ fn resolve_crewbus_js(app: &tauri::AppHandle) -> Option<std::path::PathBuf> {
 }
 
 #[tauri::command]
+async fn sidecar_status(state: tauri::State<'_, SidecarState>) -> Result<serde_json::Value, String> {
+    let url = state.url.lock().map_err(|e| e.to_string())?.clone();
+    let status = state.status.lock().map_err(|e| e.to_string())?.clone();
+    let detail = state.detail.lock().map_err(|e| e.to_string())?.clone();
+    Ok(serde_json::json!({ "url": url, "status": status, "detail": detail }))
+}
+
+#[tauri::command]
 async fn stop_sidecar(app: tauri::AppHandle, state: tauri::State<'_, SidecarState>) -> Result<(), String> {
     let mut guard = state.child.lock().map_err(|e| e.to_string())?;
     if let Some(child) = guard.take() {
         child.kill().map_err(|e| e.to_string())?;
     }
     *state.url.lock().map_err(|e| e.to_string())? = None;
+    *state.status.lock().map_err(|e| e.to_string())? = Some("stopped".to_string());
+    *state.detail.lock().map_err(|e| e.to_string())? = Some("remote-only toggle: sidecar stopped, board untouched".to_string());
     // Board state is NOT touched: killing `serve` removes no `.crewbus/` files.
     let _ = app.emit("dashboard-stopped", ());
     Ok(())
@@ -206,6 +221,8 @@ fn main() {
         .manage(SidecarState {
             child: Mutex::new(None),
             url: Mutex::new(None),
+            status: Mutex::new(Some("starting".to_string())),
+            detail: Mutex::new(Some("sidecar booting".to_string())),
         })
         .setup(|app| {
             // Autostart start-minimized-friendly: hide `main` on a
@@ -225,7 +242,19 @@ fn main() {
                 // Failures emit dashboard-error (the shell renders it) instead
                 // of panicking: a crash here would leave the shell on its
                 // perpetual "waiting" text with no explanation.
+                // Every terminal path ALSO records status+detail in
+                // SidecarState so a late frontend (missed the one-shot event)
+                // catches up via the sidecar_status command.
+                let note = |status: &str, detail: String| {
+                    if let Ok(mut s) = handle.state::<SidecarState>().status.lock() {
+                        *s = Some(status.to_string());
+                    }
+                    if let Ok(mut d) = handle.state::<SidecarState>().detail.lock() {
+                        *d = Some(detail);
+                    }
+                };
                 let err = |msg: String| {
+                    note("error", msg.clone());
                     let _ = handle.emit(
                         "dashboard-error",
                         serde_json::json!({ "message": msg }),
@@ -300,13 +329,27 @@ fn main() {
                 };
                 let state: tauri::State<SidecarState> = handle.state();
                 *state.child.lock().expect("sidecar lock") = Some(child);
+                // Sidecar log file (<app-data>/sidecar.log, truncated per
+                // boot): post-mortem when the window only says "waiting".
+                // Best-effort — a missing log never blocks the sidecar.
+                let log_path = handle
+                    .path()
+                    .app_data_dir()
+                    .map(|d| d.join("sidecar.log"))
+                    .unwrap_or_else(|_| std::path::PathBuf::from("sidecar.log"));
+                let mut logf = std::fs::File::create(&log_path).ok();
+                use std::io::Write as _;
                 let mut learned_url = false;
                 while let Some(evt) = rx.recv().await {
                     if let CommandEvent::Stdout(line) | CommandEvent::Stderr(line) = evt {
                         let text = String::from_utf8_lossy(&line);
+                        if let Some(f) = logf.as_mut() {
+                            let _ = writeln!(f, "{}", text);
+                        }
                         if state.url.lock().expect("url lock").is_none() {
                             if let Some(url) = first_loopback_url(&text) {
                                 *state.url.lock().expect("url lock") = Some(url.clone());
+                                note("ready", url.clone());
                                 learned_url = true;
                                 let _ = handle.emit(
                                     "dashboard-ready",
@@ -321,6 +364,7 @@ fn main() {
                 // serving (e.g. no board, bad flags) and the shell must say
                 // so instead of idling on "waiting" forever.
                 if learned_url {
+                    note("stopped", "sidecar exited after serving".to_string());
                     let _ = handle.emit("dashboard-stopped", ());
                 } else {
                     err("sidecar exited before serving a URL (board init or serve flags failed)".to_string());
@@ -328,7 +372,7 @@ fn main() {
             });
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![stop_sidecar])
+        .invoke_handler(tauri::generate_handler![sidecar_status, stop_sidecar])
         .run(tauri::generate_context!())
         .expect("crewbus desktop failed");
 }

@@ -169,6 +169,10 @@ ok(!mainRsRel.includes('Command::new("node")'), 'main.rs has no system-PATH fall
 ok(/"serve",\s*"--port",\s*"0"/.test(mainRsRel), 'main.rs keeps the --port 0 pinning');
 ok(mainRsRel.includes('first_loopback_url'), 'main.rs keeps the stdout port-parse exactly as-is');
 ok(mainRsRel.includes('dashboard-ready'), 'main.rs keeps the dashboard-ready emit');
+ok(mainRsRel.includes('sidecar_status'), 'main.rs exposes sidecar_status (race-proof catch-up for late frontends)');
+ok(mainRsRel.includes('sidecar.log'), 'main.rs persists sidecar stdout to sidecar.log (post-mortem for waiting)');
+const shellJs = read('src/main.js');
+ok(shellJs.includes("invoke2('sidecar_status')") || shellJs.includes('invoke("sidecar_status")') || shellJs.includes("sidecar_status"), 'src/main.js queries sidecar_status on boot (late listener catches up)');
 ok(mainRsRel.includes('tauri_plugin_updater::Builder::new().build()'), 'main.rs registers the updater plugin (no startup check call)');
 ok(!/\.check\(\)\.await/.test(mainRsRel), 'main.rs never auto-checks for updates at startup (inert without keys)');
 
