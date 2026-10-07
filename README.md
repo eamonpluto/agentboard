@@ -412,6 +412,12 @@ crewbus launch --from alice --harness codex --count 1 `
   --body "..." --dry-run --json
 ```
 
+No flags? On a TTY, bare `crewbus launch --from alice` turns
+interactive: it prompts for harness (live `harnesses` detect table),
+workers, brief (`@path` reads a file), and permission, always previews
+the exact commands, then confirms before booting. Piped/non-TTY stays
+fail-loud (scripting-safe).
+
 Rules worth knowing: the brief caps at 8000 chars (`--body-file` for
 anything long); `--to` and `--count` together warn (`--to` wins);
 `--worktree` and `--branch` are exclusive; permission ladder is

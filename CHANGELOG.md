@@ -18,6 +18,13 @@ hook verified (docs.x.ai); `docs/VERSION_SKEW.md` capability matrix.
 No verified adapter/session/compaction behavior moved (see
 `docs/COMPATIBILITY.md`).
 
+- Interactive `crewbus launch` wizard (spec §4.1 TTY prompts, as the
+  original form-factor question offered): omit `--harness`/`--body` on a
+  TTY and it prompts for harness (live detect), workers, brief
+  (`@path` file), and permission — always previews exact commands, then
+  confirms (the yes doubles as the danger confirm); `--yes`
+  pre-confirms, `--json`/piped stays fail-loud and never prompts.
+
 ## 7.0.0 (2026-10-05)
 
 BREAKING: project renamed `agentboard` → `crewbus` (crowded namespace).

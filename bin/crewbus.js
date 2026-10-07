@@ -52,7 +52,8 @@ import { ackedIds, checkSendRateLimit, deliverDMs, enforceMaxChars, filterDigest
 import { batchReplyIds, collectBatch, contributingGroups, expandGroups, expandGroupsOrFail, gatherTelemetry, groupTelemetryData, heuristicSenderType, readGroup, ensureGroupCreatedAt, readResultRecord, writeResultRecord, findFirstVerifiedReply } from "./lib/groups.js";
 import { appendChannelPost, channelLogPath, groupChannelName, lockAlive, lockPath, mergeChannelText, mirrorToGroupChannels, printChannelPost, readChannelPosts, readLock, summarizePosts, writeChannelCursor, SUMMARY_STOP, channelCursorPath, readChannelCursor, lockHash, acquireLockDoc, releaseLockDoc, tailChannelPosts, listLocks, parseChannelText } from "./lib/channels.js";
 import { boardSnapshot, cmdWeb, escapeHtml, fleetSnapshot, channelsSnapshot, resultsSnapshot, auditSnapshot, handleApiAck, renderBoardHtml, handleApiKill } from "./lib/web.js";
-import { LAUNCH_DRIVER_FALLBACK, PAIR_SCOPES, advertiseEnv, buildPairUrl, detectHarnessBinaries, launchDrivers, probeBinary, validateLaunchPlan } from "./lib/launch.js";
+import { LAUNCH_DRIVER_FALLBACK, PAIR_SCOPES, advertiseEnv, buildPairUrl, detectHarnessBinaries, formatHarnessMenu, isBodyFileRef, launchDrivers, parseCountChoice, parseHarnessChoice, parsePermissionChoice, parseYesNo, probeBinary, validateLaunchPlan } from "./lib/launch.js";
+import readline from "node:readline";
 
 // spawn boots live OS processes (heavyweight: a whole harness per worker),
 // so the default cap sits far below the DM fan-out limit — big crews get a
@@ -2930,10 +2931,104 @@ function cmdSpawn(args) {
 // packages/contracts/launch.json, previews with --dry-run (exact commands,
 // zero boots), otherwise delegates to the SAME spawn path cmdSpawn uses
 // (same flags, same RBAC, same audit). No new spawn logic lives here.
-function cmdLaunch(args) {
+// Omit --harness/--body on a TTY and the interactive wizard (spec §4.1)
+// prompts for the missing pieces instead of failing.
+function printLaunchDryRun(v, args, from, root, asJson, cmdOpt) {
+  const p = v.plan;
+  const names = p.to ? String(p.to).split(",").map((s) => s.trim()).filter(Boolean)
+    : Array.from({ length: p.count }, (_, i) => `${p.prefix || "w"}-${i + 1}`);
+  if (p.harness === "generic" && !cmdOpt) {
+    fail("launch --harness generic needs --cmd \"...\" (no command to preview)");
+  }
+  const rev = gitRevForBoard(root);
+  const rows = names.map((to) => {
+    const previewPrompt = buildSpawnPrompt({ name: to, from, subject: p.subject, body: p.body.trim(), replyId: "msg-<id>", rev, cwd: getFlag(args, "--cwd") || process.cwd(), root });
+    const t = buildSpawnTarget({
+      harness: p.harness, cmd: cmdOpt, model: p.model,
+      auto: p.permission === "auto" || p.permission === "full" ? true : undefined,
+      maxTurns: p.maxTurns, allowTools: p.allowTools, cwd: getFlag(args, "--cwd") || process.cwd(),
+      name: to, promptPath: path.join("<board>", "logs", `${to}-<stamp>.prompt.md`), prompt: previewPrompt,
+    });
+    return { to, command: formatSpawnCmd(t), resume: launchDrivers().find((x) => x.driver === p.harness)?.resume !== false };
+  });
+  if (asJson) console.log(JSON.stringify({ ok: true, dryRun: true, plan: p, warnings: v.warnings, commands: rows }, null, 2));
+  else {
+    console.log(`launch dry-run: ${p.harness} x${rows.length} [board ${root}]`);
+    for (const r of rows) console.log(`  ${r.to}: ${r.command}`);
+    if (p.permission === "full") console.log("  (permission full: unattended + isolate recommended)");
+  }
+  return rows;
+}
+
+// Interactive wizard plumbing (prompts → stderr so stdout stays pipe-clean).
+// Never runs non-TTY or with --json: those paths fail loudly instead.
+function askOne(rl, q) {
+  return new Promise((resolve) => rl.question(q, (a) => resolve(a === undefined || a === null ? "" : String(a))));
+}
+async function askLoop(rl, q, parse, hint) {
+  for (let i = 0; i < 3; i++) {
+    const got = parse(await askOne(rl, q));
+    if (got !== null && got !== undefined) return got;
+    process.stderr.write(`crewbus: invalid answer${hint ? ` (${hint})` : ""} — try again\n`);
+  }
+  fail("too many invalid answers — re-run non-interactively with explicit flags");
+}
+
+// Fills raw.harness/raw.to/raw.count/raw.prefix/raw.body/raw.permission
+// (+ cmdOpt for generic) by prompting. Assumes a TTY; pure parse logic
+// lives in bin/lib/launch.js (unit-tested), this only loops.
+async function runLaunchWizard(rl, raw, cmdOpt) {
+  const rows = detectHarnessBinaries();
+  process.stdout.write("harnesses (missing binary = not installed, never FAIL):\n" + formatHarnessMenu(rows) + "\n");
+  raw.harness = await askLoop(rl, `harness [1-${rows.length} or name]: `, (a) => parseHarnessChoice(rows, a), `1-${rows.length} or driver name`);
+  const found = rows.find((r) => r.driver === raw.harness);
+  if (found && found.binary && !found.found) process.stderr.write(`crewbus: launch warning: ${raw.harness} binary not installed here — boot will fail, preview first\n`);
+  const namesRaw = await askOne(rl, "worker names (comma list, blank = auto-numbered): ");
+  const names = String(namesRaw).split(",").map((s) => s.trim()).filter(Boolean);
+  if (names.length > 0) {
+    raw.to = names.join(",");
+    delete raw.count;
+    delete raw.prefix;
+  } else {
+    raw.count = await askLoop(rl, "how many workers? [1]: ", (a) => parseCountChoice(a, 1), "positive integer");
+    const prefixRaw = await askOne(rl, "name prefix? [w]: ");
+    raw.prefix = String(prefixRaw).trim() || "w";
+    delete raw.to;
+  }
+  for (let i = 0; i < 3; i++) {
+    const briefRaw = await askOne(rl, "task brief (one line, or @path to a file): ");
+    if (isBodyFileRef(briefRaw)) {
+      const fp = String(briefRaw).trim().slice(1);
+      try {
+        raw.body = fs.readFileSync(path.resolve(fp), "utf8");
+        break;
+      } catch (e) {
+        process.stderr.write(`crewbus: cannot read "${fp}" (${(e && e.message) || e}) — try again\n`);
+        continue;
+      }
+    }
+    if (String(briefRaw).trim() && String(briefRaw).length <= 8000) {
+      raw.body = String(briefRaw);
+      break;
+    }
+    process.stderr.write("crewbus: brief needs 1..8000 chars (or @path) — try again\n");
+    if (i === 2) fail("too many invalid answers — re-run non-interactively with explicit flags");
+  }
+  raw.permission = await askLoop(rl, "permission [1 supervised (default) | 2 autoEdits | 3 auto | 4 full]: ", (a) => parsePermissionChoice(a, "supervised"), "1-4 or name");
+  if (raw.harness === "generic" && !cmdOpt.value) {
+    const cmdRaw = await askLoop(rl, 'command to run [--cmd, required for generic]: ', (a) => String(a).trim() || null, "non-empty command");
+    cmdOpt.value = cmdRaw;
+  }
+  return raw;
+}
+
+async function cmdLaunch(args) {
   const root = boardDir(args);
   refuseDriveRootBoard(root, args);
-  const from = resolveAgent(args, "sender");
+  const asJson = args.includes("--json");
+  const tty = !!(process.stdin.isTTY && process.stdout.isTTY);
+  // Identity: flags/env win; the wizard asks only when it is going to run.
+  let from = optionalAgent(args);
   const bodyFile = getFlag(args, "--body-file");
   let body = getFlag(args, "--body");
   if (bodyFile !== undefined) {
@@ -2943,6 +3038,7 @@ function cmdLaunch(args) {
       fail(`cannot read --body-file "${bodyFile}" (${(e && e.message) || e})`);
     }
   }
+  const cmdOpt = { value: getFlag(args, "--cmd") };
   const raw = {
     harness: getFlag(args, "--harness"),
     body,
@@ -2969,8 +3065,33 @@ function cmdLaunch(args) {
     yes: args.includes("--yes") || undefined,
     target: "local",
   };
-  const v = validateLaunchPlan(raw);
-  const asJson = args.includes("--json");
+  // Interactive wizard (spec §4.1): missing --harness/--body on a TTY prompts
+  // instead of failing. Non-TTY and --json stay fail-loud (machine paths
+  // must never block on stdin).
+  let wizardRan = false;
+  if ((!raw.harness || !raw.body) && !asJson && tty) {
+    if (!from) {
+      const rlId = readline.createInterface({ input: process.stdin, output: process.stderr });
+      try {
+        from = await askLoop(rlId, "you are (agent name): ", (a) => {
+          const clean = String(a === undefined || a === null ? "" : a).trim().toLowerCase().replace(/[^a-z0-9_.-]/g, "-").slice(0, 40);
+          return clean || null; // mirrors sanitizeName without fail()
+        }, "agent name");
+      } finally {
+        rlId.close();
+      }
+    }
+    const rl = readline.createInterface({ input: process.stdin, output: process.stderr });
+    try {
+      await runLaunchWizard(rl, raw, cmdOpt);
+    } finally {
+      rl.close();
+    }
+    wizardRan = true;
+  } else if (!from) {
+    from = resolveAgent(args, "sender"); // fails loudly, as before
+  }
+  let v = validateLaunchPlan(raw);
   if (!v.ok) {
     if (asJson) {
       console.log(JSON.stringify({ ok: false, errors: v.errors, warnings: v.warnings }, null, 2));
@@ -2983,37 +3104,37 @@ function cmdLaunch(args) {
   // booting nothing. Reuses the spawn arg builder against a scratch prompt
   // path so previews match reality.
   if (v.plan.dryRun) {
-    const p = v.plan;
-    const names = p.to ? String(p.to).split(",").map((s) => s.trim()).filter(Boolean)
-      : Array.from({ length: p.count }, (_, i) => `${p.prefix || "w"}-${i + 1}`);
-    if (p.harness === "generic" && !getFlag(args, "--cmd")) {
-      fail("launch --harness generic needs --cmd \"...\" (no command to preview)");
-    }
-    const rev = gitRevForBoard(root);
-    const rows = names.map((to) => {
-      const previewPrompt = buildSpawnPrompt({ name: to, from, subject: p.subject, body: p.body.trim(), replyId: "msg-<id>", rev, cwd: getFlag(args, "--cwd") || process.cwd(), root });
-      const t = buildSpawnTarget({
-        harness: p.harness, cmd: getFlag(args, "--cmd"), model: p.model,
-        auto: p.permission === "auto" || p.permission === "full" ? true : undefined,
-        maxTurns: p.maxTurns, allowTools: p.allowTools, cwd: getFlag(args, "--cwd") || process.cwd(),
-        name: to, promptPath: path.join("<board>", "logs", `${to}-<stamp>.prompt.md`), prompt: previewPrompt,
-      });
-      return { to, command: formatSpawnCmd(t), resume: launchDrivers().find((x) => x.driver === p.harness)?.resume !== false };
-    });
-    if (asJson) console.log(JSON.stringify({ ok: true, dryRun: true, plan: p, warnings: v.warnings, commands: rows }, null, 2));
-    else {
-      console.log(`launch dry-run: ${p.harness} x${rows.length} [board ${root}]`);
-      for (const r of rows) console.log(`  ${r.to}: ${r.command}`);
-      if (p.permission === "full") console.log("  (permission full: unattended + isolate recommended)");
-    }
+    printLaunchDryRun(v, args, from, root, asJson, cmdOpt.value);
     return;
+  }
+  if (wizardRan) {
+    // Wizard always previews before booting; the explicit yes doubles as the
+    // loud danger confirm (plan yes → forwarded --i-understand-danger).
+    // --yes pre-confirms (preview still prints); otherwise ask.
+    const rows = printLaunchDryRun(v, args, from, root, false, cmdOpt.value);
+    let go = args.includes("--yes");
+    if (!go) {
+      const rl = readline.createInterface({ input: process.stdin, output: process.stderr });
+      try {
+        go = parseYesNo(await askOne(rl, `launch ${rows.length} worker${rows.length === 1 ? "" : "s"}? [y/N] `), false) === true;
+      } finally {
+        rl.close();
+      }
+    }
+    if (!go) {
+      console.log("cancelled — nothing booted");
+      return;
+    }
+    raw.yes = true;
+    v = validateLaunchPlan(raw);
+    if (!v.ok) fail("launch plan invalid:\n  - " + v.errors.join("\n  - "));
   }
   // Live launch: translate the plan into cmdSpawn args and delegate.
   // This keeps ONE spawn implementation (cmdSpawn owns boots, RBAC, audit).
   const fwd = ["--from", from, "--harness", v.plan.harness, "--body", v.plan.body];
   if (v.plan.to) fwd.push("--to", v.plan.to);
   else fwd.push("--count", String(v.plan.count), "--prefix", v.plan.prefix || "w");
-  for (const [flag, val] of [["--subject", v.plan.subject], ["--priority", v.plan.priority], ["--model", v.plan.model], ["--max-turns", v.plan.maxTurns], ["--allow-tools", v.plan.allowTools], ["--cmd", getFlag(args, "--cmd")], ["--cwd", getFlag(args, "--cwd")], ["--worktree", v.plan.worktree], ["--branch", v.plan.branch], ["--budget-tokens", v.plan.budgetTokens], ["--budget-minutes", v.plan.budgetMinutes], ["--timeout", v.plan.timeout], ["--sender-type", getFlag(args, "--sender-type")]]) {
+  for (const [flag, val] of [["--subject", v.plan.subject], ["--priority", v.plan.priority], ["--model", v.plan.model], ["--max-turns", v.plan.maxTurns], ["--allow-tools", v.plan.allowTools], ["--cmd", cmdOpt.value], ["--cwd", getFlag(args, "--cwd")], ["--worktree", v.plan.worktree], ["--branch", v.plan.branch], ["--budget-tokens", v.plan.budgetTokens], ["--budget-minutes", v.plan.budgetMinutes], ["--timeout", v.plan.timeout], ["--sender-type", getFlag(args, "--sender-type")]]) {
     if (val !== undefined) fwd.push(flag, String(val));
   }
   if (v.plan.isolate) fwd.push("--isolate");
@@ -6339,7 +6460,10 @@ Messaging (primitive — just a tool call, whenever you want):
      (permission full needs --i-understand-danger); --dry-run prints the
      exact spawn commands via formatSpawnCmd without booting; otherwise
      delegates to the same spawn loop (same RBAC, same audit). --yes skips
-     the interactive confirm; --json prints the crewId/batch/workers shape.)
+     the interactive confirm; --json prints the crewId/batch/workers shape.
+     Omit --harness/--body on a TTY for the interactive wizard: it prompts
+     for harness, workers, brief (@path for a file), and permission, always
+     previews, then confirms before booting. Piped/non-TTY stays fail-loud.)
   crewbus harnesses [detect] [--json]
     (control-plane detect: lists the 7 drivers with binary presence +
      version + brief channel + resume support. Missing binaries mean

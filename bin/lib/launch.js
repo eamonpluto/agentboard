@@ -131,6 +131,63 @@ export function buildPairUrl({ envId, routes, caps, pairToken }) {
     + "#" + pairToken;
 }
 
+// ---- Interactive wizard helpers (M-spec §4.1 TTY prompts) ----
+// Pure parsers/formatters only — the readline loop lives in the monolith
+// (cmdLaunch), so these are unit-testable without a TTY. All parse fns
+// return null on invalid input (the loop reprompts, then fails loudly).
+
+// Numbered harness menu from live detect rows. Missing binaries are
+// selectable (they just warn later) — presence is info, never a gate.
+export function formatHarnessMenu(rows) {
+  return rows.map((r, i) => {
+    const state = r.found ? (r.version || "installed") : "not installed";
+    return `  ${i + 1}) ${r.driver} — ${state} (${r.briefDelivery}, resume ${r.resume ? "yes" : "no"})`;
+  }).join("\n");
+}
+
+// Accept "3", "claude", "Claude Code" (display name) — anything else null.
+export function parseHarnessChoice(rows, input) {
+  const t = String(input === undefined || input === null ? "" : input).trim().toLowerCase();
+  if (!t) return null;
+  const n = Number(t);
+  if (Number.isInteger(n) && n >= 1 && n <= rows.length) return rows[n - 1].driver;
+  const hit = rows.find((r) => r.driver === t || String(r.displayName || "").toLowerCase() === t);
+  return hit ? hit.driver : null;
+}
+
+// Positive integer, blank → def. Null on garbage/out-of-range.
+export function parseCountChoice(input, def) {
+  const t = String(input === undefined || input === null ? "" : input).trim();
+  if (t === "") return def;
+  const n = Number(t);
+  if (!Number.isInteger(n) || n < 1 || n > 10000) return null;
+  return n;
+}
+
+// Accept "2", "auto", "AUTO" — blank → def. Null otherwise.
+export function parsePermissionChoice(input, def) {
+  const t = String(input === undefined || input === null ? "" : input).trim();
+  if (t === "") return def || "supervised";
+  const n = Number(t);
+  if (Number.isInteger(n) && n >= 1 && n <= LAUNCH_PERMISSIONS.length) return LAUNCH_PERMISSIONS[n - 1];
+  const hit = LAUNCH_PERMISSIONS.find((p) => p.toLowerCase() === t.toLowerCase());
+  return hit || null;
+}
+
+// "@path" → body-file ref; anything else is literal body (may be "").
+export function isBodyFileRef(input) {
+  return String(input === undefined || input === null ? "" : input).trim().startsWith("@");
+}
+
+// y/yes → true, n/no/"" → false, anything else null.
+export function parseYesNo(input, def) {
+  const t = String(input === undefined || input === null ? "" : input).trim().toLowerCase();
+  if (t === "") return !!def;
+  if (t === "y" || t === "yes") return true;
+  if (t === "n" || t === "no") return false;
+  return null;
+}
+
 // Minimal env/route advertisement for serve --advertise-routes.
 export function advertiseEnv({ envId, routes, capabilities }) {
   return {

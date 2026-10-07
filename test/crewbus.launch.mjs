@@ -7,7 +7,13 @@ import {
   advertiseEnv,
   buildPairUrl,
   detectHarnessBinaries,
+  formatHarnessMenu,
+  isBodyFileRef,
   launchDrivers,
+  parseCountChoice,
+  parseHarnessChoice,
+  parsePermissionChoice,
+  parseYesNo,
   probeBinary,
   validateLaunchPlan,
 } from "../bin/lib/launch.js";
@@ -53,6 +59,21 @@ const url = buildPairUrl({ envId: "env-1", routes: ["http://pc:8471"], caps: ["h
 check("pair: url shape", url.startsWith("crewbus://pair?env=") && url.includes("#abp-secret123"));
 check("pair: secret in fragment never query", !url.split("#")[0].includes("abp-secret123"));
 check("advertise: shape", (() => { const a = advertiseEnv({ envId: "e", routes: ["r"], capabilities: ["c"] }); return a.envId === "e" && a.advertisedRoutes[0] === "r"; })());
+
+// ---- lib: wizard parsers (pure, no TTY needed) ----
+const menuRows = detectHarnessBinaries();
+check("wizard: menu lists 7 drivers", formatHarnessMenu(menuRows).split("\n").length === 7);
+check("wizard: harness by number", parseHarnessChoice(menuRows, "2") === menuRows[1].driver);
+check("wizard: harness by name (case-insensitive)", parseHarnessChoice(menuRows, "CLAUDE") === "claude");
+check("wizard: harness by display name", parseHarnessChoice(menuRows, menuRows[0].displayName) === menuRows[0].driver);
+check("wizard: harness garbage null", parseHarnessChoice(menuRows, "nope") === null && parseHarnessChoice(menuRows, "0") === null && parseHarnessChoice(menuRows, "") === null);
+check("wizard: count blank->def", parseCountChoice("", 1) === 1);
+check("wizard: count int", parseCountChoice("3", 1) === 3);
+check("wizard: count garbage null", parseCountChoice("x", 1) === null && parseCountChoice("0", 1) === null);
+check("wizard: permission number+name+default", parsePermissionChoice("3", "supervised") === "auto" && parsePermissionChoice("full", "supervised") === "full" && parsePermissionChoice("", "supervised") === "supervised");
+check("wizard: permission garbage null", parsePermissionChoice("nope", "supervised") === null);
+check("wizard: yes/no parse", parseYesNo("y", false) === true && parseYesNo("N", true) === false && parseYesNo("", true) === true && parseYesNo("maybe", false) === null);
+check("wizard: @path is file ref", isBodyFileRef("@brief.md") === true && isBodyFileRef("plain brief") === false);
 // ---- CLI: harnesses ----
 const board = fs.mkdtempSync(path.join(os.tmpdir(), "cb-launch-"));
 const env = { ...process.env, CREWBUS_DIR: board };
@@ -84,6 +105,29 @@ try {
   badFails = String((e.stdout || "") + (e.stderr || "")).includes("unknown harness");
 }
 check("cli: unknown harness fails loud", badFails);
+
+// ---- CLI: wizard never prompts headless (stdin ignored = non-TTY) ----
+let headlessFails = false;
+try {
+  run(["launch", "--from", "lead"]);
+} catch (e) {
+  const out = String((e.stdout || "") + (e.stderr || ""));
+  headlessFails = out.includes("missing harness") && out.includes("missing body");
+}
+check("cli: missing fields fail loud without prompting (non-TTY)", headlessFails);
+const headlessJson = (() => {
+  try {
+    run(["launch", "--from", "lead", "--json"]);
+    return null;
+  } catch (e) {
+    try {
+      return JSON.parse(String(e.stdout || ""));
+    } catch {
+      return null;
+    }
+  }
+})();
+check("cli: --json missing fields errors as JSON (never prompts)", !!headlessJson && headlessJson.ok === false && Array.isArray(headlessJson.errors));
 
 // ---- CLI: --yes is the headless danger confirm for --permission full ----
 const yesDry = run(["launch", "--from", "lead", "--harness", "grok", "--body", "x", "--permission", "full", "--yes", "--dry-run"]);
