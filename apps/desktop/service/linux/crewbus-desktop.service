@@ -1,0 +1,22 @@
+# CrewBus desktop — Linux systemd user unit.
+# Install:
+#   mkdir -p ~/.config/systemd/user
+#   cp crewbus-desktop.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now crewbus-desktop.service
+# Remove: systemctl --user disable --now crewbus-desktop.service
+# Adjust ExecStart to your installed path (find it after `tauri build` with
+# `command -v crewbus-desktop || ls ~/.local/bin | grep -i crewbus`).
+# Board state is never touched by service operations.
+[Unit]
+Description=CrewBus desktop shell (loopback sidecar + local dashboard)
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/crewbus-desktop
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target

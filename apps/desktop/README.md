@@ -74,16 +74,13 @@ wire a renderer on the toolchain machine.
 ## Background-service install notes (per OS)
 
 Neither Tauri nor Electron is an OS service manager; both need registration
-so the sidecar survives window close. Planned story (single-instance plugin
-prevents double sidecars; autostart plugin for login boot):
-
-- Windows: Task Scheduler entry (`schtasks /create /tn CrewBus …` running
-  the installed exe `--minimized`) or a WinSW service wrapper.
-- macOS: `launchd` plist in `~/Library/LaunchAgents/com.crewbus.desktop.plist`
-  (`KeepAlive`, `RunAtLoad`).
-- Linux: `systemd --user` unit (`crewbus-desktop.service`, `WantedBy=default.target`).
-
-Exact unit files land with the first toolchain-built package (M5).
+so the sidecar survives window close. Copy-paste units live in `service/`
+(see `service/README.md`): Windows logon task (`schtasks`, recommended) or
+WinSW wrapper, macOS `launchd` plist, Linux `systemd --user` unit. Register
+only after the single-instance plugin lands (see `src-tauri/src/main.rs`
+TODOs) and adjust the exe path if your install location differs.
+Single-instance prevents double sidecars; autostart plugin covers login
+boot where you skip the OS units.
 
 ## client-runtime wiring (toolchain machine)
 

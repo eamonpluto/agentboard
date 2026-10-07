@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  CrewBus desktop — macOS launchd agent (per-user, runs at login).
+  Install: cp com.crewbus.desktop.plist ~/Library/LaunchAgents/
+           launchctl load ~/Library/LaunchAgents/com.crewbus.desktop.plist
+  Remove:  launchctl unload ~/Library/LaunchAgents/com.crewbus.desktop.plist
+  Adjust ProgramArguments if CrewBus.app lives outside /Applications.
+  Board state is never touched by service operations.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.crewbus.desktop</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Applications/CrewBus.app/Contents/MacOS/CrewBus</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>/tmp/com.crewbus.desktop.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>/tmp/com.crewbus.desktop.err.log</string>
+</dict>
+</plist>

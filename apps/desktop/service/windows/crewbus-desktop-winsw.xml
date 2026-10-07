@@ -1,0 +1,17 @@
+<!--
+  CrewBus desktop — WinSW service wrapper skeleton (ALTERNATIVE to the
+  Task-Scheduler logon task; pick one, not both).
+  Usage: WinSW-x64.exe install crewbus-desktop-winsw.xml
+  Docs: https://github.com/winsw/winsw
+  Adjust `executable` to your installed path. The app itself owns the
+  sidecar lifecycle; the service only keeps the shell process alive.
+  Board state is never touched by service operations.
+-->
+<service>
+  <id>crewbus-desktop</id>
+  <name>CrewBus desktop</name>
+  <description>CrewBus desktop shell: loopback sidecar + local dashboard.</description>
+  <executable>%LOCALAPPDATA%\CrewBus\CrewBus.exe</executable>
+  <onfailure action="restart" delay="10 sec"/>
+  <log mode="roll" />
+</service>
