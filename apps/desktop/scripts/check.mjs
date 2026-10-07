@@ -124,7 +124,7 @@ ok(
   !!(spawnScope && (spawnScope.allow || []).some((a) => a.name === 'node')),
   'capabilities shell:allow-spawn grants the bundled "node" sidecar',
 );
-ok(permIds.includes('shell:allow-execute'), 'capabilities grant shell:allow-execute (system-PATH node fallback only)');
+ok(!permIds.includes('shell:allow-execute'), 'no PATH-fallback execute scope (sidecar-only: Command::new is private in shell v2)');
 for (const p of spawnPerms) {
   for (const a of p.allow || []) {
     const args = a.args || [];
@@ -135,8 +135,8 @@ const cargo2 = read('src-tauri/Cargo.toml');
 ok(cargo2.includes('tauri-plugin-updater'), 'Cargo: tauri-plugin-updater declared (inert: no check() call at startup)');
 ok(mainRsRel.includes('resolve_crewbus_js'), 'main.rs resolves the shipped core via resource_dir()');
 ok(mainRsRel.includes('resource_dir()'), 'main.rs uses the documented path().resource_dir() pattern');
-ok(mainRsRel.includes('sidecar("node")'), 'main.rs prefers the bundled node sidecar first');
-ok(mainRsRel.includes('Command::new("node")'), 'main.rs falls back to system-PATH node');
+ok(mainRsRel.includes('sidecar("node")'), 'main.rs uses the bundled node sidecar');
+ok(!mainRsRel.includes('Command::new("node")'), 'main.rs has no system-PATH fallback (private API in shell v2)');
 ok(mainRsRel.includes('"serve", "--port", "0"'), 'main.rs keeps the --port 0 pinning');
 ok(mainRsRel.includes('first_loopback_url'), 'main.rs keeps the stdout port-parse exactly as-is');
 ok(mainRsRel.includes('dashboard-ready'), 'main.rs keeps the dashboard-ready emit');

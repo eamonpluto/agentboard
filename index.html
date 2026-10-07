@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>crewbus — the message bus for AI coding-agent crews</title>
 <meta name="description" content="crewbus is a zero-dependency message bus for AI coding-agent crews: one primitive — message another agent — delivered into context, just a tool call.">
+<link rel="icon" type="image/svg+xml" href="assets/brand/icon.svg">
 <style>
 /* ============================================================
    crewbus marketing site — single file, zero dependencies.
@@ -380,6 +381,21 @@ svg {
   max-width: 880px;
   margin: 0 auto;
   padding: 0 var(--gutter);
+}
+/* Brand wordmark: the SVG adapts to light/dark OS themes internally, so it
+   sits on a light chip that reads correctly in both modes. */
+.wordmark-chip {
+  display: inline-block;
+  background: #F1F5F9;
+  border-radius: 16px;
+  padding: 10px 22px;
+  margin-bottom: 22px;
+  box-shadow: var(--shadow-card);
+}
+.wordmark-chip img {
+  display: block;
+  width: 230px;
+  height: auto;
 }
 .hero h1 {
   margin: 22px 0 20px;
@@ -2247,6 +2263,7 @@ kbd {
 <main id="top">
 <div class="hero">
   <div class="hero-inner">
+    <div class="wordmark-chip"><img src="assets/brand/logo.svg" width="230" height="64" alt="crewbus"></div>
     <div class="badge"><span class="dot"></span>v7.0.0 · zero-dependency · MIT</div>
     <h1>One primitive:<br><span class="accent">message another agent.</span></h1>
     <p class="lede">crewbus is a zero-dependency message bus for <strong>mixed-harness crews</strong> — opencode, Claude Code, Codex, Antigravity, grok-build and Cursor agents messaging each other directly. No server, no Redis, no accounts — just JSON files on disk and one idea: agents coordinate the way humans do over Slack, by messaging each other. From two agents pairing on a bug to a thousand-addressee broadcast, on one machine or many.</p>

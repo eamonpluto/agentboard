@@ -26,7 +26,7 @@
 
 use std::sync::Mutex;
 use tauri::{Emitter, Manager};
-use tauri_plugin_shell::{ShellExt, process::{Command, CommandChild, CommandEvent}};
+use tauri_plugin_shell::{ShellExt, process::{CommandChild, CommandEvent}};
 
 struct SidecarState {
     child: Mutex<Option<CommandChild>>,
@@ -153,39 +153,31 @@ fn main() {
             // (see service/README.md for the unit-based alternative).
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
-                // Bundled-node resolution order (normie install = no node):
-                //   1. `sidecar("node")` — the per-platform node binary packed
-                //      via `bundle.externalBin: ["binaries/node"]` and staged
-                //      at build time by `node scripts/fetch-node.mjs`.
-                //   2. System PATH `node` (>= 18) — dev machines / fallback.
-                // Pinned (capabilities/main.json `shell:allow-spawn` +
-                // `shell:allow-execute`): ONLY `<crewbus.js> serve --port 0`
-                // (+ `--host` default 127.0.0.1 inside crewbus). UNCERTAINTY
-                // flagged for toolchain review: arg[0] is the absolute
-                // resource path, so the scope pins it with a `{ "validator" }`
-                // regex — if `tauri build` rejects that form, pin the exact
-                // installed path instead and re-run `npm test`.
+                // Bundled-node resolution (normie install = no node):
+                // `sidecar("node")` is the per-platform node binary packed
+                // via `bundle.externalBin: ["binaries/node"]` and staged
+                // at build time by `node scripts/fetch-node.mjs`.
+                // There is deliberately NO system-PATH fallback here:
+                // tauri-plugin-shell v2 keeps `Command::new` private, so an
+                // unscoped std-spawn would bypass the capability audit, and
+                // dev machines run `scripts/fetch-node.mjs` once instead
+                // (externalBin resolves in `tauri dev` too).
+                // Pinned (capabilities/main.json `shell:allow-spawn`): ONLY
+                // `<crewbus.js> serve --port 0` (+ `--host` default 127.0.0.1
+                // inside crewbus). Arg[0] is the absolute resource path, so
+                // the scope pins it with a `{ "validator" }` regex.
                 let crewbus_js = resolve_crewbus_js(&handle)
                     .expect("crewbus core not found (resources bin/crewbus.js missing and no dev checkout)")
                     .to_string_lossy()
                     .into_owned();
                 let args = [crewbus_js.as_str(), "serve", "--port", "0"];
-                let mut bundled_err = String::from("bundled node sidecar missing");
-                let mut bundled = None;
-                match handle.shell().sidecar("node") {
-                    Ok(cmd) => match cmd.args(args).spawn() {
-                        Ok(pair) => bundled = Some(pair),
-                        Err(e) => bundled_err = format!("bundled node spawn failed: {e}"),
-                    },
-                    Err(e) => bundled_err = format!("bundled node sidecar not configured: {e}"),
-                }
-                let (mut rx, child) = match bundled {
-                    Some(pair) => pair,
-                    None => Command::new("node")
-                        .args(args)
-                        .spawn()
-                        .expect(format!("{bundled_err}; system node fallback also failed (is node >= 18 on PATH?)").as_str()),
-                };
+                let cmd = handle.shell().sidecar("node").expect(
+                    "bundled node sidecar missing (dev: run `node scripts/fetch-node.mjs` from apps/desktop first)",
+                );
+                let (mut rx, child) = cmd
+                    .args(args)
+                    .spawn()
+                    .expect("bundled node spawn failed");
                 // NOTE: until the additive `serve GET /` dashboard route lands
                 // (M4b; see docs/DESKTOP_SPIKE.md §1), the iframe shows what
                 // `serve` serves today. Graceful fallback lives in src/main.js.

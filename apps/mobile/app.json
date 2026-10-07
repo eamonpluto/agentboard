@@ -5,6 +5,12 @@
     "scheme": "crewbus",
     "version": "0.5.0",
     "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0B1020"
+    },
     "description": "CrewBus remote-only mobile client: pair by QR, triage inbox, approve, launch, supervise the fleet.",
     "plugins": [
       [
@@ -23,7 +29,11 @@
     },
     "android": {
       "package": "com.crewbus.mobile",
-      "permissions": ["CAMERA", "USE_BIOMETRIC", "USE_FINGERPRINT"]
+      "permissions": ["CAMERA", "USE_BIOMETRIC", "USE_FINGERPRINT"],
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-foreground.png",
+        "backgroundColor": "#0B1020"
+      }
     },
     "extra": {
       "remoteOnly": true,

@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "main-capability",
-  "description": "CrewBus M4 spike: loopback-only grant. Shell may spawn ONLY the bundled node sidecar (externalBin binaries/node) or the system-PATH node fallback, and ONLY to run the crewbus core (serve --port 0). Frontend fetch is browser-native, fenced by the CSP connect-src (loopback only); no fs scope; no remote capability whatsoever.",
+  "description": "CrewBus M4 spike: loopback-only grant. Shell may spawn ONLY the bundled node sidecar (externalBin binaries/node) to run the crewbus core (serve --port 0) — no PATH fallback exists, so no execute scope is granted. Frontend fetch is browser-native, fenced by the CSP connect-src (loopback only); no fs scope; no remote capability whatsoever.",
   "windows": ["main", "pair"],
   "permissions": [
     "core:default",
@@ -14,16 +14,6 @@
       "allow": [
         {
           "name": "node",
-          "cmd": "node",
-          "args": [{ "validator": "crewbus\\.js$" }, "serve", "--port", "0"]
-        }
-      ]
-    },
-    {
-      "identifier": "shell:allow-execute",
-      "allow": [
-        {
-          "name": "node-fallback",
           "cmd": "node",
           "args": [{ "validator": "crewbus\\.js$" }, "serve", "--port", "0"]
         }
