@@ -48,11 +48,17 @@ sidecar → pair phone via QR. No node, no Rust, no terminal on the user side.
    `plugins.updater.pubkey` (replace the current `""`).
 4. Release: bump `version` in `src-tauri/tauri.conf.json`,
    `src-tauri/Cargo.toml`, and `apps/desktop/package.json` to the SAME
-   number, commit, then `git tag desktop-v<same> && git push origin
-   desktop-v<same>`. Review the draft release (per-OS bundles present),
-   then Publish — normies only ever see published releases. To re-enable
-   auto-update artifacts later: add the secrets above, set the pubkey, flip
-   `bundle.createUpdaterArtifacts` back on.
+   number, commit, then FIRST create the draft
+   (`gh release create desktop-v<X.Y.Z> --draft --title ...`), THEN
+   `git tag desktop-v<same> && git push origin desktop-v<same>`.
+   (Lesson 2026-10-07: tauri-action could not create the release itself —
+   `Resource not accessible by integration` even with repo workflow
+   permissions at write; pre-creating the draft sidesteps it and uploads
+   proceed. Root cause not yet diagnosed.) Review the draft release
+   (per-OS bundles present), then Publish — normies only ever see
+   published releases. To re-enable auto-update artifacts later: add the
+   secrets above, set the pubkey, flip `bundle.createUpdaterArtifacts`
+   back on.
 
 ## Known gaps for the first green run
 
