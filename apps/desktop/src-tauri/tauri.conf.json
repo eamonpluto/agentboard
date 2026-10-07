@@ -39,7 +39,7 @@
     "category": "Utility",
     "shortDescription": "CrewBus desktop: loopback sidecar + local dashboard shell",
     "longDescription": "Tauri shell that owns a loopback sidecar (node bin/crewbus.js serve --port 0) and embeds the CrewBus dashboard. No remote capability.",
-    "resources": ["../../bin"],
+    "resources": ["../../../bin"],
     "externalBin": ["binaries/node"],
     "createUpdaterArtifacts": true,
     "windows": {
