@@ -46,11 +46,10 @@ Supervisor (`src-tauri/src/main.rs`, capability-pinned in
 Connection dot = 5s `GET /api/board` poll (same signal as the dashboard's
 own `#conn-dot`).
 
-> NOTE (M4b dependency): `serve`'s `GET /` is currently a plaintext relay
-> banner, not the dashboard HTML (`web` serves `renderBoardHtml()`).
-> `serve` needs the additive `GET /` dashboard route before the iframe shows
-> the full AppRoot. Until then the shell shows whatever `serve` serves plus
-> a status line. See decision record §1.
+> NOTE (resolved M4 integration): `serve`'s `GET /` now serves the same
+> dashboard HTML as `web` (`renderBoardHtml()`); the old plaintext relay
+> banner stays at `GET /relay.txt` for scripts. The iframe shows the full
+> AppRoot.
 
 ## Local-environment toggle semantics
 

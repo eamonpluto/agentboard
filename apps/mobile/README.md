@@ -80,5 +80,8 @@ explicit scope array from `src/auth/scopes.js` (Metro-safe: our code does
 no JSON `with`-attribute import — the M3 core applies the override).
 `src/lib/connection.js` owns the single `Supervisor` (one retry owner,
 jittered backoff, route-walk on every attempt, `retryNow()` for foreground
-probes). `src/api/client.js` is the module M5b implements against — see
-its header for the proposed export contract.
+probes). `src/api/client.js` is the screen-facing client (aligned to the server wire
+reality: `x-crewbus-device` header, agent tokens in bodies, approve→verdict
+mapping) — see its header. `apps/mobile/api/` is the fully-tested richer
+client (route-walked, never-throws, dryRun-default launch, drafts-only
+outbox); screens converge onto it as the shells mature.
