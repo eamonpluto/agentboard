@@ -53,7 +53,7 @@ jobs:
           projectPath: apps/desktop
           tagName: ${{ github.ref_name }}
           releaseName: CrewBus ${{ github.ref_name }}
-          releaseBody: Normie install — download the bundle for your OS below, double-click, pair your phone via QR. Draft: review before publishing.
+          releaseBody: "Normie install - download the bundle for your OS below, double-click, pair your phone via QR. Draft: review before publishing."
           releaseDraft: true
           prerelease: false
           args: --verbose
