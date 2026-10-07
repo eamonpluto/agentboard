@@ -1,5 +1,6 @@
-// CrewBus M4 desktop supervisor (Tauri) — SPIKE STUB, hand-written, UNCOMPILED.
-// Validate on a toolchain machine with `npm run tauri build`.
+// CrewBus M4 desktop supervisor (Tauri).
+// Compiles in CI (release-desktop.yml); validate behavior on a toolchain
+// machine with `npm run tauri build` + installer smoke test.
 //
 // Job: own the loopback sidecar lifecycle. The sidecar is stock zero-dep
 // `bin/crewbus.js serve --port 0` on 127.0.0.1, run by the BUNDLED node
@@ -31,6 +32,74 @@ use tauri_plugin_shell::{ShellExt, process::{CommandChild, CommandEvent}};
 struct SidecarState {
     child: Mutex<Option<CommandChild>>,
     url: Mutex<Option<String>>,
+}
+
+// Days-since-epoch to civil date (Howard Hinnant's algorithm): board.json
+// wants an ISO-8601 createdAt and there is no chrono dependency for three
+// lines of math. Only used by ensure_board_dir() for fresh boards.
+fn ymd_from_days(z: i64) -> (i32, u32, u32) {
+    let z = z + 719468;
+    let era = z.div_euclid(146097);
+    let doe = z - era * 146097;
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+    let y = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = (doy - (153 * mp + 2) / 5 + 1) as u32;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 } as u32;
+    ((if m <= 2 { y + 1 } else { y }) as i32, m, d)
+}
+
+// Minimal board bootstrap mirroring bin/lib/store.js ensureBoard(): create
+// the hot dirs + board.json {name, version, createdAt} IFF board.json is
+// absent. Never overwrites, never touches anything else. BOARD_VERSION is
+// duplicated here by necessity (no shared schema crate); check.mjs asserts
+// parity with store.js BOARD_VERSION on every run.
+fn ensure_board_dir(root: &std::path::Path) -> std::io::Result<()> {
+    for sub in [
+        "",
+        "agents",
+        "dm",
+        "delivered",
+        "broadcast",
+        "groups",
+        "channels",
+        "locks",
+        "results",
+        "tombstones",
+        "pool-state",
+        "worker-sessions",
+        "index",
+        "cursors",
+        "revoked",
+        "holds",
+    ] {
+        std::fs::create_dir_all(root.join(sub))?;
+    }
+    let meta = root.join("board.json");
+    if !meta.is_file() {
+        let secs = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs() as i64)
+            .unwrap_or(0);
+        let days = secs.div_euclid(86400);
+        let rem = secs.rem_euclid(86400);
+        let (y, m, d) = ymd_from_days(days);
+        let at = format!(
+            "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}.000Z",
+            y,
+            m,
+            d,
+            rem / 3600,
+            (rem % 3600) / 60,
+            rem % 60
+        );
+        // CHECK-MJS PARITY: keep "version": 2 in lockstep with
+        // bin/lib/store.js BOARD_VERSION (asserted, fails loudly on drift).
+        let doc = serde_json::json!({ "name": "board", "version": 2, "createdAt": at });
+        std::fs::write(&meta, serde_json::to_string_pretty(&doc).unwrap() + "\n")?;
+    }
+    Ok(())
 }
 
 fn is_loopback_url(s: &str) -> bool {
@@ -153,6 +222,15 @@ fn main() {
             // (see service/README.md for the unit-based alternative).
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
+                // Failures emit dashboard-error (the shell renders it) instead
+                // of panicking: a crash here would leave the shell on its
+                // perpetual "waiting" text with no explanation.
+                let err = |msg: String| {
+                    let _ = handle.emit(
+                        "dashboard-error",
+                        serde_json::json!({ "message": msg }),
+                    );
+                };
                 // Bundled-node resolution (normie install = no node):
                 // `sidecar("node")` is the per-platform node binary packed
                 // via `bundle.externalBin: ["binaries/node"]` and staged
@@ -163,32 +241,73 @@ fn main() {
                 // dev machines run `scripts/fetch-node.mjs` once instead
                 // (externalBin resolves in `tauri dev` too).
                 // Pinned (capabilities/main.json `shell:allow-spawn`): ONLY
-                // `<crewbus.js> serve --port 0` (+ `--host` default 127.0.0.1
-                // inside crewbus). Arg[0] is the absolute resource path, so
-                // the scope pins it with a `{ "validator" }` regex.
-                let crewbus_js = resolve_crewbus_js(&handle)
-                    .expect("crewbus core not found (resources bin/crewbus.js missing and no dev checkout)")
-                    .to_string_lossy()
-                    .into_owned();
-                let args = [crewbus_js.as_str(), "serve", "--port", "0"];
-                let cmd = handle.shell().sidecar("node").expect(
-                    "bundled node sidecar missing (dev: run `node scripts/fetch-node.mjs` from apps/desktop first)",
-                );
-                let (mut rx, child) = cmd
-                    .args(args)
-                    .spawn()
-                    .expect("bundled node spawn failed");
-                // NOTE: until the additive `serve GET /` dashboard route lands
-                // (M4b; see docs/DESKTOP_SPIKE.md §1), the iframe shows what
-                // `serve` serves today. Graceful fallback lives in src/main.js.
+                // `<crewbus.js> serve --port 0 --board <dir>` (+ `--host`
+                // default 127.0.0.1 inside crewbus). The board path varies
+                // per machine so its position is a permissive validator;
+                // program, file, verb, and flags stay exact. First-run board
+                // creation is Rust-side ensure_board_dir() (no sidecar verb
+                // needed), so the scope needs exactly one shape.
+                let crewbus_js = match resolve_crewbus_js(&handle) {
+                    Some(p) => p.to_string_lossy().into_owned(),
+                    None => {
+                        err("crewbus core not found (resources bin/crewbus.js missing and no dev checkout)".to_string());
+                        return;
+                    }
+                };
+                // Default board for normie installs (no checkout, no
+                // CREWBUS_DIR): <app-data>/board, auto-initialized on first
+                // run. Mirrors bin/lib/store.js ensureBoard() (mkdirs +
+                // board.json {name, version, createdAt} when missing) WITHOUT
+                // forking it: this writes ONLY when board.json is absent and
+                // never overwrites, and check.mjs asserts BOARD_VERSION
+                // parity against store.js so a schema bump fails loudly
+                // instead of drifting. requireBoard() only gates on
+                // `version` and mkdirs the hot dirs itself on every serve.
+                let board_dir = match handle.path().app_data_dir() {
+                    Ok(d) => d.join("board"),
+                    Err(e) => {
+                        err(format!("app data dir unavailable: {e}"));
+                        return;
+                    }
+                };
+                let board_str = board_dir.to_string_lossy().into_owned();
+                if !board_dir.join("board.json").is_file() {
+                    if let Err(e) = ensure_board_dir(&board_dir) {
+                        err(format!("default board init failed: {e}"));
+                        return;
+                    }
+                }
+                let args = [
+                    crewbus_js.as_str(),
+                    "serve",
+                    "--port",
+                    "0",
+                    "--board",
+                    board_str.as_str(),
+                ];
+                let (mut rx, child) = match handle.shell().sidecar("node") {
+                    Ok(cmd) => match cmd.args(args).spawn() {
+                        Ok(pair) => pair,
+                        Err(e) => {
+                            err(format!("bundled node spawn failed: {e}"));
+                            return;
+                        }
+                    },
+                    Err(e) => {
+                        err(format!("bundled node sidecar missing (dev: run `node scripts/fetch-node.mjs` from apps/desktop first): {e}"));
+                        return;
+                    }
+                };
                 let state: tauri::State<SidecarState> = handle.state();
                 *state.child.lock().expect("sidecar lock") = Some(child);
+                let mut learned_url = false;
                 while let Some(evt) = rx.recv().await {
                     if let CommandEvent::Stdout(line) | CommandEvent::Stderr(line) = evt {
                         let text = String::from_utf8_lossy(&line);
                         if state.url.lock().expect("url lock").is_none() {
                             if let Some(url) = first_loopback_url(&text) {
                                 *state.url.lock().expect("url lock") = Some(url.clone());
+                                learned_url = true;
                                 let _ = handle.emit(
                                     "dashboard-ready",
                                     serde_json::json!({ "url": url }),
@@ -197,7 +316,15 @@ fn main() {
                         }
                     }
                 }
-                let _ = handle.emit("dashboard-stopped", ());
+                // End of stream: normal shutdown (toggle/quit) only counts if
+                // a URL was ever learned — otherwise the sidecar died before
+                // serving (e.g. no board, bad flags) and the shell must say
+                // so instead of idling on "waiting" forever.
+                if learned_url {
+                    let _ = handle.emit("dashboard-stopped", ());
+                } else {
+                    err("sidecar exited before serving a URL (board init or serve flags failed)".to_string());
+                }
             });
             Ok(())
         })

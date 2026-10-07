@@ -149,16 +149,24 @@ ok(!permIds.includes('shell:allow-execute'), 'no PATH-fallback execute scope (si
 for (const p of spawnPerms) {
   for (const a of p.allow || []) {
     const args = a.args || [];
-    ok(args.includes('serve') && args.includes('--port') && args.includes('0'), `shell scope "${a.name}" stays pinned to serve --port 0`);
+    ok(args.includes('serve') && args.includes('--port') && args.includes('0') && args.includes('--board'), `shell scope "${a.name}" stays pinned to serve --port 0 --board <dir>`);
   }
 }
+// Rust board bootstrap mirrors store.js ensureBoard: versions must match.
+const boardVersion = Number(
+  (fs.readFileSync(path.join(repo, 'bin', 'lib', 'store.js'), 'utf8').match(/BOARD_VERSION\s*=\s*(\d+)/) || [])[1],
+);
+ok(Number.isInteger(boardVersion), 'store.js BOARD_VERSION readable for parity check');
+ok(mainRsRel.includes(`"version": ${boardVersion}`), `main.rs ensure_board_dir writes version ${boardVersion} (fails loudly on schema drift, never silently forks)`);
+ok(mainRsRel.includes('dashboard-error'), 'main.rs emits dashboard-error instead of panicking (no silent waiting)');
+ok(mainRsRel.includes('app_data_dir()'), 'main.rs defaults the board to <app-data>/board (normie installs have no checkout)');
 const cargo2 = read('src-tauri/Cargo.toml');
 ok(cargo2.includes('tauri-plugin-updater'), 'Cargo: tauri-plugin-updater declared (inert: no check() call at startup)');
 ok(mainRsRel.includes('resolve_crewbus_js'), 'main.rs resolves the shipped core via resource_dir()');
 ok(mainRsRel.includes('resource_dir()'), 'main.rs uses the documented path().resource_dir() pattern');
 ok(mainRsRel.includes('sidecar("node")'), 'main.rs uses the bundled node sidecar');
 ok(!mainRsRel.includes('Command::new("node")'), 'main.rs has no system-PATH fallback (private API in shell v2)');
-ok(mainRsRel.includes('"serve", "--port", "0"'), 'main.rs keeps the --port 0 pinning');
+ok(/"serve",\s*"--port",\s*"0"/.test(mainRsRel), 'main.rs keeps the --port 0 pinning');
 ok(mainRsRel.includes('first_loopback_url'), 'main.rs keeps the stdout port-parse exactly as-is');
 ok(mainRsRel.includes('dashboard-ready'), 'main.rs keeps the dashboard-ready emit');
 ok(mainRsRel.includes('tauri_plugin_updater::Builder::new().build()'), 'main.rs registers the updater plugin (no startup check call)');

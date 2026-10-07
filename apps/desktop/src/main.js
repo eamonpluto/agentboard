@@ -140,6 +140,13 @@ if (window.__TAURI__ && window.__TAURI__.event && typeof window.__TAURI__.event.
     markConn(false, 'sidecar stopped');
     say('sidecar stopped (remote-only mode). Board state untouched — nothing was deleted.');
   });
+  window.__TAURI__.event.listen('dashboard-error', function (ev) {
+    stopPoll();
+    supervisor.noteDrop('sidecar error');
+    markConn(false, 'sidecar error');
+    var msg = ev && ev.payload && (ev.payload.message || ev.payload);
+    say('sidecar failed: ' + msg + ' — board untouched. Restart the app; if it repeats, run the sidecar by hand: node <core> serve --port 0 --board <app-data>/board');
+  });
 }
 
 // 3. manual entry fallback for dev without Tauri.

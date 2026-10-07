@@ -15,7 +15,7 @@
         {
           "name": "node",
           "cmd": "node",
-          "args": [{ "validator": "crewbus\\.js$" }, "serve", "--port", "0"]
+          "args": [{ "validator": "crewbus\\.js$" }, "serve", "--port", "0", "--board", { "validator": ".+" }]
         }
       ]
     }
