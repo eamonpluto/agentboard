@@ -65,3 +65,4 @@ crewbus spawn-kill --from lead --all
 - Something wrong? `docs/TROUBLESHOOTING.md`, then `crewbus doctor`.
 - Wondering if this fits? Read `docs/WHEN_NOT.md` first.
 - Harness versions + last-verified dates: `docs/COMPATIBILITY.md`.
+- Prefer a wizard/GUI? `crewbus harnesses` detects installed drivers, `launch --dry-run` previews the exact boot commands, and `crewbus web` is the dashboard alternative.

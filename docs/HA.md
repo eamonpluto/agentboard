@@ -68,10 +68,12 @@ While a standby, the server:
 - pulls via `syncRound` on `--relay-interval` seconds (per-peer cursor in
   `sync-state/`, same overlap logic as `sync --interval`);
 - serves GET reads from its local (replicated) board;
-- refuses `POST /sync/put`, `POST /api/spawn`, `POST /api/kill` with
-  **503 + `X-Relay-Role: standby`** and a JSON `{error, role, primary}`
+- refuses `POST /sync/put`, `POST /api/spawn`, `POST /api/launch`,
+  `POST /api/kill`, and pair writes (`POST /api/pair/issue|exchange|revoke`)
+  with **503 + `X-Relay-Role: standby`** and a JSON `{error, role, primary}`
   hint — checked *before* the relay secret, so load balancers and clients
-  get a clean signal without credentials;
+  get a clean signal without credentials (pair reads such as
+  `GET /api/pair/devices` still serve locally);
 - records state in `<board>/relay.json`
   (`role`, `primary`, `lastSyncOk`, `lagMs`, `consecFails`, `promotion`,
   `promotedAt`, `fence`).
@@ -79,8 +81,10 @@ While a standby, the server:
 ## Health + status
 
 - `GET /healthz` (no auth — safe for load-balancer probes):
-  `{role, primary, lagMs, lastSyncOk, lastSyncErr, promotion, promotedAt,
-  uptimeSec}` with an `X-Relay-Role` header. Route reads to `role ==
+  `{role, weight, workers, advertisedRoutes, primary, lagMs, lastSyncOk,
+  lastSyncErr, promotion, promotedAt, uptimeSec}` (`advertisedRoutes` from
+  `--advertise-routes`; `weight` from `--weight`; `workers` = live spawned
+  pids) with an `X-Relay-Role` header. Route reads to `role ==
   "standby"` **or** the primary; shed a replica when `lagMs` exceeds your
   SLO.
 - `crewbus relay status [--json] [--board <path>]` prints the same state
