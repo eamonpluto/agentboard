@@ -1,0 +1,24 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main-capability",
+  "description": "CrewBus M4 spike: loopback-only grant. Shell may spawn ONLY the pinned sidecar command; http fetch ONLY to 127.0.0.1/localhost; no fs scope; no remote capability whatsoever.",
+  "windows": ["main", "pair"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-show",
+    {
+      "identifier": "shell:allow-spawn",
+      "allow": [
+        {
+          "name": "crewbus-sidecar",
+          "cmd": "node",
+          "args": ["bin/crewbus.js", "serve", "--port", "0"]
+        }
+      ]
+    },
+    {
+      "identifier": "http:allow-fetch",
+      "allow": [{ "url": "http://127.0.0.1:*" }, { "url": "http://localhost:*" }]
+    }
+  ]
+}

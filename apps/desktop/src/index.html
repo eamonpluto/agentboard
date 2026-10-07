@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CrewBus</title>
+<style>
+body{margin:0;background:#0f1419;color:#d7dee6;font:14px/1.5 system-ui,sans-serif}
+#shellbar{position:sticky;top:0;z-index:20;display:flex;gap:12px;align-items:center;background:#0b0f14;border-bottom:1px solid #2a343e;padding:8px 12px;flex-wrap:wrap}
+#conn-dot{font-size:1.2em;color:#8b98a5}
+.dim{color:#8b98a5;font-size:.85em}
+button{background:#182028;border:1px solid #4cc38a;color:#4cc38a;border-radius:5px;padding:4px 12px;font-size:.9em;cursor:pointer}
+button.ghost{border-color:#2a343e;color:#d7dee6}
+#dashboard{width:100%;height:calc(100vh - 90px);border:0;background:#0f1419}
+#status{padding:4px 12px}
+label.switch{display:flex;gap:6px;align-items:center}
+</style>
+</head>
+<body>
+<header id="shellbar">
+  <b>crewbus</b>
+  <span id="conn-dot" title="connection: unknown">&#9679;</span>
+  <label class="switch" title="Off = remote-only: stops the sidecar WITHOUT deleting board state">
+    <input id="local-env" type="checkbox" checked> Local environment
+  </label>
+  <button id="pair-open" class="ghost">Pair a device (QR)</button>
+  <span id="sidecar-url" class="dim">sidecar: waiting&hellip;</span>
+</header>
+<div id="status" class="dim">waiting for the sidecar dashboard URL&hellip;</div>
+<!--
+  The dashboard UI is NOT duplicated here: this iframe loads the sidecar's
+  own page (bin/lib/web.js renderBoardHtml via the additive `serve GET /`
+  route, M4b). All Boards/Crews/Fleet/Channels/Triage/Approvals/Results/
+  Audit/Settings UI stays server-rendered. This shell only owns: the
+  sidecar URL, the connection dot, the Local-environment toggle, and the
+  pair-QR window button.
+-->
+<iframe id="dashboard" title="CrewBus dashboard" src="about:blank"></iframe>
+<script type="module" src="./main.js"></script>
+</body>
+</html>

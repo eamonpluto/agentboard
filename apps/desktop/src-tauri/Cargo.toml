@@ -1,0 +1,16 @@
+[package]
+name = "crewbus-desktop"
+version = "0.1.0"
+edition = "2021"
+
+# SPIKE SCAFFOLD — hand-written, never compiled on this machine (no Rust
+# toolchain). Validate on a toolchain machine with `npm run tauri build`.
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-shell = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

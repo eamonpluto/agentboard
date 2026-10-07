@@ -4894,6 +4894,15 @@ async function cmdServe(args) {
         const url = new URL(req.url || "/", "http://x");
         if (!requireRelayClientCert(req, res, url, tlsClientCaPem)) return;
         if (req.method === "GET" && url.pathname === "/") {
+          // Control-plane M4: the relay serves the same dashboard as `web`
+          // (the desktop shell embeds this URL in its webview). The old
+          // plaintext banner stays at /relay.txt for scripts.
+          const body = renderBoardHtml(d.root);
+          res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
+          res.end(body);
+          return;
+        }
+        if (req.method === "GET" && url.pathname === "/relay.txt") {
           res.writeHead(200, { "content-type": "text/plain; charset=utf-8" });
           res.end(`crewbus sync relay [board ${d.root}]\npeers: GET /sync/manifest, GET /sync/file?path=…, POST /sync/put?path=…\ncrews: POST /api/spawn (JSON, token-checked)\n`);
           return;

@@ -1,0 +1,43 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "CrewBus",
+  "version": "0.1.0",
+  "identifier": "com.crewbus.desktop",
+  "build": {
+    "frontendDist": "../src",
+    "devUrl": "http://localhost:1420",
+    "beforeDevCommand": "",
+    "beforeBuildCommand": ""
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "CrewBus",
+        "url": "index.html",
+        "width": 1280,
+        "height": 860,
+        "minWidth": 900,
+        "minHeight": 600
+      },
+      {
+        "label": "pair",
+        "title": "Pair a device — CrewBus",
+        "url": "pair.html",
+        "width": 420,
+        "height": 560,
+        "visible": false
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; frame-src http://127.0.0.1:* http://localhost:*; connect-src http://127.0.0.1:* http://localhost:*; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "category": "Utility",
+    "shortDescription": "CrewBus desktop: loopback sidecar + local dashboard shell",
+    "longDescription": "Tauri shell that owns a loopback sidecar (node bin/crewbus.js serve --port 0) and embeds the CrewBus dashboard. No remote capability."
+  }
+}
