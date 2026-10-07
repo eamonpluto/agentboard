@@ -1,0 +1,33 @@
+{
+  "expo": {
+    "name": "CrewBus Mobile",
+    "slug": "crewbus-mobile",
+    "scheme": "crewbus",
+    "version": "0.5.0",
+    "orientation": "portrait",
+    "description": "CrewBus remote-only mobile client: pair by QR, triage inbox, approve, launch, supervise the fleet.",
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "CrewBus scans the one-time pairing QR shown by your desktop or relay (crewbus://pair). The camera is never used otherwise."
+        }
+      ]
+    ],
+    "ios": {
+      "bundleIdentifier": "com.crewbus.mobile",
+      "infoPlist": {
+        "NSCameraUsageDescription": "CrewBus scans the one-time pairing QR shown by your desktop or relay.",
+        "NSFaceIDUsageDescription": "CrewBus protects the paired device credential with biometrics."
+      }
+    },
+    "android": {
+      "package": "com.crewbus.mobile",
+      "permissions": ["CAMERA", "USE_BIOMETRIC", "USE_FINGERPRINT"]
+    },
+    "extra": {
+      "remoteOnly": true,
+      "foregroundRefreshOnly": true
+    }
+  }
+}

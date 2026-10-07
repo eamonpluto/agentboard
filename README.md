@@ -442,7 +442,11 @@ live launch. Worker entries now carry their harness `driver` end-to-end
 badges). The shared `packages/client-runtime/` (route walk with learned
 routes, reconnect supervisor, pair-URL auth store, offline cache with
 explicit-retry mutation queue) is the foundation the future desktop and
-mobile shells build on.
+mobile shells build on. The Expo mobile client (`apps/mobile`, remote-only
+v1) pairs by QR scan, walks advertised + learned routes, and offers
+triage/approvals/launch/fleet cards with an offline outbox that only
+retries on explicit tap — sharing the tested `apps/mobile/api/` relay
+client and the runtime's auth/cache core.
 
 ## Inserted into context
 

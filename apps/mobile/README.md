@@ -1,0 +1,84 @@
+# CrewBus mobile (M5, Expo, remote-only v1) — scaffold
+
+Hand-written scaffold produced on a machine with NO Expo/RN toolchain:
+nothing here has been compiled and `npm install` was deliberately never
+run (no `node_modules`, no lockfiles). Mirrors `apps/desktop/` shell/pair
+patterns: fragment-secret hygiene, ordered routes, one retry owner, and an
+explicitly-retried mutation queue.
+
+## Prerequisites (toolchain machine only)
+
+- Node ≥ 18, `npm`, and the Expo CLI (`npx expo` resolves after install).
+- iOS: Xcode + simulator (or a dev-client device). Android: Android Studio +
+  emulator (or a dev-client device with Expo Go / dev build).
+- A reachable CrewBus relay to pair against: desktop sidecar or
+  `node bin/crewbus.js serve` with `--advertise-routes` (LAN/tailnet URL the
+  phone can actually reach — remote-only v1, no loopback).
+
+## Run (toolchain machine)
+
+```sh
+cd apps/mobile
+npm install            # installs expo + react-navigation (NOT run here)
+npx expo start         # scan the dev QR with the phone / open the emulator
+npm test               # = `node scripts/check.mjs`: JSON parses + paths + scaffold rules
+```
+
+From the repo root, mobile builds stay out of the root `package.json` —
+everything happens in `apps/mobile/` only.
+
+## Pairing a phone against a desktop/relay
+
+1. On the desktop/relay (admin): mint a one-time link —
+   `node bin/crewbus.js serve --port 0 --pair-qrcode --from <admin>`
+   (same mint + audit as `relay pair`) — and show its QR.
+2. On the phone: open **Pair**, point the camera at the QR (or paste via
+   deep link `crewbus://pair?...#abp-…`). The screen validates with the
+   runtime `parsePairUrl()` fragment rule (query secrets rejected), walks
+   the ordered routes first-that-works, then `POST /api/pair/exchange`
+   swaps the one-time `abp-…` for a device `abd-…` with narrowed scopes.
+3. The `abd-…` lands in biometric storage; the full pair URL is never
+   logged, never persisted, and Clear wipes every copy.
+
+## Decisions
+
+- **Router: `@react-navigation/native-stack` (NOT expo-router).** An
+  explicit `RootNavigator` needs no file-convention Metro plugin, keeps the
+  `App.js` entry trivial, and lets the `crewbus://pair` deep link be handled
+  manually via `expo-linking`. Every screen stays < 120 lines of RN
+  primitives (no UI framework).
+- **QR: `expo-camera` (`CameraView.onBarcodeScanned`) for scanning +
+  `react-native-qrcode-svg` (over `react-native-svg`) as the stated QR lib.**
+  The phone is scan-only: the desktop/relay renders the pair QR. The render
+  lib is used exclusively for non-secret echo (env-id label on the Pair
+  success card) — the pair URL / fragment secret is NEVER rendered, logged,
+  or persisted.
+- **Biometric store = `expo-secure-store`** (`src/auth/secureStore.js`
+  implements the runtime `{get,set,del}` adapter; iOS keychain /
+  Android keystore; `requireAuthentication` wiring documented in-code).
+  `expo-secure-store` needs no `app.json` config plugin — none is listed.
+  No FCM plugins either: v1 is long-poll + foreground refresh only.
+- **Remote-only v1:** no local exec anywhere, no loopback fallback (the
+  client constructor refuses loopback base URLs and `allowLoopback` is
+  never passed), probe = `fetch(<route>/healthz)` with an 8s timeout,
+  foreground refresh via `AppState → supervisor.retryNow()` + cache prune.
+
+## Offline / queue UX rules (spec §5)
+
+- Inbox + drafts stay readable offline (runtime `createCache` TTLs).
+- Mutations (ack / approve / kill) enqueue when offline and wait.
+- The queue NEVER auto-replays — not on reconnect, not on foreground.
+  Only the explicit **"Retry queued (n)"** button (`Queue` screen →
+  `retryAll()`) executes queued work, one item at a time.
+- Launch is never queued implicitly: dry-run preview is the default and a
+  live launch needs its own explicit confirm on the `Launch` screen.
+
+## client-runtime wiring
+
+`src/auth/store.js` wires `createAuthStore({ knownScopes })` with the
+explicit scope array from `src/auth/scopes.js` (Metro-safe: our code does
+no JSON `with`-attribute import — the M3 core applies the override).
+`src/lib/connection.js` owns the single `Supervisor` (one retry owner,
+jittered backoff, route-walk on every attempt, `retryNow()` for foreground
+probes). `src/api/client.js` is the module M5b implements against — see
+its header for the proposed export contract.
