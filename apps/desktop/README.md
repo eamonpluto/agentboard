@@ -12,14 +12,33 @@ sidecar's own dashboard in an `<iframe>` — the dashboard UI
 adds only: sidecar lifecycle, connection dot, `Local environment` toggle,
 and the pair-QR window.
 
+## Releases (normie install)
+
+No node, no Rust, no terminal needed — the installer carries everything:
+
+1. Download the bundle for your OS from
+   [GitHub Releases](https://github.com/eamonpluto/crewbus/releases)
+   (Windows `.nsis` per-user installer, macOS `.dmg`, Linux bundle).
+   Installs without an admin prompt (per-user default).
+2. Double-click **CrewBus** — the app starts its own sidecar
+   (`bin/crewbus.js serve --port 0` on `127.0.0.1`, run by the bundled node;
+   the dashboard below is that sidecar's own UI).
+3. Pair your phone: header button opens the pair window, paste the one-time
+   `crewbus://pair?...` URL, show the QR to the mobile client.
+
+Only *published* releases are for normies — maintainers review each
+`desktop-v*` draft first (flow + signing secrets: see `RELEASE.md`).
+
 ## Prerequisites (toolchain machine only)
 
 - Rust stable (via rustup) + platform webview SDK:
   - Windows: WebView2 (evergreen) + `cargo`, Tauri CLI via npm.
   - macOS: Xcode CLT; Linux: `webkit2gtk` dev packages + `libappindicator`.
-- System `node` ≥ 18 on PATH — the sidecar is stock `bin/crewbus.js`, which
-  is spawned, not bundled. The app refuses sidecar boot without it (M5
-  question: vendor node vs assert node — see decision record §6).
+- System `node` ≥ 18 on PATH — dev fallback only: release installers run the
+  sidecar on the BUNDLED node (staged by `node scripts/fetch-node.mjs`
+  before `tauri build`), so normies never install node. Keep a system node
+  on the toolchain machine anyway (scripts + fallback spawn path).
+  (M5 question resolved for releases: vendor node — see `RELEASE.md`.)
 - Signing certs per OS for packaged builds (Windows code-sign, Apple
   Developer ID + notarization).
 
@@ -28,6 +47,7 @@ and the pair-QR window.
 ```sh
 cd apps/desktop
 npm install            # installs @tauri-apps/cli + @tauri-apps/api (NOT run here)
+node scripts/fetch-node.mjs  # stages per-platform node into src-tauri/binaries/ (SHA256-verified; skips when present)
 npm run tauri build    # compiles Rust supervisor + bundles (validates main.rs, tauri.conf.json, capabilities)
 npm run dev            # = `tauri dev`: live shell against a dev sidecar
 npm test               # = `node scripts/check.mjs`: JSON parses + cross-referenced paths exist

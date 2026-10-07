@@ -8,6 +8,7 @@
     "dev": "tauri dev",
     "build": "tauri build",
     "tauri": "tauri",
+    "fetch-node": "node scripts/fetch-node.mjs",
     "test": "node scripts/check.mjs",
     "check": "node scripts/check.mjs"
   },

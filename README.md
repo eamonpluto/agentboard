@@ -451,6 +451,29 @@ triage/approvals/launch/fleet cards with an offline outbox that only
 retries on explicit tap — sharing the tested `apps/mobile/api/` relay
 client and the runtime's auth/cache core.
 
+## Install the apps
+
+Two tracks — pick one. Status today: **source builds only, no published
+installers yet** — the first `desktop-v*` tag and the first EAS preview
+build produce them. Detail: `apps/desktop/README.md`, `apps/mobile/README.md`.
+
+NORMIES (no terminal, ever) — live only after the first Release; until
+then ask a dev to build from source (track below):
+- Desktop: download the installer from GitHub Releases → double-click →
+  the sidecar starts itself → pair your phone by scanning the in-app QR.
+- Mobile: Android → direct APK link from the Release; iOS → TestFlight
+  link → open → Pair tab → scan.
+- First run: 1) install both apps, 2) scan the QR to pair, 3) open Triage
+  and ack your first item.
+
+DEVS (source builds):
+- `git clone` the repo, then root `npm test` (all suites green — start here).
+- Desktop: `cd apps/desktop; npm install; npm run tauri dev` (sidecar boots itself on loopback).
+- Mobile: `cd apps/mobile; npm install; npx expo start` (scan the dev QR or open the emulator).
+- Pair the phone against a reachable relay: `crewbus serve
+  --advertise-routes <LAN-url> --pair-qrcode --from <admin>` (admin token;
+  LAN/tailnet URL the phone can reach — remote-only v1, no loopback).
+
 ## Inserted into context
 
 Files alone can only be polled — the harness does the push, on every

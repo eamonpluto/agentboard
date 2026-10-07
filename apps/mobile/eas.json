@@ -1,13 +1,18 @@
 {
-  "$comment": "expo-secure-store needs no config plugin — none is listed in app.json and none is needed here; EAS builds only need the profiles below.",
+  "$comment": "expo-secure-store needs no config plugin — none is listed in app.json and none is needed here. preview = installable internal artifacts (Android APK via buildType; iOS device build — registered device or Apple account required, see README Install builds). production = store-ready (explicit store distribution). No development profile: expo-dev-client is not a dependency.",
   "cli": {
     "version": ">= 5.0.0"
   },
   "build": {
     "preview": {
-      "distribution": "internal"
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      }
     },
-    "production": {}
+    "production": {
+      "distribution": "store"
+    }
   },
   "submit": {
     "production": {}

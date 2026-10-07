@@ -38,6 +38,22 @@
     "targets": "all",
     "category": "Utility",
     "shortDescription": "CrewBus desktop: loopback sidecar + local dashboard shell",
-    "longDescription": "Tauri shell that owns a loopback sidecar (node bin/crewbus.js serve --port 0) and embeds the CrewBus dashboard. No remote capability."
+    "longDescription": "Tauri shell that owns a loopback sidecar (node bin/crewbus.js serve --port 0) and embeds the CrewBus dashboard. No remote capability.",
+    "resources": ["../../bin"],
+    "externalBin": ["binaries/node"],
+    "createUpdaterArtifacts": true,
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser"
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "active": true,
+      "endpoints": ["https://github.com/eamonpluto/crewbus/releases/latest/download/latest.json"],
+      "dialog": true,
+      "pubkey": ""
+    }
   }
 }

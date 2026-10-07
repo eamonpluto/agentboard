@@ -90,14 +90,66 @@ for (const rel of ['src/main.js', 'src/pair.js']) {
 ok(read('src/main.js').includes('allowLoopback') && read('src/main.js').includes('Supervisor'), 'main.js wires Supervisor (desktop-sidecar allowLoopback)');
 ok(read('src/pair.js').includes('parsePairUrl'), 'pair.js validates via the runtime parsePairUrl');
 
+// 3. Normie-release wiring: bundled node + shipped core + inert updater.
+// (Static only — no network, no toolchain. The first real compile happens in
+// CI via .github/workflows/release-desktop.yml after fetch-node.mjs stages
+// per-platform node binaries into src-tauri/binaries/.)
+const mainRsRel = read('src-tauri/src/main.rs');
+ok(isFile(path.join(desktop, 'scripts', 'fetch-node.mjs')), 'exists: scripts/fetch-node.mjs (build-time node vendor)');
+ok(isFile(path.join(desktop, 'src-tauri', 'build.rs')), 'exists: src-tauri/build.rs (tauri_build::build for generate_context!)');
+ok(isFile(path.join(desktop, 'RELEASE.md')), 'exists: RELEASE.md (maintainer signing/tag steps)');
+ok(isFile(path.join(repo, '.github', 'workflows', 'release-desktop.yml')), 'exists: .github/workflows/release-desktop.yml (desktop-v* tags only)');
+ok(read('src-tauri/build.rs').includes('tauri_build::build()'), 'build.rs calls tauri_build::build()');
+const extBin = conf.bundle.externalBin || [];
+ok(Array.isArray(extBin) && extBin.includes('binaries/node'), 'tauri.conf externalBin packs the per-platform node sidecar');
+const resources = conf.bundle.resources || [];
+ok(Array.isArray(resources) && resources.some((r) => String(r).includes('bin')), 'tauri.conf resources ship the crewbus core (bin/crewbus.js + bin/lib)');
+ok(conf.bundle.createUpdaterArtifacts === true, 'tauri.conf createUpdaterArtifacts enabled (produces latest.json)');
+ok(conf.productName === 'CrewBus', 'productName stays "CrewBus" for the installer');
+ok(
+  conf.bundle.windows && conf.bundle.windows.nsis && conf.bundle.windows.nsis.installMode === 'currentUser',
+  'NSIS installMode is currentUser (per-user default, no admin prompt for normies)',
+);
+const updater = (conf.plugins && conf.plugins.updater) || {};
+ok(updater.active === true, 'updater active in config (inert until signing keys land)');
+ok(
+  Array.isArray(updater.endpoints) && updater.endpoints.some((u) => String(u).startsWith('https://github.com/') && String(u).endsWith('/latest.json')),
+  'updater endpoint points at a GitHub Releases latest.json template',
+);
+ok(typeof updater.pubkey === 'string', 'updater pubkey key present (empty until a maintainer adds the signing key)');
+const spawnPerms = (cap.permissions || []).filter((p) => typeof p !== 'string' && String(p.identifier).startsWith('shell:'));
+const spawnScope = spawnPerms.find((p) => p.identifier === 'shell:allow-spawn');
+ok(
+  !!(spawnScope && (spawnScope.allow || []).some((a) => a.name === 'node')),
+  'capabilities shell:allow-spawn grants the bundled "node" sidecar',
+);
+ok(permIds.includes('shell:allow-execute'), 'capabilities grant shell:allow-execute (system-PATH node fallback only)');
+for (const p of spawnPerms) {
+  for (const a of p.allow || []) {
+    const args = a.args || [];
+    ok(args.includes('serve') && args.includes('--port') && args.includes('0'), `shell scope "${a.name}" stays pinned to serve --port 0`);
+  }
+}
+const cargo2 = read('src-tauri/Cargo.toml');
+ok(cargo2.includes('tauri-plugin-updater'), 'Cargo: tauri-plugin-updater declared (inert: no check() call at startup)');
+ok(mainRsRel.includes('resolve_crewbus_js'), 'main.rs resolves the shipped core via resource_dir()');
+ok(mainRsRel.includes('resource_dir()'), 'main.rs uses the documented path().resource_dir() pattern');
+ok(mainRsRel.includes('sidecar("node")'), 'main.rs prefers the bundled node sidecar first');
+ok(mainRsRel.includes('Command::new("node")'), 'main.rs falls back to system-PATH node');
+ok(mainRsRel.includes('"serve", "--port", "0"'), 'main.rs keeps the --port 0 pinning');
+ok(mainRsRel.includes('first_loopback_url'), 'main.rs keeps the stdout port-parse exactly as-is');
+ok(mainRsRel.includes('dashboard-ready'), 'main.rs keeps the dashboard-ready emit');
+ok(mainRsRel.includes('tauri_plugin_updater::Builder::new().build()'), 'main.rs registers the updater plugin (no startup check call)');
+ok(!/\.check\(\)\.await/.test(mainRsRel), 'main.rs never auto-checks for updates at startup (inert without keys)');
+
 // Tauri plugins declared, not TODO: single-instance + autostart.
 const cargo = read('src-tauri/Cargo.toml');
 ok(cargo.includes('tauri-plugin-single-instance'), 'Cargo: tauri-plugin-single-instance declared');
 ok(cargo.includes('tauri-plugin-autostart'), 'Cargo: tauri-plugin-autostart declared');
 const mainRs = read('src-tauri/src/main.rs');
-ok(mainRs.includes('tauri_plugin_single_instance::init'), 'main.rs inits single-instance (second launch focuses, never double-sidecars)');
-ok(mainRs.includes('tauri_plugin_autostart::init'), 'main.rs inits autostart (start-minimized-friendly)');
-ok(mainRs.includes('npm run tauri build'), 'main.rs comments the toolchain verify command');
+ok(mainRsRel.includes('tauri_plugin_single_instance::init'), 'main.rs inits single-instance (second launch focuses, never double-sidecars)');
+ok(mainRsRel.includes('tauri_plugin_autostart::init'), 'main.rs inits autostart (start-minimized-friendly)');
+ok(mainRsRel.includes('npm run tauri build'), 'main.rs comments the toolchain verify command');
 ok(permIds.includes('autostart:allow-enable') && permIds.includes('autostart:allow-disable') && permIds.includes('autostart:allow-is-enabled'), 'capabilities grant the documented autostart permissions');
 
 if (failures > 0) {

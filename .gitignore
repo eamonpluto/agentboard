@@ -1,2 +1,5 @@
 .smoke-test-board/
 .crewbus/
+# Tauri externalBin staging (fetched at build time by
+# apps/desktop/scripts/fetch-node.mjs; never commit ~30MB node binaries).
+apps/desktop/src-tauri/binaries/

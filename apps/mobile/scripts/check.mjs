@@ -95,10 +95,19 @@ ok(contractScopes.every((s) => scopeSrc.includes(`'${s}'`)), 'mobile scopes matc
 ok(!isFile(path.join(mobile, 'package-lock.json')), 'no package-lock.json (never installed)');
 ok(!isFile(path.join(mobile, 'yarn.lock')), 'no yarn.lock (never installed)');
 
-// 7. Deep link scheme + EAS (pair links resolve via expo-linking; builds at toolchain).
+// 7. Deep link scheme + store identity + EAS (pair links resolve via expo-linking; builds at toolchain).
 ok(appJson.expo.scheme === 'crewbus', 'deep link scheme crewbus:// declared in app.json');
+ok(appJson.expo.name === 'CrewBus Mobile' && appJson.expo.slug === 'crewbus-mobile', 'app name/slug correct for store submission');
+ok(appJson.expo.ios && appJson.expo.ios.bundleIdentifier === 'com.crewbus.mobile', 'ios.bundleIdentifier com.crewbus.mobile present');
+ok(appJson.expo.android && appJson.expo.android.package === 'com.crewbus.mobile', 'android.package com.crewbus.mobile present');
+ok(/^com\.crewbus\./.test(appJson.expo.ios.bundleIdentifier) && appJson.expo.ios.bundleIdentifier === appJson.expo.android.package, 'bundle id + package match under com.crewbus.*');
 const eas = JSON.parse(fs.readFileSync(path.join(mobile, 'eas.json'), 'utf8'));
 ok(!!(eas.build && eas.build.preview && eas.build.production), 'eas.json preview + production profiles');
+ok(eas.build.preview.distribution === 'internal', 'eas preview = internal distribution (installable without store)');
+ok(eas.build.preview.android && eas.build.preview.android.buildType === 'apk', 'eas preview android = APK (direct install)');
+ok((eas.build.production.distribution || 'store') === 'store', 'eas production = store distribution (store-ready)');
+ok(!eas.build.development, 'no development profile without expo-dev-client');
+ok(!(JSON.parse(read('package.json')).dependencies || {})['expo-dev-client'], 'expo-dev-client absent — no development profile needed');
 
 // 8. Vendored runtime (scripts/vendor-runtime.mjs): Metro bundles in-root only.
 const vendorIndex = read('src/vendor/runtime/index.js');

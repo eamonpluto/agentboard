@@ -2,7 +2,9 @@
 // Validate on a toolchain machine with `npm run tauri build`.
 //
 // Job: own the loopback sidecar lifecycle. The sidecar is stock zero-dep
-// `node bin/crewbus.js serve --port 0` on 127.0.0.1. `--port 0` means a
+// `bin/crewbus.js serve --port 0` on 127.0.0.1, run by the BUNDLED node
+// sidecar (`externalBin binaries/node`, staged by scripts/fetch-node.mjs)
+// with a system-PATH `node` fallback for dev machines. `--port 0` means a
 // RANDOM port, so the actual `http://127.0.0.1:PORT` is LEARNED by scanning
 // sidecar stdout for the first loopback URL, then emitted to the shell as a
 // `dashboard-ready` event. The shell (`src/main.js`) points its dashboard
@@ -24,7 +26,7 @@
 
 use std::sync::Mutex;
 use tauri::{Emitter, Manager};
-use tauri_plugin_shell::{ShellExt, process::CommandChild};
+use tauri_plugin_shell::{ShellExt, process::{Command, CommandChild, CommandEvent}};
 
 struct SidecarState {
     child: Mutex<Option<CommandChild>>,
@@ -58,6 +60,37 @@ fn first_loopback_url(line: &str) -> Option<String> {
     }
 }
 
+// Normie-install core resolution: the installed app has no repo checkout,
+// so the crewbus core ships as Tauri `resources` (tauri.conf
+// `bundle.resources: ["../../bin"]` => `<resourceDir>/bin/crewbus.js` plus
+// `<resourceDir>/bin/lib/*.js`, the same relative layout as the repo, so the
+// `./lib/*.js` imports inside crewbus.js resolve unchanged — the core is
+// zero-dep (node builtins only) and no other repo path is read at sidecar
+// runtime). UNCERTAINTY flagged for toolchain review: Tauri may nest
+// resources under an extra subdir on some targets, so every plausible layout
+// is probed and a candidate only wins when its sibling `lib/store.js`
+// exists (proves the import graph shipped intact). This uses the documented
+// `tauri::Manager::path().resource_dir()` pattern; if the toolchain's Tauri
+// version returns `PathBuf` instead of `Result<PathBuf>` here, drop the
+// `if let Ok(...)` wrapper.
+fn resolve_crewbus_js(app: &tauri::AppHandle) -> Option<std::path::PathBuf> {
+    let mut cands = Vec::new();
+    if let Ok(rd) = app.path().resource_dir() {
+        for rel in ["bin/crewbus.js", "crewbus/bin/crewbus.js", "crewbus.js"] {
+            cands.push(rd.join(rel));
+        }
+    }
+    // Dev-checkout fallback (`tauri dev` before resources are staged).
+    #[cfg(debug_assertions)]
+    cands.push(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../bin/crewbus.js"));
+    cands.into_iter().find(|p| {
+        p.is_file()
+            && p.parent()
+                .map(|d| d.join("lib/store.js").is_file())
+                .unwrap_or(false)
+    })
+}
+
 #[tauri::command]
 async fn stop_sidecar(app: tauri::AppHandle, state: tauri::State<'_, SidecarState>) -> Result<(), String> {
     let mut guard = state.child.lock().map_err(|e| e.to_string())?;
@@ -75,7 +108,10 @@ fn main() {
         // Single-instance MUST register first (per the plugin docs): a
         // second launch hands its args to the running instance and exits, so
         // it can never double-spawn the sidecar. The callback focuses the
-        // running `main` window (documented focus pattern).
+        // running `main` window (documented focus pattern). Installer note:
+        // NSIS/desktop-shortcut launches exec the same installed exe path, so
+        // they route through this callback too — no extra flag is needed for
+        // installer-launched second processes.
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             if let Some(win) = app.get_webview_window("main") {
                 let _ = win.show();
@@ -83,6 +119,13 @@ fn main() {
             }
         }))
         .plugin(tauri_plugin_shell::init())
+        // Updater wiring (INERT without signing keys): registered so a future
+        // SIGNED release can auto-update from the `latest.json` endpoint in
+        // tauri.conf.json. No `check()` is ever called at startup, so without
+        // a pubkey / TAURI_SIGNING_PRIVATE_KEY this plugin performs zero
+        // network I/O and can never crash or block boot (see
+        // apps/desktop/RELEASE.md for the maintainer steps).
+        .plugin(tauri_plugin_updater::Builder::new().build())
         // Autostart for the background-service story (OS login boot where
         // the service/ units are skipped). Registration passes `--minimized`
         // so a login boot hides `main` instead of popping the window (see
@@ -110,22 +153,44 @@ fn main() {
             // (see service/README.md for the unit-based alternative).
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
-                // Pinned by capabilities/main.json `shell:allow-spawn`:
-                // ONLY `node bin/crewbus.js serve --port 0` (+ `--host`
-                // default 127.0.0.1 inside crewbus). Requires system node>=18.
-                let (mut rx, child) = handle
-                    .shell()
-                    .sidecar("crewbus-sidecar")
-                    .expect("sidecar not configured")
-                    .args(["bin/crewbus.js", "serve", "--port", "0"])
-                    .spawn()
-                    .expect("sidecar spawn failed (is node >= 18 on PATH?)");
+                // Bundled-node resolution order (normie install = no node):
+                //   1. `sidecar("node")` — the per-platform node binary packed
+                //      via `bundle.externalBin: ["binaries/node"]` and staged
+                //      at build time by `node scripts/fetch-node.mjs`.
+                //   2. System PATH `node` (>= 18) — dev machines / fallback.
+                // Pinned (capabilities/main.json `shell:allow-spawn` +
+                // `shell:allow-execute`): ONLY `<crewbus.js> serve --port 0`
+                // (+ `--host` default 127.0.0.1 inside crewbus). UNCERTAINTY
+                // flagged for toolchain review: arg[0] is the absolute
+                // resource path, so the scope pins it with a `{ "validator" }`
+                // regex — if `tauri build` rejects that form, pin the exact
+                // installed path instead and re-run `npm test`.
+                let crewbus_js = resolve_crewbus_js(&handle)
+                    .expect("crewbus core not found (resources bin/crewbus.js missing and no dev checkout)")
+                    .to_string_lossy()
+                    .into_owned();
+                let args = [crewbus_js.as_str(), "serve", "--port", "0"];
+                let mut bundled_err = String::from("bundled node sidecar missing");
+                let mut bundled = None;
+                match handle.shell().sidecar("node") {
+                    Ok(cmd) => match cmd.args(args).spawn() {
+                        Ok(pair) => bundled = Some(pair),
+                        Err(e) => bundled_err = format!("bundled node spawn failed: {e}"),
+                    },
+                    Err(e) => bundled_err = format!("bundled node sidecar not configured: {e}"),
+                }
+                let (mut rx, child) = match bundled {
+                    Some(pair) => pair,
+                    None => Command::new("node")
+                        .args(args)
+                        .spawn()
+                        .expect(format!("{bundled_err}; system node fallback also failed (is node >= 18 on PATH?)").as_str()),
+                };
                 // NOTE: until the additive `serve GET /` dashboard route lands
                 // (M4b; see docs/DESKTOP_SPIKE.md §1), the iframe shows what
                 // `serve` serves today. Graceful fallback lives in src/main.js.
                 let state: tauri::State<SidecarState> = handle.state();
                 *state.child.lock().expect("sidecar lock") = Some(child);
-                use tauri_plugin_shell::process::CommandEvent;
                 while let Some(evt) = rx.recv().await {
                     if let CommandEvent::Stdout(line) | CommandEvent::Stderr(line) = evt {
                         let text = String::from_utf8_lossy(&line);
