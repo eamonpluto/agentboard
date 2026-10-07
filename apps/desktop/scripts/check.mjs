@@ -64,12 +64,13 @@ ok(isFile(path.join(repo, 'packages', 'client-runtime', 'index.js')), 'client-ru
 ok(isFile(path.join(repo, 'packages', 'contracts', 'pairing.json')), 'pairing contract exists: packages/contracts/pairing.json');
 ok(isFile(path.join(repo, 'docs', 'DESKTOP_SPIKE.md')), 'decision record exists: docs/DESKTOP_SPIKE.md');
 
-// Capability hygiene: no fs scope, no remote allowance.
+// Capability hygiene: no fs scope, no remote allowance. Frontend fetch is
+// browser-native (no http plugin), fenced by the CSP connect-src below.
 const permIds = (cap.permissions || []).map((p) => (typeof p === 'string' ? p : p.identifier));
 ok(!permIds.some((id) => String(id).startsWith('fs:')), 'no fs capability granted');
-const https = (cap.permissions || []).filter((p) => typeof p !== 'string' && String(p.identifier).startsWith('http:'));
-const urls = https.flatMap((p) => (p.allow || []).map((a) => a.url || ''));
-ok(urls.length > 0 && urls.every((u) => u.includes('127.0.0.1') || u.includes('localhost')), 'http scope is loopback-only');
+ok(!permIds.some((id) => String(id).startsWith('http:')), 'no http plugin capability (would need tauri-plugin-http; fetch is browser-native)');
+const csp = String((conf.app && conf.app.security && conf.app.security.csp) || '');
+ok(csp.includes('http://127.0.0.1:*') && csp.includes('http://localhost:*') && !csp.match(/https?:\/\/(?!127\.0\.0\.1|localhost)[\w.-]+/), 'CSP connect-src is loopback-only');
 ok(!JSON.stringify(cap).match(/https?:\/\/(?!127\.0\.0\.1|localhost)[\w.-]+/), 'no remote URL in capabilities');
 
 // Vendored runtime (scripts/vendor-runtime.mjs): the Tauri static shell
