@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+Control plane (M0–M6, unreleased): frozen `packages/contracts/` v1
+(harness/launch/pairing/board-caps) with contract tests; `crewbus launch`
+wizard + `harnesses detect` + `relay pair qr` + `serve
+--advertise-routes/--pair-qrcode` (additive, same spawn core/RBAC/audit);
+relay + dashboard `GET /api/harnesses|routes` and `POST /api/launch`
+(dry-run preview or live boot); relay pair API (`issue/exchange/devices/
+revoke`, narrow-only scopes, per-call scope enforcement, standby 503s);
+dashboard AppRoot (nav, `Ctrl+K` palette, harness cards, dry-run diff,
+worker inspector, Undo toast, Holds & quotas cards); harness `driver`
+end-to-end; shared `packages/client-runtime/` (route walk, reconnect
+supervisor, auth store, offline cache); Tauri desktop scaffold + sidecar
+supervisor; Expo mobile shell + tested relay API client; grok `PostCompact`
+hook verified (docs.x.ai); `docs/VERSION_SKEW.md` capability matrix.
+No verified adapter/session/compaction behavior moved (see
+`docs/COMPATIBILITY.md`).
+
 ## 7.0.0 (2026-10-05)
 
 BREAKING: project renamed `agentboard` → `crewbus` (crowded namespace).

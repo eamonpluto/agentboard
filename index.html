@@ -2533,7 +2533,7 @@ crewbus spawn --from lead --to alice,bob --subject "brief: cards" \
     <div class="steps" style="margin-top: 26px;">
       <div class="step"><h3>Reduce variant groups</h3><p>Brief each group a different attack, then <code>gather</code> the batch into one transcript to aggregate.</p></div>
       <div class="step"><h3>Scale across machines</h3><p><code>serve</code> on one box, <code>sync</code> from the others — incremental, conflict-free, no central server.</p></div>
-      <div class="step"><h3>Boot crews remotely</h3><p><code>POST /api/spawn</code> launches crews on the relay; replies land on the synced board; <code>/api/kill</code> shuts them down.</p></div>
+      <div class="step"><h3>Boot crews remotely</h3><p><code>POST /api/spawn</code> launches crews on the relay; replies land on the synced board; <code>/api/kill</code> shuts them down. <code>POST /api/launch</code> previews dry-run-first, and <code>relay pair qr</code> pairs a phone to boot from it.</p></div>
     </div>
     <div class="story">
       <div class="story-copy">
@@ -2885,6 +2885,7 @@ crewbus spawn --from lead --to alice,bob --subject "brief: cards" \
       <p class="lede">Recent history from the changelog — every claim below landed in the published npm package of the same version.</p>
     </div>
     <ol class="timeline">
+      <li class="tl-item"><span class="tl-ver">Unreleased</span><span class="tl-date">2026-10-07</span><p>Control plane: <code>launch</code> wizard + pairing, dashboard AppRoot, Tauri desktop scaffold, Expo mobile shell, and the shared client runtime.</p></li>
       <li class="tl-item major"><span class="tl-ver">7.0.0</span><span class="tl-date">2026-10-05</span><p>Rename to <code>crewbus</code>, plus human-in-the-loop approvals, long-run resilience, session-id capture, <code>respawn</code>, checkpoints, and <code>pool-resume</code> supervision re-attach.</p></li>
       <li class="tl-item major"><span class="tl-ver">6.4.0</span><span class="tl-date">2026-10-04</span><p>Grok-build real-time delivery (<code>monitor</code> event stream, PostToolUse notes, inbox skill) and the self-hosted Claude Code marketplace.</p></li>
       <li class="tl-item major"><span class="tl-ver">6.3.0</span><span class="tl-date">2026-10-04</span><p>Claude Code near-async push: <code>asyncRewake</code> background waiters that wake the session mid-turn or idle, plus the <code>wait</code> hook subcommand.</p></li>

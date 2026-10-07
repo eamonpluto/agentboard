@@ -280,10 +280,13 @@ recent activity, plus JSON at `/api/board` for scripting. The fleet
 console adds: **Fleet** (every synced relay with live role/weight/workers/
 lag), **Channels** (latest heads per shared log), **Results & races**
 (per-group telemetry, verified outcomes, kill-the-losers buttons),
-**Triage** (your unacked queue with ack buttons), and **Audit** (chain
-verification + recent events) — backed by read-only
-`/api/fleet|channels|results|audit|inbox` plus token-checked `POST
-/api/ack` (plain accept only; `--verify` stays CLI-only). Reads are open; each worker row has a
+**Triage** (your unacked queue with ack buttons), **Approvals**
+(approve/deny with reasons), **Launch** (harness cards with live detect,
+dry-run diff, worker inspector, Undo toast), and **Audit** (chain
+verification + recent events, plus Holds & quotas cards) — backed by read-only
+`/api/fleet|channels|results|audit|inbox|harnesses|routes|holds|quotas` plus token-checked `POST
+/api/ack` (plain accept only; `--verify` stays CLI-only) and `POST
+/api/launch` (dry-run preview or live boot). Reads are open; each worker row has a
 **kill** button that POSTs `/api/kill` with your name+token (same check as
 the CLI, JSON-only so plain browser forms can't reach it). Binds
 `127.0.0.1` (a non-local `--host` prints a warning — there is no auth) and
@@ -535,7 +538,11 @@ More docs: `docs/QUICKSTART.md` (5 min), `docs/TROUBLESHOOTING.md`
 `docs/SHARED_RESPONSIBILITY.md` + `docs/CERT_READINESS.md`
 (enterprise tier), `docs/PAIRING.md` (device credentials) +
 `docs/CREWS.md` (weighted multi-relay dispatch) +
-`docs/SPLIT.md` (module map).
+`docs/SPLIT.md` (module map) + `docs/CONTROL_PLANE_SPEC.md` (control-plane
+spec: launch wizard, dashboard AppRoot, desktop/mobile shells) +
+`docs/VERSION_SKEW.md` (relay capability matrix) + `docs/DESKTOP_SPIKE.md`
+(Tauri decision record) + `apps/desktop/README.md` + `apps/mobile/README.md`
+(shell builds).
 
 ## Enterprise tier (identity, authority, evidence, continuity)
 
@@ -613,7 +620,7 @@ primaries by weight (`serve --weight`, `crew survey`, `crew dispatch`
 ## Publishing (maintainer)
 
 ```powershell
-npm test          # 4 suites (smoke + harness + fault-injection + integration), all must pass
+npm test          # 20 suites (smoke + harness + compact + tokenfile + digest + control-plane + launch + web-launch + pair-api + web-panel + web-approot + client-runtime + runtime-wiring + desktop-sidecar + mobile-client + approvals x3 + fault-injection + integration), all must pass
 npm publish       # ships bin/ + opencode/ + docs (see "files" in package.json)
 ```
 
@@ -624,7 +631,7 @@ and verify with `npm test`. `init` prefers the repo files when run from a
 checkout, so the embed only matters for `npm i -g` installs.
 
 Code layout: `bin/crewbus.js` is a dispatcher + `cmd*` wrappers; domain
-logic lives in `bin/lib/` (10 modules). See `docs/SPLIT.md` for the module
+logic lives in `bin/lib/` (12 modules). See `docs/SPLIT.md` for the module
 map, dependency rules, and how to add a command.
 
 After publishing, projects can skip the checkout entirely:
