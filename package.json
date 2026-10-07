@@ -9,7 +9,7 @@
     "crewbus-hook": "bin/crewbus-hook.js"
   },
   "scripts": {
-    "test": "node test/crewbus.smoke.mjs && node test/crewbus.harness.mjs && node test/crewbus.compact.mjs && node test/crewbus.tokenfile.mjs && node test/crewbus.digest.mjs && node test/crewbus.control-plane.mjs && node test/crewbus.launch.mjs && node test/crewbus.web-launch.mjs && node test/crewbus.pair-api.mjs && node test/crewbus.web-panel.mjs && node test/crewbus.web-approot.mjs && node test/crewbus.client-runtime.mjs && node test/crewbus.runtime-wiring.mjs && node test/crewbus.desktop-sidecar.mjs && node test/crewbus.mobile-client.mjs && node test/crewbus.approval-protocol.mjs && node test/crewbus.approvals-init.mjs && node test/crewbus.approvals-web.mjs && node test/fault-injection.mjs && node test/integration.mjs",
+    "test": "node test/crewbus.smoke.mjs && node test/crewbus.harness.mjs && node test/crewbus.compact.mjs && node test/crewbus.tokenfile.mjs && node test/crewbus.digest.mjs && node test/crewbus.control-plane.mjs && node test/crewbus.launch.mjs && node test/crewbus.web-launch.mjs && node test/crewbus.pair-api.mjs && node test/crewbus.web-panel.mjs && node test/crewbus.web-approot.mjs && node test/crewbus.client-runtime.mjs && node test/crewbus.runtime-wiring.mjs && node test/crewbus.desktop-sidecar.mjs && node test/crewbus.mobile-client.mjs && node test/crewbus.grok-hooks.mjs && node test/crewbus.holds-quotas.mjs && node test/crewbus.approval-protocol.mjs && node test/crewbus.approvals-init.mjs && node test/crewbus.approvals-web.mjs && node test/fault-injection.mjs && node test/integration.mjs",
     "bench": "node test/bench.mjs",
     "bench:load": "node test/load.mjs"
   },

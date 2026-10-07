@@ -21,7 +21,7 @@ import { readDMs, readVisible, ackedIds, findMessageById, deliverDMs, parseRecip
 import { workerStatus, pidAlive, killWorkers, bootWorker, buildSpawnPrompt, buildSpawnTarget, formatSpawnCmd } from "./spawn.js";
 import { groupTelemetryData } from "./groups.js";
 import { httpJson } from "./sync.js";
-import { readChainRecords, verifyChainRecords, appendChainRecord } from "./export.js";
+import { readChainRecords, verifyChainRecords, appendChainRecord, readHold, readBoardQuotas } from "./export.js";
 import { launchDrivers, detectHarnessBinaries, validateLaunchPlan, advertiseEnv } from "./launch.js";
 
 export function escapeHtml(s) {
@@ -262,6 +262,23 @@ export function auditSnapshot(d, limit) {
   return { board: d.root, at: new Date().toISOString(), verify, chain: project(chain), audit: project(audit) };
 }
 
+// Holds: allowlisted projection of the hold doc (mirrors `hold status
+// --json`). The doc carries only hold metadata (active/placedBy/placedAt/
+// reason/liftedBy/liftedAt + sync v/hlc) — never agent tokens — but the
+// projection is explicit so a future doc field (or a hand-edited
+// holds/legal.json) can never leak token/secret/key material to an open
+// read. Inactive (or absent) holds serve as null so the card flips.
+export function publicHold(h) {
+  if (!h || h.active !== true) return null;
+  const out = { active: true };
+  if (h.placedBy !== undefined && h.placedBy !== null) out.placedBy = String(h.placedBy);
+  if (h.placedAt !== undefined && h.placedAt !== null) out.placedAt = String(h.placedAt);
+  if (h.reason !== undefined && h.reason !== null) out.reason = String(h.reason);
+  if (h.liftedBy !== undefined && h.liftedBy !== null) out.liftedBy = String(h.liftedBy);
+  if (h.liftedAt !== undefined && h.liftedAt !== null) out.liftedAt = String(h.liftedAt);
+  return out;
+}
+
 // Triage ack from the console (mirrors /api/kill: JSON-only, token-checked,
 // same matrix as CLI ack; no --verify over HTTP — verifiers run shell
 // commands, which stays a CLI-only power).
@@ -364,6 +381,7 @@ export function renderBoardHtml(boardPath) {
 <h2>Broadcasts</h2><table><tr><th>id</th><th>from</th><th>to</th><th>subject</th><th>body</th></tr><tbody id="bcast"></tbody></table>
 <h2>Recent activity</h2><table><tr><th>id</th><th>route</th><th>message</th></tr><tbody id="recent"></tbody></table>
    <section id="sec-audit" data-section="Audit"><h2>Audit <span class="dim">tamper-evident chain + recent events (payloads never leave the server)</span></h2><div id="auditver" class="dim"></div><table><tr><th>seq</th><th>at</th><th>actor</th><th>event</th><th>target</th><th>result</th></tr><tbody id="audit"></tbody></table></section>
+   <section id="sec-holds" data-section="Holds"><h2>Holds &amp; quotas <span class="dim">legal hold + board quotas (open reads, same as the CLI status/show)</span></h2><div class="cards"><div class="card" id="holds-card"><b>Hold</b><div id="holds-body" class="dim">loading…</div></div><div class="card" id="quotas-card"><b>Quotas</b><div id="quotas-body" class="dim">loading…</div></div></div></section>
  <h2>Launch <span class="dim">harness picker + dry-run preview + live boot (M1)</span></h2><div id="harness-cards" class="cards" aria-label="harness picker"></div><table><tr><th>driver</th><th>binary</th><th>version</th><th>brief</th><th>resume</th></tr><tbody id="harnesses"></tbody></table>
  <div id="routes-line" class="dim">routes: loading…</div>
  <div class="card">harness <select id="launch-harness"></select> to <input id="launch-to" size="18" placeholder="w-1,w-2 (or count)"> count <button id="launch-count-minus" title="fewer workers">-</button> <input id="launch-count" size="4" value="1"> <button id="launch-count-plus" title="more workers">+</button> permission <select id="launch-permission"><option>supervised</option><option>autoEdits</option><option>auto</option><option>full</option></select> <span id="launch-permission-seg"><button data-perm="supervised" class="sel">supervised</button> <button data-perm="autoEdits">autoEdits</button> <button data-perm="auto">auto</button> <button data-perm="full">full</button></span> <label><input id="launch-dry" type="checkbox" checked> dry-run</label><br>brief <span id="launch-brief-count" class="dim">0/8000</span><br><textarea id="launch-brief" rows="4" cols="80" maxlength="8000" placeholder="task brief (max 8000 chars)"></textarea><br>from <input id="launch-from" size="12" placeholder="agent name"> token <input id="launch-token" type="password" size="28" placeholder="abt-…"> <button id="launch-preview">Preview</button> <button id="launch-go" class="danger">Launch</button></div>
@@ -371,11 +389,13 @@ export function renderBoardHtml(boardPath) {
   <div id="launch-diff"></div>
   <div id="undo-toast" role="status"></div>
  <div id="result"></div>
-<p class="dim">polls <a href="/api/board">/api/board</a> <a href="/api/fleet">/api/fleet</a> <a href="/api/channels">/api/channels</a> <a href="/api/results">/api/results</a> <a href="/api/audit">/api/audit</a> every 5s · kill/ack need the identity above (same token as the CLI) · tokens stay in this browser tab · ack is plain accept only, verifiers stay on the CLI</p>
+<p class="dim">polls <a href="/api/board">/api/board</a> <a href="/api/fleet">/api/fleet</a> <a href="/api/channels">/api/channels</a> <a href="/api/results">/api/results</a> <a href="/api/audit">/api/audit</a> <a href="/api/holds">/api/holds</a> <a href="/api/quotas">/api/quotas</a> every 5s · kill/ack need the identity above (same token as the CLI) · tokens stay in this browser tab · ack is plain accept only, verifiers stay on the CLI</p>
 <script>
 'use strict';
 function esc(s){return String(s===undefined||s===null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
 function short(s,n){s=String(s||'');return s.length>n?s.slice(0,n)+'…':s;}
+function humanBytes(n){if(typeof n!=='number'||!(n>=0))return 'unlimited';if(n<1024)return n+' B';var u=['B','KB','MB','GB','TB'];var v=n;var i=0;while(v>=1024&&i<u.length-1){v/=1024;i++;}var r=Math.round(v*10)/10;return r+' '+u[i]+' ('+n+' bytes)';}
+function fmtLimit(v){return (v===undefined||v===null)?'unlimited':String(v);}
 function creds(){return {from:document.getElementById('who').value.trim(),token:document.getElementById('tok').value};}
 function markIdent(){var c=creds();document.getElementById('ident').textContent=c.from?('identity: '+c.from):'';}
 function say(t){document.getElementById('result').textContent=t;}
@@ -508,6 +528,38 @@ async function refresh(){
       document.getElementById('audit').innerHTML=rows.map(function(r){
         return '<tr><td>'+esc(String(r.seq===undefined||r.seq===null?'':r.seq))+'</td><td>'+esc(r.at||'')+'</td><td>'+esc(r.actor||'')+'</td><td>'+esc(r.type||'')+'</td><td>'+esc(short(r.target||'',40))+'</td><td>'+esc(r.result||'')+'</td></tr>';
       }).join('')||'<tr><td colspan=\'6\' class=\'dim\'>no audit records yet</td></tr>';
+    }catch(e){}
+    try{
+      var hr=await fetch('/api/holds',{cache:'no-store'});
+      var hj=await hr.json();
+      var h=(hj&&hj.hold)||null;
+      var hb='';
+      if(h&&h.active===true){
+        var hw=h.placedBy||'unknown';
+        var hn=h.placedAt||'unknown time';
+        var hy=h.reason?(': '+h.reason):'';
+        var hbd=(hj&&hj.board)||'';
+        hb='<b>ACTIVE</b> — placed by '+esc(hw)+' at '+esc(hn)+(h.reason?': '+esc(h.reason):'');
+        hb+='<div class=\'dim\'>'+esc('prune REFUSED — legal hold ACTIVE (placed by '+hw+' at '+hn+hy+') [board '+hbd+'] — lift with: hold lift --from <admin>')+'</div>';
+      }else{
+        hb='<span class=\'dim\'>no active legal hold</span>';
+      }
+      document.getElementById('holds-body').innerHTML=hb;
+    }catch(e){}
+    try{
+      var qr=await fetch('/api/quotas',{cache:'no-store'});
+      var qj=await qr.json();
+      var q=(qj&&qj.quotas)||{};
+      var agN=s.agents.length;
+      var chN=null;
+      try{if(ch&&ch.channels)chN=ch.channels.length;}catch(_){}
+      var qb='<div>maxBytes: '+esc(q.maxBytes===undefined||q.maxBytes===null?'unlimited':humanBytes(q.maxBytes))+'</div>';
+      var agOver=(q.maxAgents!==undefined&&q.maxAgents!==null&&agN>q.maxAgents)?' <b>OVER QUOTA</b>':'';
+      qb+='<div>maxAgents: '+esc(fmtLimit(q.maxAgents))+' <span class=\'dim\'>('+agN+' agents)</span>'+agOver+'</div>';
+      var chOver=(q.maxChannels!==undefined&&q.maxChannels!==null&&chN!==null&&chN>q.maxChannels)?' <b>OVER QUOTA</b>':'';
+      qb+='<div>maxChannels: '+esc(fmtLimit(q.maxChannels))+(chN===null?'':' <span class=\'dim\'>('+chN+' channels)</span>')+chOver+'</div>';
+      if(q.tenant){qb+='<div>tenant: '+esc(q.tenant)+'</div>';}
+      document.getElementById('quotas-body').innerHTML=qb;
     }catch(e){}
     Array.prototype.forEach.call(document.querySelectorAll('[data-kill]'),function(b){b.onclick=function(){kill([b.getAttribute('data-kill')]);};});
     Array.prototype.forEach.call(document.querySelectorAll('[data-ack]'),function(b){b.onclick=function(){ackOne(b.getAttribute('data-ack'));};});
@@ -936,6 +988,23 @@ export async function cmdWeb(args) {
           res.end(body);
           return;
         }
+        if (req.method === "GET" && url.pathname === "/api/holds") {
+          // Open read like /api/board (holds are visible to every board
+          // reader via `hold status`; secrets never included — publicHold
+          // allowlists hold metadata only, inactive serves as null).
+          const body = JSON.stringify({ board: d.root, hold: publicHold(readHold(d)) });
+          res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+          res.end(body);
+          return;
+        }
+        if (req.method === "GET" && url.pathname === "/api/quotas") {
+          // Open read like /api/board (quotas are visible to every board
+          // reader via `quota show`; limits + tenant only, never secrets).
+          const body = JSON.stringify({ board: d.root, quotas: readBoardQuotas(d) });
+          res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+          res.end(body);
+          return;
+        }
         if (req.method === "GET" && url.pathname === "/api/inbox") {
           // Open read like /api/board (recent messages are already public
           // there); item lists power the triage queue. Secrets never included.
@@ -1061,7 +1130,7 @@ export async function cmdWeb(args) {
           return;
         }
         res.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
-        res.end("not found (try / or /api/board /api/fleet /api/channels /api/results /api/audit /api/inbox /api/harnesses /api/routes)");
+        res.end("not found (try / or /api/board /api/fleet /api/channels /api/results /api/audit /api/holds /api/quotas /api/inbox /api/harnesses /api/routes)");
       } catch (e) {
         try {
           res.writeHead(500, { "content-type": "text/plain; charset=utf-8" });

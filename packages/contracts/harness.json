@@ -55,7 +55,7 @@
       "sessionCapture": "preassigned",
       "sessionKeys": ["session_id"],
       "resume": true,
-      "capabilities": { "jsonLog": true, "preassign": true, "preassignFlag": "-s", "compactionHook": "unverified", "autoModes": ["--always-approve", "acceptEdits middle ground"] },
+      "capabilities": { "jsonLog": true, "preassign": true, "preassignFlag": "-s", "compactionHook": "verified", "autoModes": ["--always-approve", "acceptEdits middle ground"] },
       "permissionMap": { "supervised": "default prompts (no auto-accept-edits offered)", "autoEdits": "not offered — supervised + note", "auto": "--always-approve or acceptEdits", "full": "--always-approve --i-understand-danger" },
       "spawnArgs": "--prompt-file <brief> -s <uuid> --output-format json",
       "resumeArgs": "--prompt-file <catchup> -r <id>"

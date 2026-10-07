@@ -1665,7 +1665,7 @@ waiters (PostToolUse/SessionStart \`asyncRewake\`) wake the session when mail la
     `Set \`CREWBUS_AGENT=<you>\` once per terminal so hooks know who you are.`,
   grok: (cli) =>
     `On grok-build run \`grok mcp add --scope project crewbus -- node "<abs path to>/bin/crewbus-mcp.js"\` for the DM tools,\n` +
-    `then grant folder trust (\`/hooks-trust\`) so the project hooks in \`.grok/hooks/\` run. A Stop hook injects waiting DMs at turn end (Claude-compatible envelope), a PostToolUse hook adds same-turn notes, and the \`crewbus-inbox\` skill starts a persistent \`monitor\` (~1s event stream) for real-time wakes.\n` +
+    `then grant folder trust (\`/hooks-trust\`) so the project hooks in \`.grok/hooks/\` run. A Stop hook injects waiting DMs at turn end (Claude-compatible envelope), a PostToolUse hook adds same-turn notes, a PostCompact hook rehydrates identity after compaction, and the \`crewbus-inbox\` skill starts a persistent \`monitor\` (~1s event stream) for real-time wakes.\n` +
     `\`AGENTS.md\` is auto-loaded (needs the same folder trust). Set \`CREWBUS_AGENT=<you>\` once per terminal.`,
   cursor: (cli) =>
     `On Cursor use the \`crewbus\` MCP server (\`.cursor/mcp.json\`) for DM tools — approve/enable it in Cursor settings.\n` +
@@ -1782,9 +1782,9 @@ function applyHarness(cwd, h, ctx) {
         SessionStart: "session-start",
         Stop: "grok",
         PostToolUse: "grok",
-      });
+      }, ["PostCompact"]);
       const changedSkill = installGrokSkill(cwd, hookAbs, boardExtra, force);
-      console.log(changedHooks ? "Wired grok hooks: .grok/hooks/crewbus.json (SessionStart + Stop + PostToolUse)" : "grok hooks already wired: .grok/hooks/crewbus.json");
+      console.log(changedHooks ? "Wired grok hooks: .grok/hooks/crewbus.json (SessionStart + Stop + PostToolUse + PostCompact)" : "grok hooks already wired: .grok/hooks/crewbus.json");
       return [
         `run: ${mcpRunCmd(ctx, mcpAbs, "grok")}  (for DM tools)`,
         "grant folder trust (/hooks-trust or --trust) so project hooks + AGENTS.md load",
@@ -4254,13 +4254,22 @@ function cmdDoctor(args) {
         else no("antigravity MCP .agents/mcp_config.json", "run: crewbus init --harness antigravity");
         break;
       }
-      case "grok":
+      case "grok": {
         if (hasHookRef(path.join(cwd, ".grok", "hooks", "crewbus.json"), ["SessionStart", "Stop", "PostToolUse"])) ok("grok hooks .grok/hooks/crewbus.json");
         else no("grok hooks .grok/hooks/crewbus.json", "run: crewbus init --harness grok (then /hooks-trust)");
+        const grObj = readJsonFile(path.join(cwd, ".grok", "hooks", "crewbus.json"), null);
+        const grCompact = !!(grObj && typeof grObj.hooks === "object" && Array.isArray(grObj.hooks.PostCompact) &&
+          grObj.hooks.PostCompact.some((g) => g && g.hooks && g.hooks.some((h) => {
+            const c = String((h && h.command) || "");
+            return c.includes("crewbus-hook") && c.includes(" compact");
+          })));
+        if (grCompact) ok("grok compact hook .grok/hooks/crewbus.json (PostCompact rehydration)");
+        else no("grok compact hook .grok/hooks/crewbus.json", "run: crewbus init --harness grok (then /hooks-trust)");
         if (fs.existsSync(path.join(cwd, ".grok", "skills", "crewbus-inbox", "SKILL.md"))) ok("grok skill .grok/skills/crewbus-inbox/SKILL.md");
         else no("grok skill .grok/skills/crewbus-inbox/SKILL.md", "run: crewbus init --harness grok");
         info("grok MCP is a CLI step: grok mcp add --scope project crewbus -- node <board-checkout>/bin/crewbus-mcp.js");
         break;
+      }
       case "cursor": {
         const cobj = readJsonFile(path.join(cwd, ".cursor", "hooks.json"), null);
         const hasCursorHooks = cobj && typeof cobj.hooks === "object" &&

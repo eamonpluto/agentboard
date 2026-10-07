@@ -318,10 +318,7 @@ crewbus/  bin/ + bin/lib/*   (additive only)
   test/crewbus.control-plane.mjs
 ```
 
-M0 contract freeze (~2d) → M1 CLI launch (~3d) → M2 web AppRoot (~5d) +
-M3 client-runtime (~4d) → M4 desktop (~5d) → M5 mobile (~6d) → M6
-hardening (~4d: caps negotiation, cursor/agy honesty, grok compaction,
-audit/quotas/holds in UI, COMPATIBILITY refresh, version-skew matrix).
+M0 contract freeze + M1 CLI launch shipped (`2a1015c`) → M2 web AppRoot shipped (`3715344`) + M3 client-runtime shipped (`46e8989`) → M4 desktop shipped (`2972b1c`) → M5 mobile shipped (`7569ddd`) → M6 hardening as M6-lite scope enforcement / standby pair-503s / dashboard live refresh shipped (`0893026`) plus this M6 docs tail (COMPATIBILITY refresh + version-skew matrix, no code changes).
 
 ## 7. Test plan
 
