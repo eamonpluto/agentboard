@@ -105,7 +105,7 @@ const extBin = conf.bundle.externalBin || [];
 ok(Array.isArray(extBin) && extBin.includes('binaries/node'), 'tauri.conf externalBin packs the per-platform node sidecar');
 const resources = conf.bundle.resources || [];
 ok(Array.isArray(resources) && resources.some((r) => String(r).includes('bin')), 'tauri.conf resources ship the crewbus core (bin/crewbus.js + bin/lib)');
-ok(conf.bundle.createUpdaterArtifacts === false, 'tauri.conf createUpdaterArtifacts OFF until signing keys land (unsigned updater bundles fail the build)');
+ok(conf.bundle.createUpdaterArtifacts === true, 'tauri.conf createUpdaterArtifacts ON (signing live: tag builds emit signed updater bundles)');
 const bundleIcons = conf.bundle.icon || [];
 for (const f of ['icons/32x32.png', 'icons/128x128.png', 'icons/256x256.png', 'icons/512x512.png', 'icons/icon.icns', 'icons/icon.ico']) {
   ok(bundleIcons.includes(f) && isFile(path.join(desktop, 'src-tauri', f)), `bundle icon listed + present: ${f}`);
@@ -122,6 +122,7 @@ ok(
   'updater endpoint points at a GitHub Releases latest.json template',
 );
 ok(typeof updater.pubkey === 'string', 'updater pubkey key present (empty until a maintainer adds the signing key)');
+ok(typeof updater.pubkey === 'string' && updater.pubkey.length > 0, 'updater pubkey is a non-empty string (signing live)');
 const spawnPerms = (cap.permissions || []).filter((p) => typeof p !== 'string' && String(p.identifier).startsWith('shell:'));
 const spawnScope = spawnPerms.find((p) => p.identifier === 'shell:allow-spawn');
 ok(
