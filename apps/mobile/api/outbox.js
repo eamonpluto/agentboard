@@ -11,7 +11,7 @@
 // - Failures stay queued with attempts/lastError surfaced per item so the
 //   screen can render "2 failed · tap to retry".
 
-import { createCache } from "../../../packages/client-runtime/cache.js";
+import { createCache } from "../src/vendor/runtime/cache.js";
 
 function needWorker(worker) {
   if (typeof worker !== "function") throw new TypeError("retry needs worker(op, info) -> truthy | { ok }");

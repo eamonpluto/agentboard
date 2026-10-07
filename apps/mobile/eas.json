@@ -1,0 +1,15 @@
+{
+  "$comment": "expo-secure-store needs no config plugin — none is listed in app.json and none is needed here; EAS builds only need the profiles below.",
+  "cli": {
+    "version": ">= 5.0.0"
+  },
+  "build": {
+    "preview": {
+      "distribution": "internal"
+    },
+    "production": {}
+  },
+  "submit": {
+    "production": {}
+  }
+}

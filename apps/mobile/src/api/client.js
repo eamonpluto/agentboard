@@ -15,7 +15,7 @@
 // in the POST body (server `readAgent`+`authorizeCheck` gate); `launch()`
 // defaults to `dryRun: true` and only sends `dryRun: false` on the explicit
 // live-confirm call.
-import { isLoopbackUrl } from '../../../../packages/client-runtime/index.js';
+import { isLoopbackUrl } from '../vendor/runtime/index.js';
 
 export const DEFAULT_TIMEOUT_MS = 8000;
 

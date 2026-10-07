@@ -1,0 +1,27 @@
+{
+  "contract": "crewbus pairing + env identity",
+  "version": 1,
+  "status": "frozen-M0",
+  "note": "Pairing secret travels in URL fragment only, never query. Devices relay-local, hashed at rest, revocable, audited, never synced/exported. Extends docs/PAIRING.md.",
+  "envIdentity": {
+    "fields": ["envId", "advertisedRoutes", "capabilities"],
+    "envId": "stable uuid, atomic init, survives restarts + endpoint changes",
+    "advertisedRoutes": "reachability hints only; client proves what works",
+    "servedAt": ["relay.json", "GET /healthz (no auth)", "GET /api/routes"]
+  },
+  "pairUrl": "crewbus://pair?env=<id>&routes=<json>&caps=<csv>#<abp-...>",
+  "pairUrlRules": [
+    "secret in FRAGMENT only — never in query (fragments stay out of hosted-origin requests)",
+    "one-time link per device; fresh link per new device",
+    "treat pairing URLs + abd- creds as passwords (no screenshots/logs/bug reports)"
+  ],
+  "endpoints": {
+    "issue": "POST /api/pair/issue (admin, token-checked; body {label?, ttl?, scopes?}) -> {pairUrl, expiresAt}",
+    "exchange": "POST /api/pair/exchange (body {pairToken, label?, scopes?}) -> {deviceId, credential (abd-..., once only)}; requested scopes must be subset of granted (narrow-only, never widen)",
+    "devices": "GET /api/pair/devices (admin) -> [{id, label, by, lastSeen, revoked?}]",
+    "revoke": "POST /api/pair/revoke (admin; body {deviceId}) -> immediate 403 on next use"
+  },
+  "scopes": ["launch:spawn", "launch:kill", "mail:send", "mail:inbox", "mail:ack", "fleet:read", "admin:pair", "admin:revoke"],
+  "defaultScope": "full device (today's secret-equivalent) unless narrowed at exchange",
+  "routeWalk": "ordered routes, first-that-works; preflight earlier routes while on later one + cooldown; learned LAN/tailnet reuse learning credential; never silently fall back to loopback"
+}

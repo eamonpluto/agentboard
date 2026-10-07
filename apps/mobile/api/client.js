@@ -39,12 +39,12 @@ import {
   getKnownScopes,
   isDeviceCredential,
   createAuthStore,
-} from "../../../packages/client-runtime/auth.js";
+} from "../src/vendor/runtime/auth.js";
 import {
   walkRoutes,
   LearnedRoutes,
   REASON_NO_ROUTES,
-} from "../../../packages/client-runtime/routes.js";
+} from "../src/vendor/runtime/routes.js";
 
 const DEVICE_HEADER = "x-crewbus-device";
 

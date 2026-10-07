@@ -19,23 +19,27 @@ export function secureStoreOptions({ requireAuthentication = false, authenticati
   return opts;
 }
 
-export function createSecureStoreAdapter({ prefix = KEY_PREFIX, options = {} } = {}) {
+export function createSecureStoreAdapter({ prefix = KEY_PREFIX, options = {}, requireAuthentication = false, authenticationPrompt = 'Unlock CrewBus credentials' } = {}) {
+  // Top-level biometric flags are shorthand for secureStoreOptions(...):
+  // explicit `options` win when both are given, default stays off (store
+  // in hardware keystore storage without a per-read prompt).
+  const effective = { ...secureStoreOptions({ requireAuthentication, authenticationPrompt }), ...options };
   const keyOf = (key) => `${prefix}${String(key)}`;
   return {
     async get(key) {
       try {
-        const value = await SecureStore.getItemAsync(keyOf(key), { ...options });
+        const value = await SecureStore.getItemAsync(keyOf(key), { ...effective });
         return typeof value === 'string' ? value : null;
       } catch {
         return null;
       }
     },
     async set(key, value) {
-      await SecureStore.setItemAsync(keyOf(key), String(value), { ...options });
+      await SecureStore.setItemAsync(keyOf(key), String(value), { ...effective });
     },
     async del(key) {
       try {
-        await SecureStore.deleteItemAsync(keyOf(key), { ...options });
+        await SecureStore.deleteItemAsync(keyOf(key), { ...effective });
       } catch {
         // Already gone counts as deleted (sign-out must never fail).
       }

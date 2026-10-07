@@ -3,8 +3,8 @@
 // throw), walks ordered routes first-that-works, then exchanges once.
 // The raw pair URL is NEVER logged or persisted — callers display the env
 // id only (see describePairUrl). No `allowLoopback` is ever passed.
-import { parsePairUrl, validateScopes } from '../../../../packages/client-runtime/index.js';
-import { walkRoutes } from '../../../../packages/client-runtime/index.js';
+import { parsePairUrl, validateScopes } from '../vendor/runtime/index.js';
+import { walkRoutes } from '../vendor/runtime/index.js';
 
 export function parsePairInput(raw) {
   return parsePairUrl(String(raw == null ? '' : raw).trim());

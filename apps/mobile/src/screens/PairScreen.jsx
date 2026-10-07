@@ -4,6 +4,7 @@
 import React from 'react';
 import { View, Text, Button, StyleSheet } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import QRCode from 'react-native-qrcode-svg';
 import { DEFAULT_PAIR_SCOPES } from '../auth/scopes.js';
 import { parsePairInput, describePairUrl, walkPairRoutes, exchangeAndStore } from '../lib/pairing.js';
 
@@ -68,7 +69,11 @@ export function PairScreen({ ctx }) {
   return (
     <View style={styles.pad}>
       <Text style={styles.status}>{status}</Text>
+      {/* Non-secret echo ONLY: the QR encodes the env id for the success
+          card (README rule). The pair URL / fragment secret is NEVER
+          rendered, logged, or persisted — see handleCode/clearAll. */}
       {pairedEnv ? <Text>Env: {pairedEnv} (id only — secret stays in secure storage)</Text> : null}
+      {pairedEnv ? <QRCode value={pairedEnv} size={120} /> : null}
       {!permission || !permission.granted ? (
         <Button title="Allow camera" onPress={requestPermission} />
       ) : (

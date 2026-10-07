@@ -72,16 +72,42 @@ async fn stop_sidecar(app: tauri::AppHandle, state: tauri::State<'_, SidecarStat
 
 fn main() {
     tauri::Builder::default()
+        // Single-instance MUST register first (per the plugin docs): a
+        // second launch hands its args to the running instance and exits, so
+        // it can never double-spawn the sidecar. The callback focuses the
+        // running `main` window (documented focus pattern).
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            if let Some(win) = app.get_webview_window("main") {
+                let _ = win.show();
+                let _ = win.set_focus();
+            }
+        }))
         .plugin(tauri_plugin_shell::init())
+        // Autostart for the background-service story (OS login boot where
+        // the service/ units are skipped). Registration passes `--minimized`
+        // so a login boot hides `main` instead of popping the window (see
+        // setup below); the sidecar still spawns.
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            Some(vec!["--minimized"]),
+        ))
         .manage(SidecarState {
             child: Mutex::new(None),
             url: Mutex::new(None),
         })
         .setup(|app| {
-            // Single-instance (toolchain: add tauri-plugin-single-instance and
-            // focus `main` here) so a second launch never double-spawns the
-            // sidecar. Autostart via tauri-plugin-autostart for the
-            // background-service story (OS registration per README).
+            // Autostart start-minimized-friendly: hide `main` on a
+            // `--minimized` boot (login via the autostart registration).
+            if std::env::args().any(|a| a == "--minimized") {
+                if let Some(win) = app.get_webview_window("main") {
+                    let _ = win.hide();
+                }
+            }
+            // Single-instance is declared (see builder above; it focuses
+            // `main` on second launch) so a second launch never
+            // double-spawns the sidecar. Autostart via
+            // tauri-plugin-autostart covers the OS-registration story
+            // (see service/README.md for the unit-based alternative).
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 // Pinned by capabilities/main.json `shell:allow-spawn`:

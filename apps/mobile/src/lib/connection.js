@@ -4,7 +4,7 @@
 // `allowLoopback` is never passed, so loopback routes are always skipped.
 // Foreground refresh (no FCM): `attachForegroundRefresh` re-probes via
 // `retryNow()` and prunes stale cache rows on AppState 'active'.
-import { Supervisor, LearnedRoutes } from '../../../../packages/client-runtime/index.js';
+import { Supervisor, LearnedRoutes } from '../vendor/runtime/index.js';
 import { fetchWithTimeout, DEFAULT_TIMEOUT_MS } from '../api/client.js';
 
 export function createHealthProbe({ fetchImpl = null, timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
