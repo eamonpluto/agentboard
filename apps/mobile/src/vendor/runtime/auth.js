@@ -13,24 +13,24 @@
 // (mobile already passes its explicit array — see apps/mobile/src/auth).
 // Node shells keep working with zero configuration.
 
-const PAIRING_CONTRACT_SPEC = "../contracts/pairing.json";
+// Inlined from src/vendor/contracts/pairing.json (frozen-M0) by
+// scripts/vendor-runtime.mjs — Metro/Hermes cannot parse the upstream
+// dynamic JSON import, so vendoring resolves it statically. Keep in sync
+// via re-vendor (check.mjs asserts scope + version parity).
+const VENDORED_SCOPES = Object.freeze([
+  'launch:spawn',
+  'launch:kill',
+  'mail:send',
+  'mail:inbox',
+  'mail:ack',
+  'fleet:read',
+  'admin:pair',
+  'admin:revoke',
+]);
+const VENDORED_CONTRACT_VERSION = 1;
 
-let knownScopes = null;
-export let PAIRING_CONTRACT_VERSION = 1;
-
-try {
-  const loaded = await import(PAIRING_CONTRACT_SPEC, { with: { type: "json" } });
-  const doc = loaded && loaded.default ? loaded.default : loaded;
-  if (doc && Array.isArray(doc.scopes) && doc.scopes.length > 0) {
-    knownScopes = Object.freeze([...doc.scopes]);
-    if (typeof doc.version === "number") PAIRING_CONTRACT_VERSION = doc.version;
-  }
-} catch {
-  // Metro/Hermes or a relocated vendored copy: fall through with
-  // knownScopes unset. The first createAuthStore({ knownScopes }) call
-  // (or an explicit setKnownScopes()) pins the vocabulary instead.
-}
-
+let knownScopes = VENDORED_SCOPES;
+export let PAIRING_CONTRACT_VERSION = VENDORED_CONTRACT_VERSION;
 // Native shells that cannot resolve the contract file (Metro/Hermes,
 // vendored copies) pin a copy instead. Throws until EITHER the dynamic
 // contract load above succeeded OR the shell supplied a vocabulary —

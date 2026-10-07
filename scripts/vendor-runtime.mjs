@@ -58,6 +58,38 @@ function walkJs(dir, out) {
   return out;
 }
 
+// Replaces the upstream dynamic contract-load block in auth.js (from
+// `const PAIRING_CONTRACT_SPEC = ` through the closing of its try/catch,
+// right before the `// Native shells...` comment) with statically inlined
+// vocabulary read from the contract copy above. Throws when the block is
+// not found (upstream refactored) — re-vendor must never silently ship
+// the unparseable form to Metro.
+function metroTransformAuth(src, appName) {
+  const startMarker = 'const PAIRING_CONTRACT_SPEC = ';
+  const endMarker = '\n// Native shells that cannot resolve';
+  const start = src.indexOf(startMarker);
+  const end = src.indexOf(endMarker);
+  if (start === -1 || end === -1 || end < start) {
+    throw new Error(`vendor: auth.js upstream loader block not found — update metroTransformAuth (app ${appName})`);
+  }
+  const contract = JSON.parse(fs.readFileSync(path.join(ROOT, 'packages', 'contracts', 'pairing.json'), 'utf8'));
+  if (!Array.isArray(contract.scopes) || contract.scopes.length === 0 || typeof contract.version !== 'number') {
+    throw new Error('vendor: pairing.json scopes/version malformed');
+  }
+  const listed = contract.scopes.map((s) => `  '${s}',`).join('\n');
+  const replacement =
+    `// Inlined from src/vendor/contracts/pairing.json (frozen-M0) by\n` +
+    `// scripts/vendor-runtime.mjs — Metro/Hermes cannot parse the upstream\n` +
+    `// dynamic JSON import, so vendoring resolves it statically. Keep in sync\n` +
+    `// via re-vendor (check.mjs asserts scope + version parity).\n` +
+    `const VENDORED_SCOPES = Object.freeze([\n${listed}\n]);\n` +
+    `const VENDORED_CONTRACT_VERSION = ${contract.version};\n` +
+    `\n` +
+    `let knownScopes = VENDORED_SCOPES;\n` +
+    `export let PAIRING_CONTRACT_VERSION = VENDORED_CONTRACT_VERSION;\n`;
+  return src.slice(0, start) + replacement + src.slice(end + 1);
+}
+
 function toPosix(p) {
   return p.split(path.sep).join('/');
 }
@@ -88,7 +120,15 @@ for (const app of APPS) {
   for (const file of RUNTIME_FILES) {
     const src = fs.readFileSync(path.join(SRC_DIR, file), 'utf8');
     const dest = path.join(vendorDir, file);
-    const next = HEADER + src;
+    // Metro-safe transform for auth.js (check.mjs §8 asserts the result):
+    // Metro/Hermes cannot even PARSE `await import(x, { with: {...} })`
+    // (transform-time failure) and Hermes has no top-level await, so the
+    // vendored copy resolves the contract load statically — scopes inlined
+    // from the pairing.json copied above. Fail loud if the upstream loader
+    // block moves, so divergence ships never silently.
+    let body = src;
+    if (file === 'auth.js') body = metroTransformAuth(src, app.name);
+    const next = HEADER + body;
     const prev = fs.existsSync(dest) ? fs.readFileSync(dest, 'utf8') : null;
     if (prev !== next) {
       fs.writeFileSync(dest, next);
