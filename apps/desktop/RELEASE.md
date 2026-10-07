@@ -9,15 +9,24 @@ sidecar → pair phone via QR. No node, no Rust, no terminal on the user side.
   each Tauri target triple into `src-tauri/binaries/node-<triple>[.exe]`
   (SHA256-verified via SHASUMS256.txt, skipped when already staged),
   packed via `bundle.externalBin: ["binaries/node"]`. `src/main.rs` spawns
-  `sidecar("node")` first, system-PATH `node` (>= 18) as fallback.
-- **Bundled core**: `bundle.resources: ["../../bin"]` ships
+  `sidecar("node")` only — no PATH fallback (shell v2 keeps `Command::new`
+  private, so an unscoped spawn would bypass the capability audit).
+- **Bundled core**: `bundle.resources: ["../../../bin"]` ships
   `<resourceDir>/bin/crewbus.js` + `<resourceDir>/bin/lib/*.js` (zero-dep;
   `./lib/*.js` imports resolve unchanged — no other repo path is read at
   sidecar runtime). `src/main.rs resolve_crewbus_js()` probes layouts and
   only accepts a copy whose sibling `lib/store.js` exists.
-- **Updater (inert)**: `tauri-plugin-updater` registered, endpoint
+- **Icons**: `src-tauri/icons/icon.svg` (brand master) + `npx tauri icon`
+  output committed (`icon.png/.ico/.icns`, sized PNGs, android/ios sets);
+  `bundle.icon` lists them explicitly (CI lesson: name-based bundler lookup
+  needs `256x256.png`/`512x512.png` present, and Windows NSIS needs the
+  explicit `.ico` entry).
+- **Updater (inert AND artifact-free)**: `tauri-plugin-updater` registered,
+  endpoint
   `https://github.com/eamonpluto/crewbus/releases/latest/download/latest.json`.
-  No `check()` call exists at startup, so without keys below it does zero
+  `createUpdaterArtifacts` is OFF until signing keys land (unsigned updater
+  bundles fail the build — the plugin still registers so enabling later is
+  config-only). No `check()` call exists at startup, so it does zero
   network I/O and can never crash boot.
 - **Installer**: NSIS `installMode: currentUser` (per-user, no admin prompt),
   `productName: CrewBus`. Single-instance focuses `main` on second launch
@@ -40,8 +49,10 @@ sidecar → pair phone via QR. No node, no Rust, no terminal on the user side.
 4. Release: bump `version` in `src-tauri/tauri.conf.json`,
    `src-tauri/Cargo.toml`, and `apps/desktop/package.json` to the SAME
    number, commit, then `git tag desktop-v<same> && git push origin
-   desktop-v<same>`. Review the draft release (bundles + `latest.json`
-   present), then Publish — normies only ever see published releases.
+   desktop-v<same>`. Review the draft release (per-OS bundles present),
+   then Publish — normies only ever see published releases. To re-enable
+   auto-update artifacts later: add the secrets above, set the pubkey, flip
+   `bundle.createUpdaterArtifacts` back on.
 
 ## Known gaps for the first green run
 

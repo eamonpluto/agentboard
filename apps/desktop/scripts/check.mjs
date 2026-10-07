@@ -105,7 +105,11 @@ const extBin = conf.bundle.externalBin || [];
 ok(Array.isArray(extBin) && extBin.includes('binaries/node'), 'tauri.conf externalBin packs the per-platform node sidecar');
 const resources = conf.bundle.resources || [];
 ok(Array.isArray(resources) && resources.some((r) => String(r).includes('bin')), 'tauri.conf resources ship the crewbus core (bin/crewbus.js + bin/lib)');
-ok(conf.bundle.createUpdaterArtifacts === true, 'tauri.conf createUpdaterArtifacts enabled (produces latest.json)');
+ok(conf.bundle.createUpdaterArtifacts === false, 'tauri.conf createUpdaterArtifacts OFF until signing keys land (unsigned updater bundles fail the build)');
+const bundleIcons = conf.bundle.icon || [];
+for (const f of ['icons/32x32.png', 'icons/128x128.png', 'icons/256x256.png', 'icons/512x512.png', 'icons/icon.icns', 'icons/icon.ico']) {
+  ok(bundleIcons.includes(f) && isFile(path.join(desktop, 'src-tauri', f)), `bundle icon listed + present: ${f}`);
+}
 ok(conf.productName === 'CrewBus', 'productName stays "CrewBus" for the installer');
 ok(
   conf.bundle.windows && conf.bundle.windows.nsis && conf.bundle.windows.nsis.installMode === 'currentUser',
