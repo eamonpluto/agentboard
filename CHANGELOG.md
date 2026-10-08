@@ -29,7 +29,7 @@ MAJOR LIVE RELEASE: Multi-Harness task orchestration, canonical model selection,
   - Tauri v2 multi-platform application (Windows, macOS, Linux).
   - Embedded dashboard with loopback sidecar supervisor (`serve --port 0` on 127.0.0.1).
   - Custom dark scrollbar styling and full Lucide-style icon suite replacing legacy emojis.
-  - Tagged `desktop-v0.1.13` in git; buildable from source with Tauri CLI (binary installers publishable following maintainer review).
+  - Published GitHub release installer downloads (.exe / .dmg / .deb / .AppImage / .msi).
 
 - **Mobile Companion App**:
   - React Native / Expo companion app with QR code pairing (`crewbus://pair`).
