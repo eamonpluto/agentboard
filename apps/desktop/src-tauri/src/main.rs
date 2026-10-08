@@ -137,8 +137,8 @@ fn first_loopback_url(line: &str) -> Option<String> {
 // Normie-install core resolution: the installed app has no repo checkout,
 // so the crewbus core ships as Tauri `resources` (tauri.conf
 // `bundle.resources: ["../../../bin"]`, staged by tauri-bundler with `..`
-// rewritten as `_up_` dirs => `<resourceDir>/_up_/_up_/bin/crewbus.js` plus
-// `<resourceDir>/_up_/_up_/bin/lib/*.js`, the same relative layout as the
+// rewritten as `_up_` dirs => `<resourceDir>/_up_/_up_/_up_/bin/crewbus.js` plus
+// `<resourceDir>/_up_/_up_/_up_/bin/lib/*.js`, the same relative layout as the
 // repo, so the `./lib/*.js` imports inside crewbus.js resolve unchanged —
 // the core is zero-dep (node builtins only) and no other repo path is read
 // at sidecar runtime). Every plausible layout is probed below and a
@@ -157,11 +157,13 @@ fn resolve_crewbus_js(app: &tauri::AppHandle) -> (Option<std::path::PathBuf>, St
     let rd_note: String = match app.path().resource_dir() {
         Ok(rd) => {
             // NOTE: tauri-bundler stages resource `..` segments as literal
-            // `_up_` dirs, so `bundle.resources: ["../../../bin"]` lands at
-            // `<resourceDir>/_up_/_up_/bin/` — NOT at `<resourceDir>/bin/`.
+            // `_up_` dirs, so `bundle.resources: ["../../../bin"]` (3 parent dirs)
+            // lands at `<resourceDir>/_up_/_up_/_up_/bin/` — NOT at `<resourceDir>/bin/`.
             // The other candidates below cover alternate/past layouts.
             for rel in [
+                "_up_/_up_/_up_/bin/crewbus.js",
                 "_up_/_up_/bin/crewbus.js",
+                "_up_/bin/crewbus.js",
                 "bin/crewbus.js",
                 "crewbus/bin/crewbus.js",
                 "crewbus.js",
@@ -325,6 +327,7 @@ fn main() {
                         // Mirror the same report line to sidecar.log
                         // (best-effort; a missing log never blocks the emit).
                         if let Ok(d) = handle.path().app_data_dir() {
+                            let _ = std::fs::create_dir_all(&d);
                             let lp = d.join("sidecar.log");
                             if let Ok(mut f) = std::fs::OpenOptions::new()
                                 .create(true)
@@ -397,7 +400,10 @@ fn main() {
                 let log_path = handle
                     .path()
                     .app_data_dir()
-                    .map(|d| d.join("sidecar.log"))
+                    .map(|d| {
+                        let _ = std::fs::create_dir_all(&d);
+                        d.join("sidecar.log")
+                    })
                     .unwrap_or_else(|_| std::path::PathBuf::from("sidecar.log"));
                 let mut logf = std::fs::File::create(&log_path).ok();
                 use std::io::Write as _;
