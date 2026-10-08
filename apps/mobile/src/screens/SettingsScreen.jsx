@@ -1,55 +1,71 @@
-// CrewBus M5 Settings screen — routes, device lastSeen review hint, and
-// sign-out (clears the biometric store AND memory). JSX: not `node --check`ed.
+// CrewBus M5 Settings screen — device identity, learned routes, sign-out. JSX: not `node --check`ed.
 import React from 'react';
-import { View, Text, Button, TextInput, FlatList, StyleSheet } from 'react-native';
+import { View, Text, TextInput, FlatList, TouchableOpacity, StyleSheet } from 'react-native';
+import { THEME, STYLES } from '../theme.js';
+import { HeaderBar } from '../components/HeaderBar.jsx';
+import { BottomNav } from '../components/BottomNav.jsx';
+import { ROUTES } from '../navigation/routes.js';
 
-export function SettingsScreen({ ctx }) {
+export function SettingsScreen({ ctx, navigation }) {
   const [devices, setDevices] = React.useState(null);
-  const [agent, setAgent] = React.useState('');
+  const [agent, setAgent] = React.useState('mobile');
   const [agentToken, setAgentToken] = React.useState('');
-  const [status, setStatus] = React.useState('Review routes and devices here.');
+  const [status, setStatus] = React.useState('Device and relay configuration.');
   const learned = ctx.connection.learned.snapshot();
   const stats = ctx.cache.stats();
   const device = ctx.authStore.getDevice();
 
   const reviewDevices = async () => {
     const route = ctx.connection.getState().route;
-    if (!route) { setStatus('connect a route on Boards first.'); return; }
+    if (!route) { setStatus('connect a route in Hub first.'); return; }
     try {
       setDevices(await ctx.apiFor(route).fetchDevices({ from: agent.trim(), agentToken }));
-      setStatus('device list is admin-gated; revoke stale entries on the desktop/relay.');
-    } catch (e) {
-      setStatus(`devices unavailable: ${String((e && e.message) || e)}`);
-    }
+      setStatus('device list is admin-gated');
+    } catch (e) { setStatus(`devices unavailable: ${String((e && e.message) || e)}`); }
   };
 
   const signOut = async () => {
     await ctx.authStore.clear();
     setDevices(null);
-    setStatus('signed out — device credential wiped from secure storage and memory.');
+    setStatus('Signed out — credentials wiped.');
+    if (navigation) navigation.navigate(ROUTES.Pair);
   };
 
   return (
-    <View style={styles.pad}>
-      <Text>{status}</Text>
-      <Text>paired: {device ? `${device.deviceId} (${device.envId})` : 'none'}</Text>
-      <Text>cache: {stats.inboxes} inboxes · {stats.drafts} drafts · {stats.queued} queued</Text>
-      <Text style={styles.head}>Learned routes</Text>
-      <FlatList data={learned} keyExtractor={(r) => r.route} renderItem={({ item }) => <Text>{item.route}</Text>} />
-      <Button title="Review devices (lastSeen)" onPress={reviewDevices} />
-      <View style={styles.row}>
-        <TextInput style={styles.input} value={agent} onChangeText={setAgent} placeholder="admin agent" />
-        <TextInput style={styles.input} value={agentToken} onChangeText={setAgentToken} placeholder="abt-…" secureTextEntry />
+    <View style={STYLES.screen}>
+      <HeaderBar title="Device & Hub" statusText={status} navigation={navigation} rightTitle="Queue" onRightPress={() => navigation.navigate(ROUTES.Queue)} />
+      <View style={STYLES.body}>
+        <View style={STYLES.card}>
+          <Text style={STYLES.cardTitle}>📱 Device Identity</Text>
+          <Text style={STYLES.textMuted}>{device ? `${device.deviceId} (env: ${device.envId || 'none'})` : 'No device paired'}</Text>
+          {device && device.scopes ? <Text style={styles.scopeTag}>Scopes: {device.scopes.join(', ')}</Text> : null}
+        </View>
+        <View style={STYLES.card}>
+          <Text style={STYLES.cardTitle}>📦 Offline Cache</Text>
+          <Text style={STYLES.textMuted}>{stats.inboxes} inboxes · {stats.drafts} drafts · {stats.queued} queued mutations</Text>
+        </View>
+        <Text style={styles.head}>Learned Relay Routes</Text>
+        <FlatList
+          data={learned}
+          keyExtractor={(r) => r.route}
+          renderItem={({ item }) => <Text style={styles.routeItem}>• {item.route}</Text>}
+          ListEmptyComponent={<Text style={STYLES.textMuted}>No learned routes recorded yet.</Text>}
+        />
+        <View style={STYLES.row}>
+          <TextInput style={[STYLES.input, { flex: 1 }]} value={agent} onChangeText={setAgent} placeholder="admin agent" placeholderTextColor={THEME.textSubtle} />
+          <TouchableOpacity style={STYLES.btnSecondary} onPress={reviewDevices}><Text style={STYLES.btnText}>Audit</Text></TouchableOpacity>
+        </View>
+        <TouchableOpacity style={STYLES.btnDanger} onPress={signOut}>
+          <Text style={[STYLES.btnText, { color: THEME.rose }]}>Sign Out & Wipe Credentials</Text>
+        </TouchableOpacity>
       </View>
-      {devices ? <Text numberOfLines={6}>{JSON.stringify(devices).slice(0, 400)}</Text> : null}
-      <Button title="Sign out (clears store)" onPress={signOut} />
+      <BottomNav currentRoute={ROUTES.Boards} navigation={navigation} badgeQueue={stats.queued} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  pad: { flex: 1, padding: 16, gap: 10 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  input: { flex: 1, borderWidth: 1, borderColor: '#888', borderRadius: 6, padding: 8 },
-  head: { fontWeight: 'bold', marginTop: 8 },
+  scopeTag: { color: THEME.primaryLight, fontSize: 11, marginTop: 4 },
+  head: { color: THEME.text, fontWeight: '700', fontSize: 13, marginTop: 4 },
+  routeItem: { color: THEME.textMuted, fontSize: 12, paddingVertical: 2 },
 });

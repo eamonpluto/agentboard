@@ -1,82 +1,92 @@
-// CrewBus M5 Approvals screen — approve/deny with reason (deny requires
-// one). Offline decisions enqueue for the explicit Queue retry. Approvals
-// surface via the inbox (high-priority first); a dedicated endpoint is an
-// M5b alignment item. JSX: excluded from `node --check`.
+// CrewBus M5 Approvals screen — interactive decision cards with reason gating. JSX: not `node --check`ed.
 import React from 'react';
-import { View, Text, Button, TextInput, FlatList, StyleSheet } from 'react-native';
+import { View, Text, TextInput, FlatList, TouchableOpacity, StyleSheet } from 'react-native';
+import { THEME, STYLES } from '../theme.js';
+import { HeaderBar } from '../components/HeaderBar.jsx';
+import { BottomNav } from '../components/BottomNav.jsx';
+import { ROUTES } from '../navigation/routes.js';
 
 function ApprovalCard({ item, onDecide }) {
   const [reason, setReason] = React.useState('');
   const id = item.id || item.replyId;
   return (
-    <View style={styles.card}>
-      <Text style={styles.head}>{item.subject || '(no subject)'} · {item.from}</Text>
-      <Text numberOfLines={3}>{item.body || ''}</Text>
-      <TextInput style={styles.input} value={reason} onChangeText={setReason} placeholder="reason (required to deny)" />
-      <View style={styles.row}>
-        <Button title="Approve" onPress={() => onDecide(id, 'approve', reason)} />
-        <Button title="Deny" onPress={() => onDecide(id, 'deny', reason)} />
+    <View style={[STYLES.card, styles.cardGap]}>
+      <View style={STYLES.row}>
+        <Text style={styles.badge}>🛡️ APPROVAL</Text>
+        <Text style={styles.sender}>@{item.from || 'worker'}</Text>
+      </View>
+      <Text style={STYLES.cardTitle}>{item.subject || '(no subject)'}</Text>
+      <View style={styles.bodyBox}><Text style={styles.bodyText} numberOfLines={4}>{item.body || item.detail || ''}</Text></View>
+      <TextInput style={STYLES.input} value={reason} onChangeText={setReason} placeholder="Reason (required to deny)" placeholderTextColor={THEME.textSubtle} />
+      <View style={STYLES.row}>
+        <TouchableOpacity style={[STYLES.btnSuccess, { flex: 1 }]} onPress={() => onDecide(id, 'approve', reason)}>
+          <Text style={[STYLES.btnText, { color: THEME.emerald }]}>✓ Approve</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[STYLES.btnDanger, { flex: 1 }]} onPress={() => onDecide(id, 'deny', reason)}>
+          <Text style={[STYLES.btnText, { color: THEME.rose }]}>✕ Deny</Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
 }
 
-export function ApprovalsScreen({ ctx }) {
-  const [agent, setAgent] = React.useState('');
+export function ApprovalsScreen({ ctx, navigation }) {
+  const [agent, setAgent] = React.useState('mobile');
   const [agentToken, setAgentToken] = React.useState('');
   const [items, setItems] = React.useState([]);
-  const [status, setStatus] = React.useState('Load the inbox, then decide each card.');
+  const [status, setStatus] = React.useState('Ready to sync approvals.');
 
   const currentApi = () => {
     const route = ctx.connection.getState().route;
-    if (!route) throw new Error('no connected route — pick one on Boards first');
+    if (!route) throw new Error('no route connected — connect in Hub');
     return ctx.apiFor(route);
   };
 
   const load = async () => {
+    const target = agent.trim() || 'mobile';
     try {
-      const data = await currentApi().fetchInbox(agent.trim(), { unacked: 1, limit: 50 });
+      const data = await currentApi().fetchInbox(target, { unacked: 1, limit: 50 });
       const list = Array.isArray(data) ? data : data.items || data.messages || [];
-      setItems(list);
-      setStatus(`${list.length} awaiting decision`);
-    } catch (e) {
-      setStatus(`offline: ${String((e && e.message) || e)}`);
-    }
+      const approvals = list.filter((m) => /^approval:\s*/i.test(String(m.subject || '')) || m.request);
+      setItems(approvals.length ? approvals : list);
+      setStatus(`${approvals.length} pending decision${approvals.length === 1 ? '' : 's'}`);
+    } catch (e) { setStatus(`offline: ${String((e && e.message) || e)}`); }
   };
 
   const decide = async (id, decision, reason) => {
-    if (decision === 'deny' && !reason.trim()) { setStatus('a reason is required to deny.'); return; }
+    if (decision === 'deny' && !reason.trim()) { setStatus('A reason is required to deny.'); return; }
+    const target = agent.trim() || 'mobile';
     try {
-      await currentApi().approve({ from: agent.trim(), agentToken, id, decision, reason });
+      await currentApi().approve({ from: target, agentToken, id, decision, reason });
       setItems((prev) => prev.filter((m) => (m.id || m.replyId) !== id));
       setStatus(`${decision}d ${id}`);
     } catch {
-      ctx.cache.enqueue({ kind: 'approve', from: agent.trim(), agentToken, id, decision, reason });
-      setStatus('offline — decision queued. Retry it explicitly on the Queue screen.');
+      ctx.cache.enqueue({ kind: 'approve', from: target, agentToken, id, decision, reason });
+      setStatus('offline — decision queued for Queue retry');
     }
   };
 
   return (
-    <View style={styles.pad}>
-      <Text>{status}</Text>
-      <View style={styles.row}>
-        <TextInput style={styles.input} value={agent} onChangeText={setAgent} placeholder="agent name" />
-        <TextInput style={styles.input} value={agentToken} onChangeText={setAgentToken} placeholder="abt-…" secureTextEntry />
-        <Button title="Load" onPress={load} />
+    <View style={STYLES.screen}>
+      <HeaderBar title="Approvals" statusText={status} navigation={navigation} rightTitle="Check" onRightPress={load} />
+      <View style={STYLES.body}>
+        <FlatList
+          data={items}
+          keyExtractor={(m, i) => String(m.id || m.replyId || i)}
+          ListEmptyComponent={<Text style={styles.empty}>No pending approvals. All workers unblocked!</Text>}
+          renderItem={({ item }) => <ApprovalCard item={item} onDecide={decide} />}
+        />
       </View>
-      <FlatList
-        data={items}
-        keyExtractor={(m, i) => String(m.id || m.replyId || i)}
-        renderItem={({ item }) => <ApprovalCard item={item} onDecide={decide} />}
-      />
+      <BottomNav currentRoute={ROUTES.Approvals} navigation={navigation} badgeApprovals={items.length} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  pad: { flex: 1, padding: 16, gap: 10 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  input: { flex: 1, borderWidth: 1, borderColor: '#888', borderRadius: 6, padding: 8 },
-  card: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 10, marginVertical: 4, gap: 6 },
-  head: { fontWeight: 'bold' },
+  cardGap: { padding: 14, gap: 10, marginVertical: 6 },
+  badge: { backgroundColor: THEME.amberMuted, color: THEME.amber, fontSize: 11, fontWeight: '700', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
+  sender: { color: THEME.primaryLight, fontSize: 12, fontWeight: '600' },
+  bodyBox: { backgroundColor: '#0d0f17', padding: 10, borderRadius: 8, borderWidth: 1, borderColor: THEME.border },
+  bodyText: { color: THEME.text, fontSize: 12, fontFamily: 'monospace' },
+  empty: { color: THEME.textSubtle, textAlign: 'center', marginTop: 40, fontSize: 13 },
 });

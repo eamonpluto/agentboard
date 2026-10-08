@@ -1,73 +1,87 @@
-// CrewBus M5 Triage screen — unacked inbox cards from GET /api/inbox,
-// digest-first (subject/from/at + collapsed body). Offline acks enqueue for
-// the explicit Queue retry — never auto-replayed. JSX: not `node --check`ed.
+// CrewBus M5 Triage screen — unacked inbox feed cards with 1-tap ack. JSX: not `node --check`ed.
 import React from 'react';
-import { View, Text, Button, TextInput, FlatList, StyleSheet } from 'react-native';
+import { View, Text, TextInput, FlatList, TouchableOpacity, StyleSheet } from 'react-native';
+import { THEME, STYLES } from '../theme.js';
+import { HeaderBar } from '../components/HeaderBar.jsx';
+import { BottomNav } from '../components/BottomNav.jsx';
+import { ROUTES } from '../navigation/routes.js';
 
-export function TriageScreen({ ctx }) {
-  const [agent, setAgent] = React.useState('');
+export function TriageScreen({ ctx, navigation }) {
+  const [agent, setAgent] = React.useState('mobile');
   const [agentToken, setAgentToken] = React.useState('');
   const [items, setItems] = React.useState([]);
-  const [status, setStatus] = React.useState('Enter your agent name, then load.');
+  const [status, setStatus] = React.useState('Ready to sync inbox.');
 
   const currentApi = () => {
     const route = ctx.connection.getState().route;
-    if (!route) throw new Error('no connected route — pick one on Boards first');
+    if (!route) throw new Error('no route connected — connect in Hub');
     return ctx.apiFor(route);
   };
 
   const load = async () => {
-    if (!agent.trim()) { setStatus('agent name required.'); return; }
+    const target = agent.trim() || 'mobile';
     try {
-      const data = await currentApi().fetchInbox(agent.trim(), { unacked: 1, limit: 50 });
+      const data = await currentApi().fetchInbox(target, { unacked: 1, limit: 50 });
       const list = Array.isArray(data) ? data : data.items || data.messages || [];
-      ctx.cache.setInbox(agent.trim(), list);
+      ctx.cache.setInbox(target, list);
       setItems(list);
-      setStatus(`${list.length} unacked`);
-    } catch (e) {
-      const cached = ctx.cache.getInbox(agent.trim());
-      setItems(cached || []);
-      setStatus(`offline — showing cached inbox (${(cached || []).length}). Acks will queue.`);
+      setStatus(`${list.length} unacked message${list.length === 1 ? '' : 's'}`);
+    } catch {
+      const cached = ctx.cache.getInbox(target) || [];
+      setItems(cached);
+      setStatus(`offline (${cached.length} cached)`);
     }
   };
 
   const ack = async (id) => {
+    const target = agent.trim() || 'mobile';
     try {
-      await currentApi().ack({ from: agent.trim(), agentToken, id });
+      await currentApi().ack({ from: target, agentToken, id });
       setItems((prev) => prev.filter((m) => (m.id || m.replyId) !== id));
     } catch {
-      ctx.cache.enqueue({ kind: 'ack', from: agent.trim(), agentToken, id });
-      setStatus('offline — ack queued. Retry it explicitly on the Queue screen.');
+      ctx.cache.enqueue({ kind: 'ack', from: target, agentToken, id });
+      setStatus('offline — ack queued for Queue retry');
     }
   };
 
   return (
-    <View style={styles.pad}>
-      <Text>{status}</Text>
-      <View style={styles.row}>
-        <TextInput style={styles.input} value={agent} onChangeText={setAgent} placeholder="agent name" />
-        <TextInput style={styles.input} value={agentToken} onChangeText={setAgentToken} placeholder="abt-…" secureTextEntry />
-        <Button title="Load" onPress={load} />
+    <View style={STYLES.screen}>
+      <HeaderBar title="Activity Feed" statusText={status} navigation={navigation} rightTitle="Sync" onRightPress={load} />
+      <View style={STYLES.body}>
+        <View style={STYLES.row}>
+          <TextInput style={[STYLES.input, { flex: 1 }]} value={agent} onChangeText={setAgent} placeholder="agent (default: mobile)" placeholderTextColor={THEME.textSubtle} />
+          <TouchableOpacity style={STYLES.btnPrimary} onPress={load}><Text style={STYLES.btnText}>Load</Text></TouchableOpacity>
+        </View>
+        <FlatList
+          data={items}
+          keyExtractor={(m, i) => String(m.id || m.replyId || i)}
+          ListEmptyComponent={<Text style={styles.empty}>All caught up! No unacked messages in inbox.</Text>}
+          renderItem={({ item }) => (
+            <View style={[STYLES.card, styles.msgCard]}>
+              <View style={styles.msgHead}>
+                <Text style={styles.senderPill}>@{item.from || 'agent'}</Text>
+                <Text style={STYLES.textMuted}>{item.at ? item.at.slice(11, 19) : ''}</Text>
+              </View>
+              <Text style={STYLES.cardTitle}>{item.subject || '(no subject)'}</Text>
+              <Text style={STYLES.cardSub} numberOfLines={3}>{item.body || item.digest || item.head || ''}</Text>
+              <View style={styles.actionRow}>
+                <TouchableOpacity style={STYLES.btnSuccess} onPress={() => ack(item.id || item.replyId)}>
+                  <Text style={[STYLES.btnText, { color: THEME.emerald }]}>✓ Ack Message</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+        />
       </View>
-      <FlatList
-        data={items}
-        keyExtractor={(m, i) => String(m.id || m.replyId || i)}
-        renderItem={({ item }) => (
-          <View style={styles.card}>
-            <Text style={styles.head}>{item.subject || '(no subject)'} · {item.from} · {item.at || ''}</Text>
-            <Text numberOfLines={2}>{item.body || item.digest || ''}</Text>
-            <Button title="Ack" onPress={() => ack(item.id || item.replyId)} />
-          </View>
-        )}
-      />
+      <BottomNav currentRoute={ROUTES.Triage} navigation={navigation} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  pad: { flex: 1, padding: 16, gap: 10 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  input: { flex: 1, borderWidth: 1, borderColor: '#888', borderRadius: 6, padding: 8 },
-  card: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 10, marginVertical: 4, gap: 6 },
-  head: { fontWeight: 'bold' },
+  msgCard: { padding: 12, gap: 6, marginVertical: 4 },
+  msgHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  senderPill: { backgroundColor: 'rgba(99, 102, 241, 0.15)', color: THEME.primaryLight, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6, fontSize: 11, fontWeight: '700' },
+  actionRow: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 4 },
+  empty: { color: THEME.textSubtle, textAlign: 'center', marginTop: 40, fontSize: 13 },
 });
