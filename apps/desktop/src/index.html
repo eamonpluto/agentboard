@@ -5,26 +5,34 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>CrewBus</title>
 <style>
-body{margin:0;background:#0f1419;color:#d7dee6;font:14px/1.5 system-ui,sans-serif}
-#shellbar{position:sticky;top:0;z-index:20;display:flex;gap:12px;align-items:center;background:#0b0f14;border-bottom:1px solid #2a343e;padding:8px 12px;flex-wrap:wrap}
-#conn-dot{font-size:1.2em;color:#8b98a5}
-.dim{color:#8b98a5;font-size:.85em}
-button{background:#182028;border:1px solid #4cc38a;color:#4cc38a;border-radius:5px;padding:4px 12px;font-size:.9em;cursor:pointer}
-button.ghost{border-color:#2a343e;color:#d7dee6}
-#dashboard{width:100%;height:calc(100vh - 90px);border:0;background:#0f1419}
-#status{padding:4px 12px}
-label.switch{display:flex;gap:6px;align-items:center}
+body{margin:0;background:#090d12;color:#d7dee6;font:13px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;overflow:hidden;height:100vh}
+#shellbar{position:sticky;top:0;z-index:20;display:flex;gap:12px;align-items:center;background:#0d1218;border-bottom:1px solid #1f2833;padding:0 14px;height:38px;box-sizing:border-box}
+.brand{font-weight:700;font-size:13px;color:#f0f6fc;display:flex;align-items:center;gap:6px;letter-spacing:-0.2px}
+.status-pill{display:inline-flex;align-items:center;gap:6px;background:#151c24;border:1px solid #232d39;border-radius:20px;padding:2px 8px;font-size:11px}
+#conn-dot{font-size:11px;color:#8b98a5}
+.dim{color:#7d8b99;font-size:11px}
+.spacer{flex:1}
+button{background:#151c24;border:1px solid #2a3644;color:#d7dee6;border-radius:5px;padding:3px 10px;font-size:11px;cursor:pointer;transition:all .15s}
+button:hover{border-color:#38d39f;color:#f0f6fc}
+button.ghost{border-color:#2a3644;color:#c9d1d9}
+button.ghost:hover{border-color:#38d39f;color:#38d39f}
+#dashboard{width:100%;height:calc(100vh - 38px);border:0;background:#090d12;display:block}
+#status{padding:4px 14px;background:#151c24;border-bottom:1px solid #232d39;font-size:11px;color:#8b98a5}
+label.switch{display:flex;gap:6px;align-items:center;font-size:11px;color:#c9d1d9;cursor:pointer}
 </style>
 </head>
 <body>
 <header id="shellbar">
-  <b>crewbus</b>
-  <span id="conn-dot" title="connection: unknown">&#9679;</span>
+  <div class="brand"><b>CrewBus</b></div>
+  <div class="status-pill">
+    <span id="conn-dot" title="connection: unknown">&#9679;</span>
+    <span id="sidecar-url" class="dim">sidecar: connecting&hellip;</span>
+  </div>
+  <div class="spacer"></div>
   <label class="switch" title="Off = remote-only: stops the sidecar WITHOUT deleting board state">
     <input id="local-env" type="checkbox" checked> Local environment
   </label>
-  <button id="pair-open" class="ghost">Pair a device (QR)</button>
-  <span id="sidecar-url" class="dim">sidecar: waiting&hellip;</span>
+  <button id="pair-open" class="ghost" title="Pair a mobile device via QR code">Pair Mobile (QR)</button>
 </header>
 <div id="status" class="dim">waiting for the sidecar dashboard URL&hellip;</div>
 <!--

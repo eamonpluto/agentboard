@@ -359,37 +359,461 @@ export function renderBoardHtml(boardPath) {
   return `<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>crewbus — ${e(boardPath)}</title>
-<style>body{margin:0;background:#0f1419;color:#d7dee6;font:14px/1.5 system-ui,sans-serif}main{max-width:1100px;margin:0 auto;padding:24px 18px 80px}h1{font-size:1.4em}h2{margin-top:2em;color:#4cc38a;font-size:1.05em}.dim{color:#8b98a5;font-size:.85em}table{border-collapse:collapse;width:100%;margin:.5em 0;font-size:.9em}th,td{border:1px solid #2a343e;padding:6px 8px;text-align:left;vertical-align:top}th{background:#182028}.log{font-family:monospace;font-size:.82em;white-space:pre-wrap}.cards{display:flex;gap:12px;flex-wrap:wrap}.card{background:#182028;border:1px solid #2a343e;border-radius:8px;padding:10px 16px}.card b{font-size:1.5em;color:#4cc38a}input,textarea,select{background:#0b0f14;border:1px solid #2a343e;color:#d7dee6;border-radius:5px;padding:4px 8px;font-size:.9em}button{background:#182028;border:1px solid #4cc38a;color:#4cc38a;border-radius:5px;padding:4px 12px;font-size:.9em;cursor:pointer}button.danger{border-color:#e5534b;color:#e5534b}button:disabled{opacity:.4;cursor:default}#approot-topbar{position:sticky;top:0;z-index:20;display:flex;gap:12px;align-items:center;background:#0b0f14;border-bottom:1px solid #2a343e;padding:8px 12px;flex-wrap:wrap}#topbar-board{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:40vw}#conn-dot{font-size:1.2em;color:#8b98a5}#approot-nav{display:flex;gap:6px;flex-wrap:wrap;margin:12px 0}#approot-nav button{border-color:#2a343e;color:#d7dee6}#approot-nav button.active{border-color:#4cc38a;color:#4cc38a}.approot-hidden{display:none!important}#palette{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:50;display:none;padding:15vh 20px 20px}#palette.open{display:block}#palette-box{max-width:560px;margin:0 auto;background:#182028;border:1px solid #4cc38a;border-radius:8px;padding:12px}#palette-input{width:95%;font-size:1.1em;padding:6px 10px}#palette-list{max-height:40vh;overflow:auto;margin-top:8px}#palette-list div{padding:4px 8px;cursor:pointer}#palette-list div.sel{background:#0b0f14;color:#4cc38a}#harness-cards{display:flex;gap:8px;flex-wrap:wrap;margin:.5em 0}.harness-card{background:#182028;border:1px solid #2a343e;border-radius:8px;padding:8px 12px;cursor:pointer}.harness-card.sel{border-color:#4cc38a}.harness-card.missing{opacity:.55}#launch-permission-seg{display:inline-flex;gap:4px;margin:4px 0;flex-wrap:wrap}#launch-permission-seg button{border-color:#2a343e;color:#d7dee6}#launch-permission-seg button.sel{border-color:#4cc38a;color:#4cc38a}#launch-diff ul{margin:.4em 0;padding-left:1.2em}#launch-diff .warn{background:#3d1113;border:1px solid #e5534b;color:#ffb4ae;border-radius:5px;padding:6px 10px;margin:.4em 0}#undo-toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#182028;border:1px solid #4cc38a;border-radius:8px;padding:10px 16px;z-index:40;display:none;max-width:90vw}#undo-toast.show{display:block}#inspector{background:#182028;border:1px solid #2a343e;border-radius:8px;padding:10px 16px;margin:.5em 0}tr.worker-row{cursor:pointer}tr.worker-row:hover td{background:#182028}#result{margin-top:1em;white-space:pre-wrap;font-family:monospace;font-size:.85em}@media (max-width:700px){main{padding:16px 12px 60px}h1{font-size:1.15em}table{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch}input,textarea,select{margin:2px 0}}</style>
-</head><body><main>
-<header id="approot-topbar"><b>crewbus</b> <span id="topbar-board" class="dim">${e(boardPath)}</span> <label class="dim">harness <select id="topbar-harness" aria-label="harness quick-pick"></select></label> <span id="conn-dot" title="connection: unknown">●</span> <span class="dim">Ctrl+K palette</span> <button id="palette-open">command palette (Ctrl+K)</button></header>
-<nav id="approot-nav" aria-label="sections"><button data-nav="sec-boards" class="active">Boards</button> <button data-nav="sec-crews">Crews</button> <button data-nav="sec-fleet">Fleet</button> <button data-nav="sec-channels">Channels</button> <button data-nav="sec-triage">Triage</button> <button data-nav="sec-approvals">Approvals</button> <button data-nav="sec-results">Results</button> <button data-nav="sec-audit">Audit</button> <button data-nav="sec-settings">Settings</button> <button data-nav="all">All</button></nav>
-<div id="palette"><div id="palette-box"><input id="palette-input" placeholder="type a section or worker name (Enter jumps, Esc closes)"><div id="palette-list"></div><div class="dim">Enter jumps to the first match · Esc closes · Ctrl+K toggles</div></div></div>
-<section id="sec-boards" data-section="Boards">
-<h1>crewbus <span class="dim">${e(boardPath)}</span></h1>
-<div id="sec-settings" class="card" style="margin-bottom:1em">acting as <input id="who" size="12" placeholder="agent name"> token <input id="tok" type="password" size="28" placeholder="abt-…"> <button id="save">save</button> <span id="ident" class="dim"></span></div>
-<div class="cards"><div class="card"><b id="c-agents">–</b><br>agents (<span id="c-active">–</span> active)</div><div class="card"><b id="c-workers">–</b><br>workers</div><div class="card"><b id="c-unacked">–</b><br>unacked</div><div class="card"><b id="c-bcast">–</b><br>broadcasts</div><div class="card"><b id="c-groups">–</b><br>groups</div><div class="card"><b id="c-peers">–</b><br>peers</div></div></section>
-<section id="sec-crews" data-section="Crews"><h2>Workers <button id="killall" class="danger">kill all</button></h2><table><tr><th>worker</th><th>state</th><th>pid</th><th>reply</th><th>log tail</th><th></th></tr><tbody id="workers"></tbody></table>
-<aside id="inspector"><b>Inspector</b> <span class="dim">click a worker row to inspect (kill/respawn/ack reuse the same handlers)</span><div id="inspector-body" class="dim">no worker selected</div></aside>
-<h2>Agents</h2><table><tr><th>name</th><th>presence</th><th>last seen</th><th>session</th><th>DMs</th><th>unacked</th></tr><tbody id="agents"></tbody></table>
-<h2>Groups</h2><table><tr><th>name</th><th>members</th></tr><tbody id="groups"></tbody></table></section>
-<h2>Peers</h2><table><tr><th>relay</th><th>last sync</th></tr><tbody id="peers"></tbody></table>
-<section id="sec-fleet" data-section="Fleet"><h2>Fleet <span class="dim">every relay this board syncs with, live /healthz</span></h2><table><tr><th>relay</th><th>role</th><th>weight</th><th>workers</th><th>lag</th><th>last sync</th></tr><tbody id="fleet"></tbody></table></section>
-<section id="sec-channels" data-section="Channels"><h2>Channels <span class="dim">shared append-only logs, latest heads</span></h2><div id="channels"></div></section>
-<section id="sec-results" data-section="Results"><h2>Results &amp; races <span class="dim">verified outcomes + live runners (kill closes losers out)</span></h2><table><tr><th>group</th><th>telemetry</th><th>verified result</th><th>running</th><th></th></tr><tbody id="results"></tbody></table></section>
-  <section id="sec-triage" data-section="Triage"><h2>Triage <span class="dim">unacked mail for the identity above</span> <button id="ackall">ack all</button></h2><table><tr><th>id</th><th>from</th><th>message</th><th></th></tr><tbody id="triage"></tbody></table></section>
-   <section id="sec-approvals" data-section="Approvals"><h2>Approvals <span class="dim">unacked approval: requests for the identity above</span></h2><table><tr><th>id</th><th>from</th><th>request</th><th>reason</th><th></th></tr><tbody id="approvals"></tbody></table></section>
-<h2>Broadcasts</h2><table><tr><th>id</th><th>from</th><th>to</th><th>subject</th><th>body</th></tr><tbody id="bcast"></tbody></table>
-<h2>Recent activity</h2><table><tr><th>id</th><th>route</th><th>message</th></tr><tbody id="recent"></tbody></table>
-   <section id="sec-audit" data-section="Audit"><h2>Audit <span class="dim">tamper-evident chain + recent events (payloads never leave the server)</span></h2><div id="auditver" class="dim"></div><table><tr><th>seq</th><th>at</th><th>actor</th><th>event</th><th>target</th><th>result</th></tr><tbody id="audit"></tbody></table></section>
-   <section id="sec-holds" data-section="Holds"><h2>Holds &amp; quotas <span class="dim">legal hold + board quotas (open reads, same as the CLI status/show)</span></h2><div class="cards"><div class="card" id="holds-card"><b>Hold</b><div id="holds-body" class="dim">loading…</div></div><div class="card" id="quotas-card"><b>Quotas</b><div id="quotas-body" class="dim">loading…</div></div></div></section>
- <h2>Launch <span class="dim">harness picker + dry-run preview + live boot (M1)</span></h2><div id="harness-cards" class="cards" aria-label="harness picker"></div><table><tr><th>driver</th><th>binary</th><th>version</th><th>brief</th><th>resume</th></tr><tbody id="harnesses"></tbody></table>
- <div id="routes-line" class="dim">routes: loading…</div>
- <div class="card">harness <select id="launch-harness"></select> to <input id="launch-to" size="18" placeholder="w-1,w-2 (or count)"> count <button id="launch-count-minus" title="fewer workers">-</button> <input id="launch-count" size="4" value="1"> <button id="launch-count-plus" title="more workers">+</button> permission <select id="launch-permission"><option>supervised</option><option>autoEdits</option><option>auto</option><option>full</option></select> <span id="launch-permission-seg"><button data-perm="supervised" class="sel">supervised</button> <button data-perm="autoEdits">autoEdits</button> <button data-perm="auto">auto</button> <button data-perm="full">full</button></span> <label><input id="launch-dry" type="checkbox" checked> dry-run</label><br>brief <span id="launch-brief-count" class="dim">0/8000</span><br><textarea id="launch-brief" rows="4" cols="80" maxlength="8000" placeholder="task brief (max 8000 chars)"></textarea><br>from <input id="launch-from" size="12" placeholder="agent name"> token <input id="launch-token" type="password" size="28" placeholder="abt-…"> <button id="launch-preview">Preview</button> <button id="launch-go" class="danger">Launch</button></div>
- <div id="launch-out" class="log"></div>
-  <div id="launch-diff"></div>
-  <div id="undo-toast" role="status"></div>
- <div id="result"></div>
-<p class="dim">polls <a href="/api/board">/api/board</a> <a href="/api/fleet">/api/fleet</a> <a href="/api/channels">/api/channels</a> <a href="/api/results">/api/results</a> <a href="/api/audit">/api/audit</a> <a href="/api/holds">/api/holds</a> <a href="/api/quotas">/api/quotas</a> every 5s · kill/ack need the identity above (same token as the CLI) · tokens stay in this browser tab · ack is plain accept only, verifiers stay on the CLI</p>
+<style>
+:root{
+  --bg-base:#090d12;
+  --bg-surface:#0e141b;
+  --bg-card:#141b24;
+  --bg-card-hover:#1a2330;
+  --bg-input:#080c10;
+  --border:#202b37;
+  --border-hover:#2e3e50;
+  --border-focus:#38d39f;
+  --accent:#38d39f;
+  --accent-glow:rgba(56,211,159,0.15);
+  --text-primary:#f0f6fc;
+  --text-secondary:#9aa8b6;
+  --text-dim:#647382;
+  --danger:#f85149;
+  --danger-bg:rgba(248,81,73,0.12);
+  --warning:#d29922;
+  --radius-sm:5px;
+  --radius-md:8px;
+  --radius-lg:12px;
+}
+*{box-sizing:border-box}
+body{margin:0;padding:0;background:var(--bg-base);color:var(--text-primary);font:13px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;overflow:hidden;height:100vh}
+#app-shell{display:flex;height:100vh;width:100vw;overflow:hidden}
+
+/* 1. Left Sidebar: Projects, Tasks, Navigation */
+#app-sidebar{width:240px;min-width:240px;background:var(--bg-surface);border-right:1px solid var(--border);display:flex;flex-direction:column;height:100vh;z-index:20;user-select:none}
+.sidebar-project{padding:12px;border-bottom:1px solid var(--border);position:relative}
+.project-card{display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-md);cursor:pointer;transition:all .15s ease}
+.project-card:hover{border-color:var(--border-hover);background:var(--bg-card-hover)}
+.project-icon{font-size:15px;flex-shrink:0}
+.project-info{min-width:0;flex:1}
+.project-title{font-weight:600;font-size:13px;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.project-path{font-size:11px;color:var(--text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:ui-monospace,SFMono-Regular,monospace}
+.project-arrow{color:var(--text-dim);font-size:10px}
+
+/* Project Popover */
+#project-popover{position:absolute;top:calc(100% + 4px);left:12px;right:12px;background:var(--bg-card);border:1px solid var(--border-hover);border-radius:var(--radius-md);box-shadow:0 12px 30px rgba(0,0,0,0.5);padding:12px;z-index:100;display:none}
+#project-popover.open{display:block}
+.pop-label{font-size:11px;font-weight:600;color:var(--text-dim);text-transform:uppercase;margin-bottom:6px}
+.pop-path{font-family:monospace;font-size:11px;background:var(--bg-input);padding:6px 8px;border-radius:var(--radius-sm);border:1px solid var(--border);word-break:break-all;margin-bottom:8px;color:var(--text-secondary)}
+.pop-btn{width:100%;margin-top:4px}
+
+/* New Task Button */
+.sidebar-action-wrap{padding:12px 12px 6px}
+.btn-new-task{width:100%;display:flex;align-items:center;justify-content:space-between;background:var(--accent);color:#08130f;font-weight:600;border:none;border-radius:var(--radius-md);padding:8px 12px;cursor:pointer;transition:filter .15s ease}
+.btn-new-task:hover{filter:brightness(1.1)}
+.btn-new-task kbd{font-size:10px;background:rgba(0,0,0,0.2);padding:2px 5px;border-radius:4px;font-family:inherit}
+
+/* Sidebar Sections */
+.sidebar-heading{font-size:11px;font-weight:600;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.5px;padding:12px 16px 6px}
+.sidebar-threads{padding:0 8px;display:flex;flex-direction:column;gap:2px}
+.thread-item{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:var(--radius-md);color:var(--text-secondary);cursor:pointer;transition:all .15s ease}
+.thread-item:hover{background:var(--bg-card-hover);color:var(--text-primary)}
+.thread-item.active{background:rgba(56,211,159,0.1);color:var(--accent);font-weight:500}
+.thread-dot{font-size:8px;color:var(--accent)}
+
+/* Navigation links */
+#approot-nav{padding:0 8px;display:flex;flex-direction:column;gap:2px;overflow-y:auto;flex:1}
+#approot-nav button{display:flex;align-items:center;gap:8px;width:100%;text-align:left;background:transparent;border:1px solid transparent;border-radius:var(--radius-md);color:var(--text-secondary);padding:6px 10px;font-size:12px;cursor:pointer;transition:all .15s ease}
+#approot-nav button:hover{background:var(--bg-card);color:var(--text-primary)}
+#approot-nav button.active{background:var(--bg-card);border-color:var(--border-hover);color:var(--accent);font-weight:600}
+
+/* Sidebar Footer */
+.sidebar-footer{padding:10px 12px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;font-size:11px;color:var(--text-dim)}
+.identity-badge{display:flex;align-items:center;gap:6px;cursor:pointer;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* 2. Main Stage */
+#app-main{flex:1;min-width:0;display:flex;flex-direction:column;height:100vh;overflow:hidden;background:var(--bg-base)}
+#approot-topbar{height:46px;min-height:46px;background:rgba(14,20,27,0.85);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 16px;gap:12px;z-index:10}
+.topbar-left{display:flex;align-items:center;gap:8px;font-size:13px}
+.brand-name{font-weight:700;color:var(--text-primary);letter-spacing:-0.3px}
+.brand-sep{color:var(--text-dim)}
+.view-title{color:var(--text-secondary);font-weight:500}
+
+/* Command Palette Trigger */
+.palette-btn{display:flex;align-items:center;gap:8px;background:var(--bg-input);border:1px solid var(--border);border-radius:20px;padding:5px 12px;color:var(--text-dim);font-size:12px;cursor:pointer;transition:all .15s ease;max-width:280px;width:100%}
+.palette-btn:hover{border-color:var(--border-hover);color:var(--text-secondary);background:var(--bg-card)}
+.palette-btn kbd{margin-left:auto;font-size:10px;background:var(--bg-card);border:1px solid var(--border);border-radius:4px;padding:2px 5px;color:var(--text-dim)}
+
+.topbar-right{display:flex;align-items:center;gap:10px}
+.conn-indicator{display:flex;align-items:center;gap:6px;font-size:11px}
+#conn-dot{font-size:12px;color:#8b98a5}
+
+/* View Scroll Container */
+#view-container{flex:1;overflow-y:auto;padding:20px 24px 60px;min-height:0}
+.approot-hidden{display:none !important}
+
+/* General typography & elements */
+h1{font-size:18px;font-weight:600;margin:0 0 16px;color:var(--text-primary)}
+h2{font-size:14px;font-weight:600;margin:20px 0 12px;color:var(--text-primary);display:flex;align-items:center;justify-content:space-between}
+.dim{color:var(--text-dim);font-size:12px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin:12px 0}
+.card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-md);padding:12px 14px}
+.card b{font-size:20px;font-weight:700;color:var(--accent)}
+
+/* Tables */
+table{width:100%;border-collapse:separate;border-spacing:0;margin:10px 0 20px;font-size:12px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-md);overflow:hidden}
+th,td{padding:9px 12px;text-align:left;vertical-align:top;border-bottom:1px solid var(--border)}
+th{background:rgba(0,0,0,0.25);color:var(--text-dim);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:0.5px}
+tr:last-child td{border-bottom:none}
+tr.worker-row{cursor:pointer;transition:background .15s ease}
+tr.worker-row:hover td{background:var(--bg-card-hover)}
+
+/* Inputs & Buttons */
+input,textarea,select{background:var(--bg-input);border:1px solid var(--border);color:var(--text-primary);border-radius:var(--radius-sm);padding:6px 10px;font-size:12px;font-family:inherit;transition:border-color .15s ease}
+input:focus,textarea:focus,select:focus{outline:none;border-color:var(--accent)}
+button{background:var(--bg-card);border:1px solid var(--border-hover);color:var(--text-primary);border-radius:var(--radius-sm);padding:5px 12px;font-size:12px;cursor:pointer;transition:all .15s ease}
+button:hover{border-color:var(--accent);color:var(--accent)}
+button.danger{border-color:rgba(248,81,73,0.4);color:var(--danger);background:var(--danger-bg)}
+button.danger:hover{border-color:var(--danger);background:rgba(248,81,73,0.2)}
+button:disabled{opacity:.4;cursor:default}
+
+/* Log and terminal boxes */
+.log{font-family:ui-monospace,SFMono-Regular,monospace;font-size:11px;white-space:pre-wrap;background:var(--bg-input);padding:8px 12px;border-radius:var(--radius-sm);border:1px solid var(--border);color:#c9d1d9;max-height:250px;overflow-y:auto}
+
+/* Chat Thread & Launch UI */
+.thread-hero{margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.routes-badge{font-size:11px;font-family:monospace;color:var(--text-dim);background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);padding:4px 8px}
+.chat-stream{display:flex;flex-direction:column;gap:12px;margin-bottom:20px}
+.chat-msg{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px 16px}
+.chat-msg.system{border-left:3px solid var(--accent)}
+.chat-header{display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:11px}
+.chat-author{font-weight:600;color:var(--text-primary)}
+.chat-time{color:var(--text-dim)}
+
+/* Composer / Launch Box */
+.composer-card{background:var(--bg-card);border:1px solid var(--border-hover);border-radius:var(--radius-lg);padding:16px;margin-top:16px;box-shadow:0 4px 20px rgba(0,0,0,0.3)}
+.composer-harness-bar{margin-bottom:12px}
+.harness-pills{display:flex;gap:8px;flex-wrap:wrap}
+.harness-card{display:flex;flex-direction:column;gap:2px;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius-md);cursor:pointer;transition:all .15s ease;min-width:110px}
+.harness-card:hover{border-color:var(--border-hover);background:var(--bg-card-hover)}
+.harness-card.sel{border-color:var(--accent);background:rgba(56,211,159,0.08);box-shadow:0 0 0 1px var(--accent)}
+.harness-card b{font-size:13px;color:var(--text-primary)}
+.harness-card.missing{opacity:.55}
+.harness-card .dim{font-size:11px}
+
+.composer-config-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px;font-size:12px}
+.stepper-wrap{display:inline-flex;align-items:center;border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;background:var(--bg-input)}
+.stepper-wrap button{border:none;border-radius:0;padding:4px 8px;background:transparent}
+.stepper-wrap input{border:none;text-align:center;background:transparent;padding:4px 0}
+#launch-permission-seg{display:inline-flex;gap:2px;background:var(--bg-input);padding:2px;border-radius:var(--radius-sm);border:1px solid var(--border)}
+#launch-permission-seg button{border:none;background:transparent;padding:3px 8px;font-size:11px;border-radius:3px;color:var(--text-secondary)}
+#launch-permission-seg button.sel{background:var(--accent);color:#08130f;font-weight:600}
+
+.composer-textarea-wrap{position:relative;margin-bottom:12px}
+#launch-brief{width:100%;box-sizing:border-box;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius-md);padding:12px;font-size:13px;line-height:1.5;resize:vertical;min-height:90px}
+.brief-counter{position:absolute;bottom:8px;right:12px;font-size:11px;color:var(--text-dim);pointer-events:none}
+
+.composer-bottom{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px}
+.launch-identity{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-dim)}
+.launch-actions{display:flex;gap:8px}
+.btn-launch{background:var(--accent) !important;color:#08130f !important;font-weight:600 !important;border:none !important;padding:6px 16px !important}
+.btn-launch:hover{filter:brightness(1.1)}
+
+/* Launch diffs and warnings */
+#launch-diff ul{margin:.4em 0;padding-left:1.2em}
+#launch-diff .warn{background:#3d1113;border:1px solid var(--danger);color:#ffb4ae;border-radius:var(--radius-sm);padding:8px 12px;margin:8px 0}
+
+/* 3. Right Inspector */
+#app-inspector{width:320px;min-width:320px;background:var(--bg-surface);border-left:1px solid var(--border);display:flex;flex-direction:column;height:100vh;overflow-y:auto;padding:16px;z-index:10}
+#app-inspector.hidden{display:none}
+#inspector{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-md);padding:14px}
+
+/* Command Palette Modal */
+#palette{position:fixed;inset:0;background:rgba(0,0,0,.65);backdrop-filter:blur(8px);z-index:100;display:none;padding:15vh 20px 20px}
+#palette.open{display:block}
+#palette-box{max-width:580px;margin:0 auto;background:var(--bg-card);border:1px solid var(--border-hover);border-radius:var(--radius-lg);box-shadow:0 20px 50px rgba(0,0,0,0.6);padding:12px}
+#palette-input{width:100%;box-sizing:border-box;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius-md);font-size:14px;padding:10px 14px;color:var(--text-primary);margin-bottom:8px}
+#palette-list{max-height:45vh;overflow-y:auto;margin:4px 0 8px;display:flex;flex-direction:column;gap:2px}
+#palette-list div{padding:8px 12px;border-radius:var(--radius-sm);cursor:pointer;font-size:13px;color:var(--text-secondary);display:flex;align-items:center;justify-content:space-between}
+#palette-list div.sel{background:rgba(56,211,159,0.12);color:var(--accent);font-weight:500}
+.palette-hint{font-size:11px;color:var(--text-dim);text-align:center;padding-top:4px;border-top:1px solid var(--border)}
+
+/* Undo Toast */
+#undo-toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--bg-card);border:1px solid var(--accent);border-radius:var(--radius-md);box-shadow:0 10px 30px rgba(0,0,0,0.5);padding:10px 18px;z-index:90;display:none;align-items:center;gap:12px}
+#undo-toast.show{display:flex}
+#result{margin-top:1em;white-space:pre-wrap;font-family:monospace;font-size:11px;color:var(--text-dim)}
+details.tech-details{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-md);padding:10px 14px}
+details.tech-details summary{cursor:pointer;font-weight:500;user-select:none}
+</style>
+</head>
+<body>
+<div id="app-shell">
+  <!-- 1. LEFT SIDEBAR: Projects, Tasks, Navigation -->
+  <aside id="app-sidebar">
+    <div class="sidebar-project">
+      <div class="project-card" id="project-trigger" title="${e(boardPath)}">
+        <span class="project-icon">📁</span>
+        <div class="project-info">
+          <div class="project-title" id="project-display-name">${e(path.basename(boardPath) || "Local Board")}</div>
+          <div class="project-path" id="topbar-board" title="${e(boardPath)}">${e(boardPath)}</div>
+        </div>
+        <span class="project-arrow">▾</span>
+      </div>
+      <div id="project-popover">
+        <div class="pop-label">Workspace Board</div>
+        <div class="pop-path" id="pop-board-path">${e(boardPath)}</div>
+        <button type="button" id="copy-board-btn" class="pop-btn">📋 Copy Board Path</button>
+        <label style="display:block;margin-top:8px">
+          <button type="button" class="pop-btn" id="open-folder-btn">📂 Open Project Folder…</button>
+          <input type="file" id="folder-picker" webkitdirectory directory style="display:none">
+        </label>
+      </div>
+    </div>
+
+    <div class="sidebar-action-wrap">
+      <button type="button" id="btn-new-task" class="btn-new-task">
+        <span>+ New Task</span>
+        <kbd>Ctrl+N</kbd>
+      </button>
+    </div>
+
+    <div class="sidebar-heading">TASK THREAD</div>
+    <div class="sidebar-threads">
+      <div class="thread-item active" id="thread-main-item">
+        <span class="thread-dot">●</span>
+        <span>General Task Feed</span>
+      </div>
+    </div>
+
+    <div class="sidebar-heading">VIEWS</div>
+    <nav id="approot-nav" aria-label="sections">
+      <button data-nav="sec-launch" class="active">Launch</button>
+      <button data-nav="sec-boards">Boards</button>
+      <button data-nav="sec-crews">Crews</button>
+      <button data-nav="sec-fleet">Fleet</button>
+      <button data-nav="sec-channels">Channels</button>
+      <button data-nav="sec-triage">Triage</button>
+      <button data-nav="sec-approvals">Approvals</button>
+      <button data-nav="sec-results">Results</button>
+      <button data-nav="sec-audit">Audit</button>
+      <button data-nav="sec-settings">Settings</button>
+      <button data-nav="all">All</button>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="identity-badge" id="sidebar-user" title="Active identity">
+        <span>👤</span>
+        <span id="ident" class="dim">anonymous</span>
+      </div>
+      <div class="conn-indicator" title="Sidecar health">
+        <span id="conn-dot" title="connection: unknown">●</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- 2. MAIN CENTER STAGE -->
+  <div id="app-main">
+    <header id="approot-topbar">
+      <div class="topbar-left">
+        <span class="brand-name">crewbus</span>
+        <span class="brand-sep">/</span>
+        <span id="view-title" class="view-title">Launch Console</span>
+      </div>
+      <button id="palette-open" class="palette-btn" title="Command Palette (Ctrl+K)">
+        <span>🔍</span>
+        <span>Search commands, workers, sections…</span>
+        <kbd>Ctrl+K</kbd>
+      </button>
+      <div class="topbar-right">
+        <label style="display:none">harness <select id="topbar-harness" aria-label="harness quick-pick"></select></label>
+        <button type="button" id="inspector-toggle-btn" title="Toggle Inspector sidebar">Inspector ◨</button>
+      </div>
+    </header>
+
+    <main id="view-container">
+      <!-- SECTION: LAUNCH & CHAT CONSOLE -->
+      <section id="sec-launch" data-section="Launch">
+        <div class="thread-hero">
+          <div>
+            <h2 style="margin:0">Launch &amp; Chat</h2>
+            <div class="dim">Orchestrate coding agents with safety previews and real-time execution</div>
+          </div>
+          <div id="routes-line" class="routes-badge">routes: loading…</div>
+        </div>
+
+        <div class="chat-stream" id="chat-feed">
+          <div class="chat-msg system">
+            <div class="chat-header">
+              <span class="chat-author">CrewBus Studio</span>
+              <span class="chat-time">Active</span>
+            </div>
+            <div>Ready to dispatch autonomous coding agents for <code>${e(boardPath)}</code>. Configure your task below and preview execution plans before live boot.</div>
+          </div>
+          <div id="chat-events"></div>
+          <div id="launch-diff"></div>
+          <div id="launch-out" class="log"></div>
+        </div>
+
+        <div class="composer-card">
+          <div class="composer-harness-bar">
+            <div class="dim" style="margin-bottom:6px">Select Agent Harness:</div>
+            <div id="harness-cards" class="harness-pills" aria-label="harness picker"></div>
+            <select id="launch-harness" style="display:none"></select>
+          </div>
+
+          <div class="composer-config-row">
+            <span class="dim">Target:</span>
+            <input id="launch-to" size="14" placeholder="auto (or w-1)" title="Target worker name(s)">
+            <span class="dim">Count:</span>
+            <div class="stepper-wrap">
+              <button id="launch-count-minus" type="button" title="fewer workers">−</button>
+              <input id="launch-count" size="2" value="1">
+              <button id="launch-count-plus" type="button" title="more workers">+</button>
+            </div>
+            <span class="dim" style="margin-left:8px">Permission:</span>
+            <select id="launch-permission" style="display:none"><option>supervised</option><option>autoEdits</option><option>auto</option><option>full</option></select>
+            <span id="launch-permission-seg">
+              <button type="button" data-perm="supervised" class="sel">supervised</button>
+              <button type="button" data-perm="autoEdits">autoEdits</button>
+              <button type="button" data-perm="auto">auto</button>
+              <button type="button" data-perm="full">full</button>
+            </span>
+            <label class="dim" style="cursor:pointer"><input id="launch-dry" type="checkbox" checked> Dry-run</label>
+          </div>
+
+          <div class="composer-textarea-wrap">
+            <textarea id="launch-brief" rows="3" maxlength="8000" placeholder="Type a task brief for your AI agents (e.g., 'Refactor auth middleware to use JWT and add unit tests')… (Ctrl+Enter to launch)"></textarea>
+            <span id="launch-brief-count" class="brief-counter">0/8000</span>
+          </div>
+
+          <div class="composer-bottom">
+            <div class="launch-identity">
+              from <input id="launch-from" size="10" placeholder="agent name">
+              token <input id="launch-token" type="password" size="18" placeholder="abt-…">
+            </div>
+            <div class="launch-actions">
+              <button id="launch-preview" type="button">Preview Plan</button>
+              <button id="launch-go" type="button" class="btn-launch danger">Launch Agents</button>
+            </div>
+          </div>
+        </div>
+
+        <details class="tech-details" style="margin-top:16px">
+          <summary><span class="dim">Driver capabilities &amp; diagnostics table</span></summary>
+          <table>
+            <thead><tr><th>driver</th><th>binary</th><th>version</th><th>brief</th><th>resume</th></tr></thead>
+            <tbody id="harnesses"></tbody>
+          </table>
+        </details>
+      </section>
+
+      <!-- SECTION: BOARDS (OVERVIEW) -->
+      <section id="sec-boards" data-section="Boards" class="approot-hidden">
+        <h1>crewbus <span class="dim">${e(boardPath)}</span></h1>
+        <div class="cards">
+          <div class="card"><b id="c-agents">–</b><br>agents (<span id="c-active">–</span> active)</div>
+          <div class="card"><b id="c-workers">–</b><br>workers</div>
+          <div class="card"><b id="c-unacked">–</b><br>unacked</div>
+          <div class="card"><b id="c-bcast">–</b><br>broadcasts</div>
+          <div class="card"><b id="c-groups">–</b><br>groups</div>
+          <div class="card"><b id="c-peers">–</b><br>peers</div>
+        </div>
+        <h2>Recent activity</h2>
+        <table><tr><th>id</th><th>route</th><th>message</th></tr><tbody id="recent"></tbody></table>
+        <h2>Broadcasts</h2>
+        <table><tr><th>id</th><th>from</th><th>to</th><th>subject</th><th>body</th></tr><tbody id="bcast"></tbody></table>
+      </section>
+
+      <!-- SECTION: CREWS (WORKERS & TEAMS) -->
+      <section id="sec-crews" data-section="Crews" class="approot-hidden">
+        <h2>Workers <button id="killall" class="danger">kill all</button></h2>
+        <table><tr><th>worker</th><th>state</th><th>pid</th><th>reply</th><th>log tail</th><th></th></tr><tbody id="workers"></tbody></table>
+        <h2>Agents</h2>
+        <table><tr><th>name</th><th>presence</th><th>last seen</th><th>session</th><th>DMs</th><th>unacked</th></tr><tbody id="agents"></tbody></table>
+        <h2>Groups</h2>
+        <table><tr><th>name</th><th>members</th></tr><tbody id="groups"></tbody></table>
+      </section>
+
+      <!-- SECTION: FLEET -->
+      <section id="sec-fleet" data-section="Fleet" class="approot-hidden">
+        <h2>Fleet <span class="dim">every relay this board syncs with, live /healthz</span></h2>
+        <table><tr><th>relay</th><th>role</th><th>weight</th><th>workers</th><th>lag</th><th>last sync</th></tr><tbody id="fleet"></tbody></table>
+        <h2>Peers</h2>
+        <table><tr><th>relay</th><th>last sync</th></tr><tbody id="peers"></tbody></table>
+      </section>
+
+      <!-- SECTION: CHANNELS -->
+      <section id="sec-channels" data-section="Channels" class="approot-hidden">
+        <h2>Channels <span class="dim">shared append-only logs, latest heads</span></h2>
+        <div id="channels"></div>
+      </section>
+
+      <!-- SECTION: TRIAGE -->
+      <section id="sec-triage" data-section="Triage" class="approot-hidden">
+        <h2>Triage <span class="dim">unacked mail for the identity above</span> <button id="ackall">ack all</button></h2>
+        <table><tr><th>id</th><th>from</th><th>message</th><th></th></tr><tbody id="triage"></tbody></table>
+      </section>
+
+      <!-- SECTION: APPROVALS -->
+      <section id="sec-approvals" data-section="Approvals" class="approot-hidden">
+        <h2>Approvals <span class="dim">unacked approval: requests for the identity above</span></h2>
+        <table><tr><th>id</th><th>from</th><th>request</th><th>reason</th><th></th></tr><tbody id="approvals"></tbody></table>
+      </section>
+
+      <!-- SECTION: RESULTS -->
+      <section id="sec-results" data-section="Results" class="approot-hidden">
+        <h2>Results &amp; races <span class="dim">verified outcomes + live runners (kill closes losers out)</span></h2>
+        <table><tr><th>group</th><th>telemetry</th><th>verified result</th><th>running</th><th></th></tr><tbody id="results"></tbody></table>
+      </section>
+
+      <!-- SECTION: AUDIT -->
+      <section id="sec-audit" data-section="Audit" class="approot-hidden">
+        <h2>Audit <span class="dim">tamper-evident chain + recent events (payloads never leave the server)</span></h2>
+        <div id="auditver" class="dim"></div>
+        <table><tr><th>seq</th><th>at</th><th>actor</th><th>event</th><th>target</th><th>result</th></tr><tbody id="audit"></tbody></table>
+      </section>
+
+      <!-- SECTION: SETTINGS -->
+      <section id="sec-settings" data-section="Settings" class="approot-hidden">
+        <h2>Settings &amp; Identity</h2>
+        <div id="sec-settings" class="card" style="margin-bottom:1em">
+          acting as <input id="who" size="12" placeholder="agent name"> token <input id="tok" type="password" size="28" placeholder="abt-…"> <button id="save">save</button> <span id="ident" class="dim" style="display:none"></span>
+        </div>
+        <h2>Holds &amp; quotas <span class="dim">legal hold + board quotas (open reads, same as the CLI status/show)</span></h2>
+        <div class="cards">
+          <div class="card" id="holds-card"><b>Hold</b><div id="holds-body" class="dim">loading…</div></div>
+          <div class="card" id="quotas-card"><b>Quotas</b><div id="quotas-body" class="dim">loading…</div></div>
+        </div>
+      </section>
+
+      <!-- Hidden Section for Holds anchor compatibility -->
+      <section id="sec-holds" data-section="Holds" style="display:none"></section>
+
+      <div id="result"></div>
+    </main>
+  </div>
+
+  <!-- 3. RIGHT COLLAPSIBLE INSPECTOR -->
+  <aside id="app-inspector">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <b style="font-size:14px">Inspector</b>
+      <button type="button" id="close-inspector-btn" style="border:none;background:transparent;color:var(--text-dim);cursor:pointer">✕</button>
+    </div>
+    <div id="inspector">
+      <span class="dim">click a worker row to inspect</span>
+      <div id="inspector-body" class="dim" style="margin-top:8px">no worker selected</div>
+    </div>
+  </aside>
+</div>
+
+<!-- COMMAND PALETTE MODAL -->
+<div id="palette">
+  <div id="palette-box">
+    <input id="palette-input" placeholder="type a section or worker name (Enter jumps, Esc closes)">
+    <div id="palette-list"></div>
+    <div class="palette-hint">Enter jumps to the first match · Esc closes · Ctrl+K toggles</div>
+  </div>
+</div>
+
+<!-- UNDO TOAST -->
+<div id="undo-toast" role="status"></div>
+
 <script>
 'use strict';
 function esc(s){return String(s===undefined||s===null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
@@ -397,7 +821,16 @@ function short(s,n){s=String(s||'');return s.length>n?s.slice(0,n)+'…':s;}
 function humanBytes(n){if(typeof n!=='number'||!(n>=0))return 'unlimited';if(n<1024)return n+' B';var u=['B','KB','MB','GB','TB'];var v=n;var i=0;while(v>=1024&&i<u.length-1){v/=1024;i++;}var r=Math.round(v*10)/10;return r+' '+u[i]+' ('+n+' bytes)';}
 function fmtLimit(v){return (v===undefined||v===null)?'unlimited':String(v);}
 function creds(){return {from:document.getElementById('who').value.trim(),token:document.getElementById('tok').value};}
-function markIdent(){var c=creds();document.getElementById('ident').textContent=c.from?('identity: '+c.from):'';}
+function markIdent(){
+  var c=creds();
+  var txt=c.from?('identity: '+c.from):'';
+  var idEl=document.getElementById('ident');
+  if(idEl)idEl.textContent=txt;
+  var lf=document.getElementById('launch-from');
+  if(lf&&!lf.value&&c.from)lf.value=c.from;
+  var lt=document.getElementById('launch-token');
+  if(lt&&!lt.value&&c.token)lt.value=c.token;
+}
 function say(t){document.getElementById('result').textContent=t;}
 document.getElementById('save').onclick=function(){var c=creds();try{localStorage.setItem('ab-who',c.from);localStorage.setItem('ab-tok',c.token);}catch(e){}markIdent();say('identity saved in this tab');};
 try{document.getElementById('who').value=localStorage.getItem('ab-who')||'';document.getElementById('tok').value=localStorage.getItem('ab-tok')||'';}catch(e){}markIdent();
@@ -566,8 +999,8 @@ async function refresh(){
     Array.prototype.forEach.call(document.querySelectorAll('[data-approve]'),function(b){b.onclick=function(){decide(b.getAttribute('data-approve'),'approved');};});
     Array.prototype.forEach.call(document.querySelectorAll('[data-deny]'),function(b){b.onclick=function(){decide(b.getAttribute('data-deny'),'denied');};});
     refreshLaunchMeta();
-    try{var _cd=document.getElementById('conn-dot');if(_cd){_cd.style.color='#4cc38a';_cd.title='connected: last poll ok';}}catch(_){}
-  }catch(e){try{var _cd2=document.getElementById('conn-dot');if(_cd2){_cd2.style.color='#e5534b';_cd2.title='poll failed';}}catch(_){}say('refresh failed: '+e.message);}
+    try{var _cd=document.getElementById('conn-dot');if(_cd){_cd.style.color='#38d39f';_cd.title='connected: last poll ok';}}catch(_){}
+  }catch(e){try{var _cd2=document.getElementById('conn-dot');if(_cd2){_cd2.style.color='#f85149';_cd2.title='poll failed';}}catch(_){}say('refresh failed: '+e.message);}
 }
 async function ackOne(id){
   var c=creds();
@@ -594,14 +1027,14 @@ async function decide(id,verdict){
   refresh();
 }
 async function loadLaunchMeta(){
-  // One-time harness <select> options; the table itself refreshes every poll
-  // via refreshLaunchMeta() (selection-preserving).
   try{
     var hr=await fetch('/api/harnesses',{cache:'no-store'});
     var hj=await hr.json();
-    document.getElementById('launch-harness').innerHTML=(hj||[]).map(function(h){
-      return '<option value="'+esc(h.driver)+'">'+esc(h.driver)+'</option>';
-    }).join('');
+    var selH=document.getElementById('launch-harness');
+    if(selH){
+      selH.innerHTML=(hj||[]).map(function(h){return '<option value="'+esc(h.driver)+'">'+esc(h.driver)+'</option>';}).join('');
+    }
+    syncTopbarHarness();
   }catch(e){}
   refreshLaunchMeta();
 }
@@ -617,12 +1050,7 @@ async function fetchLaunchMetaCached(kind,url){
   return j;
 }
 function refreshLaunchMeta(){
-  // M6-lite: harness presence/version stays live on the 5s poll. Rebuilds
-  // the table + routes line only — never the <select>, so a choice
-  // mid-form is never clobbered. Failures are silent (stale table stays).
-  // Poll coalescing: /api/harnesses + /api/routes payloads are cached
-  // in-page (__launchMetaCache, __launchMetaTtlMs) and reused within the
-  // poll window instead of refetching per refresh().
+  // never the <select>
   (async function(){
     try{
       var hj=await fetchLaunchMetaCached('harnesses','/api/harnesses');
@@ -670,13 +1098,12 @@ document.getElementById('launch-go').onclick=function(){
   if(!dry&&!confirm('live boot: spawn real workers from this board?'))return;
   doLaunch(dry);
 };
-// M2 AppRoot (additive only): left nav, Ctrl+K palette, harness cards,
-// count stepper, permission segmented, dry-run diff, undo toast, inspector.
-// Reuses creds()/say()/kill()/ackOne()/decide() and tab-memory tokens only.
 function approotShowAll(){
   var secs=document.querySelectorAll('section[data-section]');
   for(var i=0;i<secs.length;i++){secs[i].classList.remove('approot-hidden');}
   markApprootNav('all');
+  var vt=document.getElementById('view-title');
+  if(vt)vt.textContent='All Sections';
 }
 function markApprootNav(id){
   var btns=document.querySelectorAll('#approot-nav [data-nav]');
@@ -695,10 +1122,22 @@ function approotNavTo(id){
   if(isSec){for(i=0;i<secs.length;i++){if(secs[i]===el){secs[i].classList.remove('approot-hidden');}else{secs[i].classList.add('approot-hidden');}}}
   else{for(i=0;i<secs.length;i++){secs[i].classList.remove('approot-hidden');}}
   markApprootNav(id);
+  var vt=document.getElementById('view-title');
+  if(vt){
+    var secName=el.getAttribute('data-section')||id.replace(/^sec-/,'');
+    vt.textContent=secName.charAt(0).toUpperCase()+secName.slice(1);
+  }
   try{el.scrollIntoView({behavior:'smooth',block:'start'});}catch(_){try{el.scrollIntoView();}catch(_2){}}
 }
 function paletteSections(){
   return [
+    {kind:'action',label:'⚡ Launch new agent…',action:'launch'},
+    {kind:'action',label:'🛑 Kill all workers',action:'killall'},
+    {kind:'action',label:'✓ Ack all triage mail',action:'ackall'},
+    {kind:'action',label:'📋 Copy board path',action:'copyboard'},
+    {kind:'action',label:'📂 Open project folder…',action:'openfolder'},
+    {kind:'action',label:'🔄 Refresh board state',action:'refresh'},
+    {kind:'section',label:'Launch',id:'sec-launch'},
     {kind:'section',label:'Boards',id:'sec-boards'},
     {kind:'section',label:'Crews',id:'sec-crews'},
     {kind:'section',label:'Fleet',id:'sec-fleet'},
@@ -707,8 +1146,7 @@ function paletteSections(){
     {kind:'section',label:'Approvals',id:'sec-approvals'},
     {kind:'section',label:'Results',id:'sec-results'},
     {kind:'section',label:'Audit',id:'sec-audit'},
-    {kind:'section',label:'Settings',id:'sec-settings'},
-    {kind:'section',label:'Launch',id:'launch-harness'}
+    {kind:'section',label:'Settings',id:'sec-settings'}
   ];
 }
 function paletteOpen(){return document.getElementById('palette').classList.contains('open');}
@@ -720,6 +1158,7 @@ function openPalette(){
   try{inp.focus();}catch(_){}
 }
 function closePalette(){document.getElementById('palette').classList.remove('open');}
+window.__paletteSelIdx=0;
 function renderPaletteList(filter){
   var f=String(filter||'').toLowerCase();
   var items=paletteSections();
@@ -731,10 +1170,11 @@ function renderPaletteList(filter){
     if(nm&&(!f||nm.toLowerCase().indexOf(f)>=0)){matches.push({kind:'worker',label:'worker '+nm,id:nm});}
   }
   window.__paletteMatches=matches.slice(0,30);
+  window.__paletteSelIdx=0;
   var html='';
   for(i=0;i<window.__paletteMatches.length;i++){
     var m=window.__paletteMatches[i];
-    html+='<div data-idx="'+i+'" class="'+(i===0?'sel':'')+'">'+esc(m.kind+': '+m.label)+'</div>';
+    html+='<div data-idx="'+i+'" class="'+(i===0?'sel':'')+'"><span>'+esc(m.label)+'</span><span class="dim">'+esc(m.kind)+'</span></div>';
   }
   var list=document.getElementById('palette-list');
   list.innerHTML=html||'<div class="dim">no matches</div>';
@@ -743,11 +1183,28 @@ function renderPaletteList(filter){
     rows[i].onclick=(function(idx){return function(){paletteActivate(window.__paletteMatches[idx]);};})(i);
   }
 }
+function updatePaletteSel(){
+  var rows=document.querySelectorAll('#palette-list [data-idx]');
+  for(var i=0;i<rows.length;i++){
+    if(i===window.__paletteSelIdx){rows[i].classList.add('sel');try{rows[i].scrollIntoView({block:'nearest'});}catch(_){}}
+    else{rows[i].classList.remove('sel');}
+  }
+}
 function paletteActivate(m){
   if(!m)return;
   closePalette();
-  if(m.kind==='section'){approotNavTo(m.id);}
-  else{approotNavTo('sec-crews');showInspector(m.id);}
+  if(m.kind==='action'){
+    if(m.action==='launch'){approotNavTo('sec-launch');document.getElementById('launch-brief').focus();}
+    else if(m.action==='killall'){document.getElementById('killall').click();}
+    else if(m.action==='ackall'){document.getElementById('ackall').click();}
+    else if(m.action==='copyboard'){copyBoardPath();}
+    else if(m.action==='openfolder'){document.getElementById('folder-picker').click();}
+    else if(m.action==='refresh'){refresh();}
+  }else if(m.kind==='section'){
+    approotNavTo(m.id);
+  }else{
+    approotNavTo('sec-crews');showInspector(m.id);
+  }
 }
 function syncTopbarHarness(){
   var main=document.getElementById('launch-harness');
@@ -778,7 +1235,7 @@ function renderHarnessCards(){
       var ver=h.found?(h.version||'installed'):('missing ('+(h.detail||'not installed')+')');
       var cls='harness-card'+(h.driver===sel?' sel':'')+(h.found?'':' missing');
       var badge=counts[h.driver]?'<div class="dim">'+counts[h.driver]+' running</div>':'';
-      return '<div class="'+cls+'" data-driver="'+esc(h.driver)+'"><b>'+esc(h.driver)+'</b><div class="dim">'+esc(ver)+'</div><div class="dim">brief: '+esc(h.briefDelivery||'?')+' · resume: '+esc(h.resume?'yes':'no')+'</div>'+badge+'</div>';
+      return '<div class="'+cls+'" data-driver="'+esc(h.driver)+'"><b>'+esc(h.driver)+'</b><div class="dim">'+esc(ver)+'</div>'+badge+'</div>';
     }).join('')||'<div class="dim">no harness drivers</div>';
     var cards=document.querySelectorAll('#harness-cards [data-driver]');
     for(var i=0;i<cards.length;i++){
@@ -837,12 +1294,12 @@ function showInspector(name){
     +'<div class="dim">state: '+esc(stateOf(w))+' · pid: '+esc(w.pid===null||w.pid===undefined?'—':String(w.pid))+' · spawner: '+esc(w.spawnedBy||'?')+'</div>'
     +'<div class="dim">harness: '+esc(w.driver||w.spawnedHarness||'—')+'</div>'
     +'<div class="dim">reply: '+rep+' · acked: '+esc(w.acked?'yes':'no')+' · session: '+esc(w.harnessSessionId||'—')+'</div>'
-    +'<div class="log">'+tail+'</div>'
-    +'<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">'
+    +'<div class="log" style="margin-top:6px">'+tail+'</div>'
+    +'<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">'
     +((w.known&&typeof w.pid==='number')?'<button class="danger" id="insp-kill">kill</button>':'')
     +(w.reply?'<button id="insp-ack">ack reply</button>':'')
     +'<button id="insp-respawn">respawn (CLI-only)</button></div>'
-    +'<div class="dim" id="insp-respawn-cmd"></div>';
+    +'<div class="dim" id="insp-respawn-cmd" style="margin-top:4px"></div>';
   body.innerHTML=html;
   var kb=document.getElementById('insp-kill');
   if(kb){kb.onclick=function(){kill([w.name]);};}
@@ -855,6 +1312,8 @@ function showInspector(name){
     try{if(navigator&&navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(cmd);}}catch(_){}
     say('respawn is CLI-only — run: '+cmd);
   };}
+  var insp=document.getElementById('app-inspector');
+  if(insp)insp.classList.remove('hidden');
 }
 var _refreshLaunchMetaOrig=refreshLaunchMeta;
 refreshLaunchMeta=function(){try{_refreshLaunchMetaOrig();}catch(_){}try{renderHarnessCards();}catch(_){}};
@@ -900,12 +1359,30 @@ document.getElementById('launch-count-plus').onclick=function(){
 document.getElementById('palette-open').onclick=function(){openPalette();};
 document.getElementById('palette-input').oninput=function(){renderPaletteList(this.value);};
 document.getElementById('palette-input').onkeydown=function(e){
-  if((e.key||'')==='Enter'){paletteActivate((window.__paletteMatches||[])[0]);}
+  var k=e.key||'';
+  if(k==='Enter'){
+    var list=window.__paletteMatches||[];
+    paletteActivate(list[window.__paletteSelIdx||0]);
+  }else if(k==='ArrowDown'){
+    e.preventDefault();
+    var max=(window.__paletteMatches||[]).length-1;
+    window.__paletteSelIdx=Math.min(max,window.__paletteSelIdx+1);
+    updatePaletteSel();
+  }else if(k==='ArrowUp'){
+    e.preventDefault();
+    window.__paletteSelIdx=Math.max(0,window.__paletteSelIdx-1);
+    updatePaletteSel();
+  }
 };
 document.addEventListener('keydown',function(e){
   var k=e.key||'';
   if((e.ctrlKey||e.metaKey)&&(k==='k'||k==='K')){e.preventDefault();if(paletteOpen()){closePalette();}else{openPalette();}}
-  else if(k==='Escape'||k==='Esc'){closePalette();}
+  else if((e.ctrlKey||e.metaKey)&&(k==='n'||k==='N')){
+    e.preventDefault();
+    approotNavTo('sec-launch');
+    var lb=document.getElementById('launch-brief');
+    if(lb){lb.value='';lb.focus();}
+  }else if(k==='Escape'||k==='Esc'){closePalette();document.getElementById('project-popover').classList.remove('open');}
 });
 document.getElementById('palette').addEventListener('click',function(e){
   if(e.target===this){closePalette();}
@@ -917,11 +1394,59 @@ document.getElementById('workers').addEventListener('click',function(e){
     if(tr&&tr.getAttribute('data-worker')){showInspector(tr.getAttribute('data-worker'));}
   }catch(_){}
 });
+
+/* Studio UI Wiring: Inspector toggle, New task, Project Popover, Copy Path */
+function copyBoardPath(){
+  var p=document.getElementById('pop-board-path').textContent;
+  try{if(navigator&&navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(p);}}catch(_){}
+  say('copied board path: '+p);
+}
+document.getElementById('copy-board-btn').onclick=copyBoardPath;
+document.getElementById('project-trigger').onclick=function(e){
+  e.stopPropagation();
+  var pop=document.getElementById('project-popover');
+  pop.classList.toggle('open');
+};
+document.addEventListener('click',function(e){
+  var pop=document.getElementById('project-popover');
+  if(pop&&!pop.contains(e.target)&&e.target!==document.getElementById('project-trigger')){pop.classList.remove('open');}
+});
+document.getElementById('btn-new-task').onclick=function(){
+  approotNavTo('sec-launch');
+  var b=document.getElementById('launch-brief');
+  if(b){b.value='';b.focus();}
+};
+document.getElementById('inspector-toggle-btn').onclick=function(){
+  document.getElementById('app-inspector').classList.toggle('hidden');
+};
+document.getElementById('close-inspector-btn').onclick=function(){
+  document.getElementById('app-inspector').classList.add('hidden');
+};
+document.getElementById('open-folder-btn').onclick=function(){
+  document.getElementById('folder-picker').click();
+};
+document.getElementById('folder-picker').onchange=function(e){
+  var files=e.target.files;
+  if(files&&files.length>0){
+    var first=files[0];
+    var pathStr=(first.webkitRelativePath||first.name||'').split('/')[0];
+    if(pathStr){
+      say('Selected folder: '+pathStr);
+      document.getElementById('project-display-name').textContent=pathStr;
+    }
+  }
+};
+document.getElementById('launch-brief').addEventListener('keydown',function(e){
+  if((e.ctrlKey||e.metaKey)&&(e.key==='Enter')){
+    e.preventDefault();
+    document.getElementById('launch-go').click();
+  }
+});
 loadLaunchMeta();
 refresh();
 setInterval(refresh,5000);
 </script>
-</main></body></html>`;
+</body></html>`;
 }
 
 // Reads a JSON request body without fail() (which would exit the server).

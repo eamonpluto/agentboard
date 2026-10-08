@@ -47,12 +47,21 @@ var deviceStore = createAuthStore({ secureStore: createMemorySecureStore() });
 if (typeof window !== 'undefined') window.__crewbusDeviceStore = deviceStore;
 
 function say(t) {
-  if (statusEl) statusEl.textContent = t;
+  if (statusEl) {
+    statusEl.textContent = t;
+    if (t && t.indexOf('sidecar live at') === 0) {
+      statusEl.style.display = 'none';
+      if (frame) frame.style.height = 'calc(100vh - 38px)';
+    } else {
+      statusEl.style.display = 'block';
+      if (frame) frame.style.height = 'calc(100vh - 66px)';
+    }
+  }
 }
 
 function markConn(ok, detail) {
   if (!dot) return;
-  dot.style.color = ok ? '#4cc38a' : '#e5534b';
+  dot.style.color = ok ? '#38d39f' : '#f85149';
   dot.title = (ok ? 'connected: ' : 'unreachable: ') + (detail || '');
 }
 
@@ -109,7 +118,7 @@ function setDashboardUrl(u, why) {
       return;
     }
     dashboardUrl = won.route.replace(/\/+$/, '');
-    if (urlEl) urlEl.textContent = 'sidecar: ' + dashboardUrl;
+    if (urlEl) urlEl.textContent = dashboardUrl.replace(/^http:\/\//, '');
     if (frame) frame.src = dashboardUrl + '/';
     supervisor.updateRoutes([dashboardUrl]);
     stopPoll();
