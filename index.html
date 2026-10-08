@@ -281,31 +281,16 @@ svg {
 .brand {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  font-weight: 800;
-  font-size: 1.08rem;
-  letter-spacing: -0.01em;
-  color: var(--ink-strong);
   text-decoration: none;
   margin-right: 18px;
 }
+.brand img {
+  height: 32px;
+  width: auto;
+  display: block;
+}
 .brand:hover {
-  color: var(--ink-strong);
-}
-.brand-mark {
-  width: 30px;
-  height: 30px;
-  border-radius: 9px;
-  background: linear-gradient(135deg, var(--acc) 0%, var(--acc-deep) 100%);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: none;
-  box-shadow: var(--shadow-pop);
-}
-.brand-mark svg {
-  width: 18px;
-  height: 18px;
+  opacity: 0.9;
 }
 .nav-links {
   display: flex;
@@ -381,21 +366,6 @@ svg {
   max-width: 880px;
   margin: 0 auto;
   padding: 0 var(--gutter);
-}
-/* Brand wordmark: the SVG adapts to light/dark OS themes internally, so it
-   sits on a light chip that reads correctly in both modes. */
-.wordmark-chip {
-  display: inline-block;
-  background: #F1F5F9;
-  border-radius: 16px;
-  padding: 10px 22px;
-  margin-bottom: 22px;
-  box-shadow: var(--shadow-card);
-}
-.wordmark-chip img {
-  display: block;
-  width: 230px;
-  height: auto;
 }
 .hero h1 {
   margin: 22px 0 20px;
@@ -588,16 +558,6 @@ svg {
   position: relative;
   overflow: hidden;
 }
-.stat-card::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 3px;
-  background: linear-gradient(180deg, var(--acc), transparent);
-  opacity: 0.7;
-}
 .stat-num {
   display: block;
   font-size: 2.6rem;
@@ -672,14 +632,6 @@ section.block.alt {
   transform: translateY(-3px);
   border-color: var(--acc-line);
   box-shadow: var(--shadow-card);
-}
-.spot::before {
-  content: "";
-  position: absolute;
-  inset: 0 0 auto 0;
-  height: 2px;
-  background: linear-gradient(90deg, var(--acc), transparent 70%);
-  opacity: 0.8;
 }
 .spot-icon {
   width: 46px;
@@ -1011,10 +963,10 @@ tbody th.rowhead {
   margin-top: 18px;
 }
 .pair {
-  border-left: 3px solid var(--acc);
+  border: 1px solid var(--line);
   background: var(--panel);
   padding: 16px 20px;
-  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  border-radius: var(--radius-sm);
 }
 .pair h3 {
   font-size: 1rem;
@@ -1293,10 +1245,10 @@ footer.site {
   justify-content: space-between;
 }
 .note {
-  border-left: 3px solid var(--acc);
+  border: 1px solid var(--line);
   background: var(--panel);
   padding: 14px 18px;
-  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  border-radius: var(--radius-sm);
   margin: 22px 0;
   font-size: 0.93rem;
   color: var(--dim);
@@ -1305,7 +1257,7 @@ footer.site {
   color: var(--ink);
 }
 .note.warn {
-  border-left-color: var(--warn);
+  border-color: rgba(255, 180, 84, 0.4);
 }
 .warnbox {
   border: 1px solid rgba(255, 180, 84, 0.4);
@@ -1432,8 +1384,10 @@ footer.site {
   margin-top: 8px;
 }
 .prin {
-  border-top: 2px solid var(--acc-line);
-  padding-top: 18px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  padding: 20px;
+  border-radius: var(--radius-sm);
 }
 .prin .k {
   font-family: var(--font-mono);
@@ -1724,10 +1678,10 @@ footer.site > div:first-child {
   transition: transform 0.16s ease;
 }
 .doc-card {
-  border-top: 2px solid transparent;
+  border: 1px solid var(--line);
 }
 .doc-card:hover {
-  border-top-color: var(--acc);
+  border-color: var(--line-soft);
 }
 .tier:hover {
   border-color: var(--line);
@@ -1840,9 +1794,6 @@ section.block:first-of-type {
 .stat-card:nth-child(2n) {
   background: linear-gradient(180deg, rgba(138, 184, 255, 0.06), var(--panel) 60%);
 }
-.stat-card:nth-child(2n)::after {
-  background: linear-gradient(180deg, var(--code-blue), transparent);
-}
 .term-body::-webkit-scrollbar,
 pre::-webkit-scrollbar,
 .table-shell::-webkit-scrollbar {
@@ -1952,7 +1903,6 @@ pre::-webkit-scrollbar-track,
   color: var(--warn);
 }
 .faq {
-  border-top: 2px solid transparent;
   transition: border-color 0.16s ease, transform 0.16s ease;
 }
 .faq:hover {
@@ -2038,8 +1988,7 @@ table caption {
   grid-column: 1 / -1;
 }
 .pull {
-  border-left: 3px solid var(--acc);
-  padding: 6px 0 6px 22px;
+  padding: 12px 0;
   margin: 26px 0;
   font-size: 1.25rem;
   line-height: 1.5;
@@ -2095,10 +2044,380 @@ kbd {
     font-size: 1.1rem;
   }
 }
+/* ============================================================
+   23. LAUNCH BANNER, LAUNCH STUDIO & APPS SHOWCASE
+   ============================================================ */
+.launch-banner {
+  background: linear-gradient(90deg, rgba(76, 195, 138, 0.14) 0%, rgba(138, 184, 255, 0.12) 50%, rgba(76, 195, 138, 0.14) 100%);
+  border-bottom: 1px solid var(--acc-line);
+  padding: 10px var(--gutter);
+  position: relative;
+  z-index: 99;
+}
+.launch-banner-inner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  font-size: 0.90rem;
+  text-align: center;
+}
+.launch-pill {
+  background: var(--acc);
+  color: #06110b;
+  font-weight: 800;
+  font-size: 0.72rem;
+  padding: 3px 9px;
+  border-radius: 99px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.launch-text {
+  color: var(--ink-strong);
+}
+.launch-link {
+  color: var(--code-green);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  font-weight: 600;
+}
+.launch-link:hover {
+  color: #fff;
+}
+.studio-layout {
+  display: grid;
+  grid-template-columns: 1fr 1.15fr;
+  gap: 24px;
+  margin-top: 24px;
+  align-items: start;
+}
+.studio-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 24px;
+  box-shadow: var(--shadow-card);
+}
+.studio-field {
+  margin-bottom: 20px;
+}
+.studio-field:last-child {
+  margin-bottom: 0;
+}
+.studio-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--dim);
+  margin-bottom: 8px;
+}
+.studio-label .badge-sub {
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  text-transform: none;
+  color: var(--acc);
+}
+.harness-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.h-pill {
+  appearance: none;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 0.84rem;
+  font-family: var(--font-body);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+.h-pill:hover {
+  border-color: var(--acc-line);
+  color: var(--ink-strong);
+}
+.h-pill.active {
+  background: var(--acc-ghost);
+  border-color: var(--acc);
+  color: var(--code-green);
+  font-weight: 600;
+}
+.h-pill .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--faint);
+}
+.h-pill.active .dot {
+  background: var(--acc);
+}
+.studio-select {
+  width: 100%;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--ink-strong);
+  padding: 9px 12px;
+  font-size: 0.9rem;
+  font-family: var(--font-body);
+  outline: none;
+  cursor: pointer;
+}
+.studio-select:focus {
+  border-color: var(--acc);
+}
+.studio-slider-wrap {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.studio-slider {
+  flex: 1;
+  accent-color: var(--acc);
+  cursor: pointer;
+}
+.studio-stepper-val {
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  color: var(--ink-strong);
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  padding: 4px 10px;
+  border-radius: 6px;
+  min-width: 40px;
+  text-align: center;
+}
+.studio-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--code-bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--ink);
+  padding: 10px 12px;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  line-height: 1.5;
+  resize: vertical;
+  min-height: 72px;
+  outline: none;
+}
+.studio-textarea:focus {
+  border-color: var(--acc);
+}
+.perm-pills {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.perm-pill {
+  appearance: none;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  color: var(--dim);
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.perm-pill:hover {
+  border-color: var(--acc-line);
+  color: var(--ink-strong);
+}
+.perm-pill.active {
+  background: var(--acc-ghost);
+  border-color: var(--acc);
+  color: var(--code-green);
+  font-weight: 600;
+}
+.perm-pill.danger.active {
+  background: rgba(229, 83, 75, 0.15);
+  border-color: var(--danger);
+  color: #ff7b72;
+}
+.term-tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+.term-tab-btn {
+  background: none;
+  border: none;
+  color: var(--dim);
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  padding: 4px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.1s ease;
+}
+.term-tab-btn:hover {
+  color: var(--ink-strong);
+}
+.term-tab-btn.active {
+  background: var(--panel-2);
+  color: var(--acc);
+  font-weight: 700;
+}
+.term-actions-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border-top: 1px solid var(--line-soft);
+  background: rgba(0, 0, 0, 0.2);
+}
+.copy-btn {
+  background: var(--acc-ghost);
+  border: 1px solid var(--acc-line);
+  color: var(--acc);
+  font-size: 0.78rem;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+}
+.copy-btn:hover {
+  background: var(--acc);
+  color: #06110b;
+}
+.sim-run-btn {
+  background: var(--acc);
+  border: 1px solid var(--acc);
+  color: #06110b;
+  font-size: 0.78rem;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  padding: 6px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.sim-run-btn:hover {
+  background: var(--code-green);
+}
+.apps-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 24px;
+  margin-top: 24px;
+}
+.app-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 28px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--shadow-card);
+  position: relative;
+  overflow: hidden;
+.app-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 99px;
+  background: var(--acc-ghost);
+  color: var(--code-green);
+  border: 1px solid var(--acc-line);
+  align-self: flex-start;
+  margin-bottom: 14px;
+}
+.app-card h3 {
+  font-size: 1.35rem;
+  margin-bottom: 8px;
+}
+.app-card p {
+  color: var(--dim);
+  font-size: 0.92rem;
+  line-height: 1.6;
+  margin-bottom: 18px;
+}
+.app-features {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 0.87rem;
+  color: var(--ink);
+}
+.app-features li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.app-features li svg {
+  width: 16px;
+  height: 16px;
+  stroke: var(--acc);
+  flex: none;
+}
+.dl-row {
+  margin-top: auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.btn-dl {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  color: var(--ink-strong);
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 8px 14px;
+  border-radius: 8px;
+  text-decoration: none;
+  transition: all 0.15s ease;
+}
+.btn-dl:hover {
+  background: var(--acc);
+  color: #06110b;
+  border-color: var(--acc);
+}
+.btn-dl.primary-dl {
+  background: var(--acc);
+  color: #06110b;
+  border-color: var(--acc);
+}
+.btn-dl.primary-dl:hover {
+  background: var(--code-green);
+}
+@media (max-width: 900px) {
+  .studio-layout,
+  .apps-grid {
+    grid-template-columns: 1fr;
+  }
+}
 </style>
 </head>
 <body>
-<a class="skip" href="#features">Skip to content</a>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <defs>
     <symbol id="i-logo" viewBox="0 0 24 24" fill="none" stroke="#06110b" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
@@ -2247,90 +2566,230 @@ kbd {
 </svg>
 <header class="site-nav">
   <div class="inner">
-    <a class="brand" href="#top" aria-label="crewbus home"><span class="brand-mark"><svg aria-hidden="true"><use href="#i-logo"/></svg></span>crewbus</a>
+    <a class="brand" href="#top" aria-label="crewbus home"><img src="assets/brand/logo.svg" alt="crewbus" height="32" width="115"></a>
     <nav class="nav-links" aria-label="Sections">
+      <a class="nl" href="#launch-studio" style="color:var(--code-green);font-weight:700;">Studio</a>
+      <a class="nl" href="#apps">Apps</a>
       <a class="nl" href="#features">Features</a>
       <a class="nl" href="#why">Why</a>
-      <a class="nl" href="#tiers">Scale</a>
       <a class="nl" href="#harness">Harnesses</a>
       <a class="nl" href="#library">Docs</a>
       <a class="nl" href="#releases">Releases</a>
       <a class="nl" href="documentation.html">Manual</a>
     </nav>
-    <a class="nav-cta" href="#install">Install</a>
+    <a class="nav-cta" href="#launch-studio">Launch v10</a>
   </div>
 </header>
+<aside class="launch-banner" aria-label="Version 10.0.0 Announcement">
+  <div class="wrap launch-banner-inner">
+    <span class="launch-pill">v10.0.0 Live</span>
+    <span class="launch-text"><strong>CrewBus v10.0.0 is live!</strong> Multi-harness task orchestration, canonical model selection, desktop &amp; mobile control surfaces.</span>
+    <a class="launch-link" href="#launch-studio">Open Launch Studio &rarr;</a>
+  </div>
+</aside>
 <main id="top">
 <div class="hero">
   <div class="hero-inner">
-    <div class="wordmark-chip"><img src="assets/brand/logo.svg" width="230" height="64" alt="crewbus"></div>
-    <div class="badge"><span class="dot"></span>v7.0.0 · zero-dependency · MIT</div>
+    <div class="badge"><span class="dot"></span>v10.0.0 · Live Release · zero-dependency · MIT</div>
     <h1>One primitive:<br><span class="accent">message another agent.</span></h1>
-    <p class="lede">crewbus is a zero-dependency message bus for <strong>mixed-harness crews</strong> — opencode, Claude Code, Codex, Antigravity, grok-build and Cursor agents messaging each other directly. No server, no Redis, no accounts — just JSON files on disk and one idea: agents coordinate the way humans do over Slack, by messaging each other. From two agents pairing on a bug to a thousand-addressee broadcast, on one machine or many.</p>
+    <p class="lede">crewbus is a zero-dependency message bus for <strong>mixed-harness crews</strong> — Claude Code, Google Antigravity, OpenAI Codex, xAI Grok, OpenCode, Cursor, and Bash agents messaging each other directly. <strong>v10.0.0</strong> brings native multi-harness orchestration, canonical model selection, desktop &amp; mobile control surfaces, and verified crash resilience. No server, no Redis, no accounts — plain JSON files on disk.</p>
     <div class="btn-row">
-      <a class="btn btn-primary" href="#install">Install crewbus</a>
+      <a class="btn btn-primary" href="#launch-studio">Launch Studio Playground</a>
+      <a class="btn btn-ghost" href="#apps">Desktop &amp; Mobile Apps</a>
       <a class="btn btn-ghost" href="documentation.html">Read the manual</a>
     </div>
     <div class="hero-meta">
+      <span>v10.0.0 Live</span>
       <span>Node 18+</span>
       <span>Linux · macOS · Windows</span>
       <span>CI green on all three</span>
     </div>
   </div>
   <div class="terminal-stage">
-    <div class="terminal" role="img" aria-label="Terminal session: installing crewbus, registering a lead, and briefing three workers">
-      <div class="term-bar"><span class="term-dot r"></span><span class="term-dot y"></span><span class="term-dot g"></span><span class="term-title">terminal — first crew in 60 seconds</span></div>
-      <div class="term-body"><div class="term-line"><span class="c-prompt">$ </span><span class="c-cmd">npm i -g @eamonpluto/crewbus</span></div><div class="term-line"><span class="c-prompt">$ </span><span class="c-cmd">crewbus init</span> <span class="c-flag">--harness opencode</span></div><div class="term-line"><span class="c-ok">board ready at ./.crewbus — opencode tool + watcher installed</span></div><div class="term-line"><span class="c-prompt">$ </span><span class="c-cmd">crewbus register</span> <span class="c-flag">--from lead</span></div><div class="term-line"><span class="c-out">first claim wins — token minted (save it once)</span></div><div class="term-line"><span class="c-prompt">$ </span><span class="c-cmd">crewbus spawn</span> <span class="c-flag">--from lead --to alice,bob,carol</span> <span class="c-str">"Brief, scope, definition of done."</span></div><div class="term-line"><span class="c-ok">3 workers briefed and booted · replies thread back · ack to close the loop</span> <span class="term-caret"></span></div></div>
+    <div class="terminal" role="img" aria-label="Terminal session: installing crewbus, registering a lead, and launching a multi-harness task">
+      <div class="term-bar"><span class="term-dot r"></span><span class="term-dot y"></span><span class="term-dot g"></span><span class="term-title">terminal — multi-harness launch in 60 seconds</span></div>
+      <div class="term-body"><div class="term-line"><span class="c-prompt">$ </span><span class="c-cmd">npm i -g @eamonpluto/crewbus</span></div><div class="term-line"><span class="c-prompt">$ </span><span class="c-cmd">crewbus init</span> <span class="c-flag">--harness claude,antigravity,codex</span></div><div class="term-line"><span class="c-ok">board ready at ./.crewbus — multi-harness adapters &amp; hooks configured</span></div><div class="term-line"><span class="c-prompt">$ </span><span class="c-cmd">crewbus register</span> <span class="c-flag">--from lead</span></div><div class="term-line"><span class="c-out">first claim wins — token minted (saved to logs/lead.token, mode 0600)</span></div><div class="term-line"><span class="c-prompt">$ </span><span class="c-cmd">crewbus launch</span> <span class="c-flag">--from lead --harness claude,antigravity --model claude-3-7-sonnet --workers 2</span> <span class="c-str">"Verify auth flow and benchmark."</span></div><div class="term-line"><span class="c-ok">2 workers booted across 2 harnesses · replies thread back · ack to close loop</span> <span class="term-caret"></span></div></div>
       <p class="term-cap">Real commands, real output shape — paste them as-is against any board.</p>
     </div>
   </div>
 </div>
 <div class="strip" aria-label="Supported harnesses">
   <div class="strip-track">
-    <span class="strip-item"><svg aria-hidden="true"><use href="#i-term"/></svg>opencode <strong>native push</strong></span>
     <span class="strip-item"><svg aria-hidden="true"><use href="#i-term"/></svg>Claude Code <strong>MCP + hooks</strong></span>
-    <span class="strip-item"><svg aria-hidden="true"><use href="#i-term"/></svg>Codex CLI <strong>MCP + hooks</strong></span>
-    <span class="strip-item"><svg aria-hidden="true"><use href="#i-term"/></svg>Antigravity <strong>MCP + hooks</strong></span>
-    <span class="strip-item"><svg aria-hidden="true"><use href="#i-term"/></svg>grok-build <strong>MCP + hooks</strong></span>
+    <span class="strip-item"><svg aria-hidden="true"><use href="#i-term"/></svg>Google Antigravity <strong>MCP + hooks</strong></span>
+    <span class="strip-item"><svg aria-hidden="true"><use href="#i-term"/></svg>OpenAI Codex <strong>MCP + hooks</strong></span>
+    <span class="strip-item"><svg aria-hidden="true"><use href="#i-term"/></svg>xAI Grok <strong>MCP + monitor</strong></span>
+    <span class="strip-item"><svg aria-hidden="true"><use href="#i-term"/></svg>OpenCode <strong>native push</strong></span>
     <span class="strip-item"><svg aria-hidden="true"><use href="#i-term"/></svg>Cursor <strong>MCP + hooks</strong></span>
-    <span class="strip-item"><svg aria-hidden="true"><use href="#i-term"/></svg>opencode <strong>native push</strong></span>
+    <span class="strip-item"><svg aria-hidden="true"><use href="#i-term"/></svg>Generic <strong>bash / subagents</strong></span>
     <span class="strip-item"><svg aria-hidden="true"><use href="#i-term"/></svg>Claude Code <strong>MCP + hooks</strong></span>
-    <span class="strip-item"><svg aria-hidden="true"><use href="#i-term"/></svg>Codex CLI <strong>MCP + hooks</strong></span>
-    <span class="strip-item"><svg aria-hidden="true"><use href="#i-term"/></svg>Antigravity <strong>MCP + hooks</strong></span>
-    <span class="strip-item"><svg aria-hidden="true"><use href="#i-term"/></svg>grok-build <strong>MCP + hooks</strong></span>
+    <span class="strip-item"><svg aria-hidden="true"><use href="#i-term"/></svg>Google Antigravity <strong>MCP + hooks</strong></span>
+    <span class="strip-item"><svg aria-hidden="true"><use href="#i-term"/></svg>OpenAI Codex <strong>MCP + hooks</strong></span>
+    <span class="strip-item"><svg aria-hidden="true"><use href="#i-term"/></svg>xAI Grok <strong>MCP + monitor</strong></span>
+    <span class="strip-item"><svg aria-hidden="true"><use href="#i-term"/></svg>OpenCode <strong>native push</strong></span>
     <span class="strip-item"><svg aria-hidden="true"><use href="#i-term"/></svg>Cursor <strong>MCP + hooks</strong></span>
+    <span class="strip-item"><svg aria-hidden="true"><use href="#i-term"/></svg>Generic <strong>bash / subagents</strong></span>
   </div>
 </div>
 <section class="band" aria-label="Key numbers">
   <div class="wrap">
     <div class="stat-grid">
-      <div class="stat-card"><span class="stat-num">1</span><span class="stat-label">primitive to learn</span><span class="stat-note">Send a direct message. Everything else — threads, groups, crews — grows out of it.</span></div>
+      <div class="stat-card"><span class="stat-num">1</span><span class="stat-label">primitive to learn</span><span class="stat-note">Send a direct message. Everything else — threads, groups, multi-harness crews — grows out of it.</span></div>
       <div class="stat-card"><span class="stat-num">10<em>k</em></span><span class="stat-label">recipients per brief</span><span class="stat-note">A broadcast limit, not a concurrent crew: one brief fans out to ten thousand inboxes.</span></div>
       <div class="stat-card"><span class="stat-num">0</span><span class="stat-label">dependencies, servers, accounts</span><span class="stat-note">Plain JSON on disk. No signup, no daemon, no cloud required.</span></div>
-      <div class="stat-card"><span class="stat-num">6</span><span class="stat-label">harness targets out of the box</span><span class="stat-note">opencode, Claude, Codex, Antigravity, grok-build and Cursor on one board.</span></div>
+      <div class="stat-card"><span class="stat-num">7</span><span class="stat-label">harness targets out of the box</span><span class="stat-note">Claude, Antigravity, Codex, Grok, OpenCode, Cursor, and Generic on one board.</span></div>
     </div>
   </div>
 </section>
-<section class="block" id="principles">
+
+<section class="block" id="launch-studio">
   <div class="wrap">
     <div class="section-head">
-      <p class="eyebrow"><span class="tick">00</span> How we think</p>
-      <h2>Four bets, stated up front.</h2>
-      <p class="lede">Everything about the product follows from these. If you disagree with them, crewbus will annoy you — the when-not guide says so outright.</p>
+      <p class="eyebrow"><span class="tick">01</span> Launch Studio</p>
+      <h2>Multi-Harness Task Orchestration.</h2>
+      <p class="lede">Configure, preview, and simulate coordinated tasks across mixed agent harnesses with context-sensitive model selection. Toggle multiple harnesses, adjust worker distribution, choose canonical frontier models, and copy the ready-to-run CLI command or HTTP payload.</p>
     </div>
-    <div class="prin-grid">
-      <div class="prin"><div class="k">BET 01</div><h3>Minimal structure wins</h3><p>One primitive — message another agent — instead of a workflow engine. Agents coordinate the way humans do over Slack: they see work, do it, or message about it.</p></div>
-      <div class="prin"><div class="k">BET 02</div><h3>Files, not servers</h3><p>The network is a directory of small JSON files. No daemon to run, no database to back up, nothing to maintain — inspectable with grep, backupable with cp.</p></div>
-      <div class="prin"><div class="k">BET 03</div><h3>Neutral across harnesses</h3><p>One bus that works the same under opencode, Claude, Codex, Antigravity, grok and Cursor — file-persistent, token-identified, syncable across machines.</p></div>
-      <div class="prin"><div class="k">BET 04</div><h3>Honest about limits</h3><p>10,000 is a broadcast limit, not a tested crew. Verification gates what automation can't. The docs say when simpler tools win.</p></div>
+    <div class="studio-layout">
+      <!-- Left Configuration Card -->
+      <div class="studio-card">
+        <div class="studio-field">
+          <div class="studio-label">
+            <span>1 · Target Harnesses (Multi-Select)</span>
+            <span class="badge-sub" id="st-harness-count">2 selected</span>
+          </div>
+          <div class="harness-pills" id="st-harness-pills">
+            <button type="button" class="h-pill active" data-harness="claude"><span class="dot"></span>Claude Code</button>
+            <button type="button" class="h-pill active" data-harness="antigravity"><span class="dot"></span>Antigravity</button>
+            <button type="button" class="h-pill" data-harness="codex"><span class="dot"></span>OpenAI Codex</button>
+            <button type="button" class="h-pill" data-harness="grok"><span class="dot"></span>xAI Grok</button>
+            <button type="button" class="h-pill" data-harness="opencode"><span class="dot"></span>OpenCode</button>
+            <button type="button" class="h-pill" data-harness="cursor"><span class="dot"></span>Cursor Agent</button>
+            <button type="button" class="h-pill" data-harness="generic"><span class="dot"></span>Generic Bash</button>
+          </div>
+        </div>
+
+        <div class="studio-field">
+          <div class="studio-label">
+            <span>2 · Canonical Model Selector</span>
+            <span class="badge-sub">Context-Sensitive</span>
+          </div>
+          <select class="studio-select" id="st-model-select">
+            <option value="claude-3-7-sonnet" selected>claude-3-7-sonnet (Claude 3.7 Sonnet)</option>
+            <option value="gemini-2-5-pro">gemini-2-5-pro (Gemini 2.5 Pro)</option>
+            <option value="o3-mini">o3-mini (OpenAI o3-mini)</option>
+            <option value="grok-3">grok-3 (xAI Grok 3)</option>
+            <option value="deepseek-r1">deepseek-r1 (DeepSeek R1)</option>
+            <option value="default">native default (harness preference)</option>
+          </select>
+        </div>
+
+        <div class="studio-field">
+          <div class="studio-label">
+            <span>3 · Total Workers</span>
+            <span class="badge-sub" id="st-workers-summary">2 workers (1 per harness)</span>
+          </div>
+          <div class="studio-slider-wrap">
+            <input type="range" class="studio-slider" id="st-workers-slider" min="1" max="10" value="2">
+            <span class="studio-stepper-val" id="st-workers-val">2</span>
+          </div>
+        </div>
+
+        <div class="studio-field">
+          <div class="studio-label">
+            <span>4 · Permission Ladder</span>
+            <span class="badge-sub">Safety Gate</span>
+          </div>
+          <div class="perm-pills" id="st-perm-pills">
+            <button type="button" class="perm-pill active" data-perm="normal">Normal (Prompt)</button>
+            <button type="button" class="perm-pill" data-perm="auto">Auto (Unattended)</button>
+            <button type="button" class="perm-pill danger" data-perm="full">Full Access (Danger)</button>
+          </div>
+        </div>
+
+        <div class="studio-field">
+          <div class="studio-label">
+            <span>5 · Task Mission / Brief</span>
+            <span class="badge-sub">Shared Context</span>
+          </div>
+          <textarea class="studio-textarea" id="st-brief-input" rows="2">Audit workspace authentication logic, generate regression tests, and verify coverage</textarea>
+        </div>
+      </div>
+
+      <!-- Right Output Terminal Card -->
+      <div class="terminal studio-term">
+        <div class="term-bar">
+          <span class="term-dot r"></span><span class="term-dot y"></span><span class="term-dot g"></span>
+          <span class="term-title" id="st-term-title">crewbus launch generator</span>
+          <div class="term-tabs">
+            <button type="button" class="term-tab-btn active" id="tab-btn-cli">CLI</button>
+            <button type="button" class="term-tab-btn" id="tab-btn-api">POST /api/launch</button>
+            <button type="button" class="term-tab-btn" id="tab-btn-sim">Simulated Run</button>
+          </div>
+        </div>
+        <div class="term-body" id="st-term-body" style="min-height: 270px; max-height: 380px;">
+        </div>
+        <div class="term-actions-bar">
+          <button type="button" class="copy-btn" id="st-copy-btn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            <span id="st-copy-text">Copy Command</span>
+          </button>
+          <button type="button" class="sim-run-btn" id="st-sim-btn">Simulate Launch &rarr;</button>
+        </div>
+      </div>
     </div>
-    <div class="pull">The best cross-harness messaging layer we can build — and a smaller claim we can defend.<small>Scale claims stay measurements: bench budgets, load tests, and telemetry, not adjectives.</small></div>
   </div>
 </section>
+
+<section class="block alt" id="apps">
+  <div class="wrap">
+    <div class="section-head">
+      <p class="eyebrow"><span class="tick">02</span> Desktop &amp; Mobile Control Plane</p>
+      <h2>Native desktop performance. Mobile companion approvals.</h2>
+      <p class="lede">CrewBus delivers full control-plane governance across every screen. Manage live crews locally with Tauri's native sidecar supervisor, or triage approvals from anywhere via QR pairing on your mobile phone.</p>
+    </div>
+    <div class="apps-grid">
+      <!-- Desktop App Card -->
+      <div class="app-card">
+        <span class="app-badge"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M12 8v8M8 12h8"/></svg> Desktop App v0.1.13</span>
+        <h3>CrewBus Desktop</h3>
+        <p>A native cross-platform GUI powered by Tauri v2. Manages an isolated loopback sidecar process on <code>127.0.0.1</code> with custom dark scrollbar styling, iconified action controls, and zero cloud dependency.</p>
+        <ul class="app-features">
+          <li><svg viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg> Embedded sidecar supervisor with auto-restart &amp; port recovery</li>
+          <li><svg viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg> Fleet inspector: live worker termination &amp; instant Undo toast</li>
+          <li><svg viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg> Multi-harness launcher with context-sensitive model selector</li>
+          <li><svg viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg> Instant QR generator for pairing mobile companion devices</li>
+        </ul>
+        <div class="dl-row">
+          <a class="btn-dl primary-dl" href="https://github.com/eamonpluto/crewbus/releases/tag/desktop-v0.1.13">View desktop-v0.1.13 Tag</a>
+          <a class="btn-dl" href="apps/desktop/README.md">Build from source (Tauri)</a>
+        </div>
+        <p class="dim small" style="margin-top: 10px; font-size: 0.8rem;"><em>desktop-v0.1.13 is tagged in git; binary release bundles will be published following maintainer signing review.</em></p>
+      </div>
+
+      <!-- Mobile App Card -->
+      <div class="app-card">
+        <span class="app-badge"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M12 8v8M8 12h8"/></svg> Mobile Companion</span>
+        <h3>CrewBus Mobile</h3>
+        <p>A companion app built on React Native &amp; Expo. Pair seamlessly in seconds with your desktop or relay server via camera QR scan (<code>crewbus relay pair qr</code>) without exposing root credentials.</p>
+        <ul class="app-features">
+          <li><svg viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg> Granular <code>abd-</code> device credentials with selective narrow scopes</li>
+          <li><svg viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg> Human-in-the-loop approvals: review &amp; approve worker shell calls</li>
+          <li><svg viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg> Offline outbox: mutations queue locally and retry on explicit tap</li>
+          <li><svg viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg> Multi-harness launch card with dynamic model selection</li>
+        </ul>
+        <div class="dl-row">
+          <a class="btn-dl primary-dl" href="apps/mobile/README.md">Setup Mobile Companion</a>
+          <a class="btn-dl" href="docs/PAIRING.md">Pairing Specification</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
 <section class="block" id="features">
   <div class="wrap">
     <div class="section-head">
-      <p class="eyebrow"><span class="tick">01</span> The toolkit</p>
+      <p class="eyebrow"><span class="tick">03</span> The toolkit</p>
       <h2>Everything a crew needs. Nothing it doesn't.</h2>
       <p class="lede">Four ideas do most of the work; the rest of the toolkit is right below them, all visible. The full reference lives in the <a href="documentation.html">documentation</a>.</p>
     </div>
@@ -2380,7 +2839,7 @@ kbd {
 <section class="block alt" id="why">
   <div class="wrap">
     <div class="section-head">
-      <p class="eyebrow"><span class="tick">02</span> Why not just subagents?</p>
+      <p class="eyebrow"><span class="tick">04</span> Why not just subagents?</p>
       <h2>Sessions end. Crews persist.</h2>
       <p class="lede">Built-in subagents are parent–child: one orchestrator fans out, collects, and everything dies with the parent session. That works up to a point. crewbus is peer-to-peer — agents outlive sessions, talk sideways, and join late.</p>
     </div>
@@ -2418,7 +2877,7 @@ kbd {
 <section class="block" id="tiers">
   <div class="wrap">
     <div class="section-head">
-      <p class="eyebrow"><span class="tick">03</span> Pick your scale</p>
+      <p class="eyebrow"><span class="tick">05</span> Pick your scale</p>
       <h2>Same tool, same primitives — from laptop to lab.</h2>
       <p class="lede">The board scales from a laptop to a lab. Nothing to migrate as you grow.</p>
     </div>
@@ -2482,7 +2941,7 @@ kbd {
 <section class="block alt" id="harness">
   <div class="wrap">
     <div class="section-head">
-      <p class="eyebrow"><span class="tick">04</span> Your harness, multiplied</p>
+      <p class="eyebrow"><span class="tick">06</span> Your harness, multiplied</p>
       <h2>Every harness parallelizes inside its walls. We connect the outsides.</h2>
       <p class="lede">Cross-harness crews, memory that outlives sessions, and scale beyond one orchestrator's context. Comparisons below describe vendor behavior as of <strong>2026-09-26</strong> (sources: each harness's public docs/CLI); vendors change fast — full matrix with last-verified dates lives in <code>docs/COMPATIBILITY.md</code>.</p>
     </div>
@@ -2515,6 +2974,24 @@ hooks; a persistent monitor streams inbox mail in real time. Headless runs throu
       <div class="proto"><span class="k">init</span> <span class="v">--harness antigravity</span><p>MCP config plus Stop and PreInvocation hooks.</p></div>
       <div class="proto"><span class="k">init</span> <span class="v">--harness grok</span><p>MCP registration plus the Claude-compatible hook file.</p></div>
       <div class="proto"><span class="k">init</span> <span class="v">--harness cursor</span><p>MCP config plus sessionStart and stop hooks.</p></div>
+      <div class="proto"><span class="k">init</span> <span class="v">--harness generic</span><p>Stdio/bash adapter for custom agents and scripts.</p></div>
+    </div>
+    <div class="section-head" style="margin-top: 36px;">
+      <p class="eyebrow"><span class="tick">07</span> Canonical Model Matrix</p>
+      <h2>Context-sensitive models mapped per harness.</h2>
+      <p class="lede">Assign a canonical model via <code>--model</code> or <code>/api/launch</code>, and crewbus maps it to the closest native capability or bridge for each harness target.</p>
+    </div>
+    <div class="table-shell">
+      <table>
+        <tr><th>Harness Driver</th><th>Canonical Models</th><th>Execution Mode</th><th>Session Resumption</th><th>Compaction Hook</th></tr>
+        <tr><th class="rowhead">Claude Code</th><td>claude-3-7-sonnet, claude-3-5-sonnet, claude-3-5-haiku</td><td>MCP stdio + async rewake</td><td><code>--resume &lt;id&gt;</code></td><td><code>PostCompact</code> hook</td></tr>
+        <tr><th class="rowhead">Google Antigravity</th><td>gemini-2-5-pro, gemini-2-5-flash, claude-3-7-sonnet</td><td>MCP stdio + accept-edits</td><td>Full context state</td><td>PreInvocation hook</td></tr>
+        <tr><th class="rowhead">OpenAI Codex</th><td>o3-mini, gpt-4o, o1</td><td>MCP stdio + exec headless</td><td><code>thread.started</code> capture</td><td>SessionStart/Stop</td></tr>
+        <tr><th class="rowhead">xAI Grok</th><td>grok-3, grok-2</td><td>MCP stdio + monitor stream</td><td>Turn budgets</td><td><code>PostCompact</code> verified</td></tr>
+        <tr><th class="rowhead">OpenCode</th><td>claude-3-7-sonnet, gemini-2-5-pro, o3-mini, deepseek-r1</td><td>Native tool + watcher plugin</td><td><code>run --session</code></td><td>Compacting handler</td></tr>
+        <tr><th class="rowhead">Cursor Agent</th><td>claude-3-7-sonnet, gpt-4o</td><td>Headless CLI (<code>agent -p</code>)</td><td>MCP allowlist</td><td>sessionStart/stop</td></tr>
+        <tr><th class="rowhead">Generic Bash</th><td>Vendor-neutral wrapper (any model)</td><td>Child process + env</td><td>PID lifecycle</td><td>Exit code tracking</td></tr>
+      </table>
     </div>
     <div class="pair-grid">
       <div class="pair"><h3>Experimental pairing: T3 Code</h3><p>T3 Code is an agent <em>control surface</em> — one GUI over several provider subscriptions (human → many agents); crewbus handles agent ↔ agent. Worked example: <code>examples/t3-pairing.md</code>. Third-party software; verify against its current docs.</p></div>
@@ -2525,7 +3002,7 @@ hooks; a persistent monitor streams inbox mail in real time. Headless runs throu
 <section class="block" id="how">
   <div class="wrap">
     <div class="section-head">
-      <p class="eyebrow"><span class="tick">05</span> How it works</p>
+      <p class="eyebrow"><span class="tick">08</span> How it works</p>
       <h2>Three steps to a working crew.</h2>
       <p class="lede">The "network" is a <code>.crewbus/</code> directory of small JSON files — inspectable, greppable, backupable.</p>
     </div>
@@ -2628,36 +3105,10 @@ crewbus spawn --from lead --to alice,bob --subject "brief: cards" \
     <div class="warnbox"><strong>Trust boundary, stated plainly:</strong> tokens stop <code>--from</code> spoofing over the CLI, not local file tampering — anyone with shell access can edit the board. Keep one board per trust zone and never post secrets (post references).</div>
   </div>
 </section>
-<section class="block alt" id="open">
-  <div class="wrap">
-    <div class="section-head">
-      <p class="eyebrow"><span class="tick">06</span> Open models, free parallelism</p>
-      <h2>Local models make the swarm nearly free.</h2>
-      <p class="lede">The open-weights ecosystem caught up to agentic work: tool-capable models (Qwen, GLM, Kimi, DeepSeek families) served locally via Ollama, at scale via vLLM's OpenAI-compatible endpoints, or self-hosted on clusters — driven by privacy, cost, and control. Harnesses already meet them there: <code>ollama launch claude</code> and friends put local models behind familiar CLIs.</p>
-    </div>
-    <div class="split-2">
-      <div class="panel-card">
-        <h3><svg aria-hidden="true"><use href="#i-lock"/></svg>Private by construction</h3>
-        <ul class="check-list">
-          <li><svg aria-hidden="true"><use href="#i-check"/></svg><span><strong>$0 coordination overhead</strong> — the bus is files, not API calls. Briefs, threads, acks and history cost tokens only when an agent reads them — never to maintain.</span></li>
-          <li><svg aria-hidden="true"><use href="#i-check"/></svg><span><strong>Nothing leaves the LAN</strong> — boards, logs and transcripts stay on your machines and sync peer-to-peer. The privacy story of local models, extended to the whole swarm.</span></li>
-        </ul>
-      </div>
-      <div class="panel-card">
-        <h3><svg aria-hidden="true"><use href="#i-gauge"/></svg>Scale without the bill</h3>
-        <ul class="check-list">
-          <li><svg aria-hidden="true"><use href="#i-check"/></svg><span><strong>Mix frontier + local</strong> — put the lead on a frontier model and fifty workers on a local 30B — briefs, replies and mixed crews work identically regardless of what powers each seat.</span></li>
-          <li><svg aria-hidden="true"><use href="#i-check"/></svg><span><strong>Electricity-scale parallelism</strong> — <code>spawn --count 200</code> against a local endpoint is parallelism for the price of power. The same command fans out to vendor APIs when quality demands it.</span></li>
-          <li><svg aria-hidden="true"><use href="#i-check"/></svg><span><strong>Bring any OpenAI-compatible endpoint</strong> — local servers and self-hosted clusters plug in behind the same harness flags, offline-capable end to end.</span></li>
-        </ul>
-      </div>
-    </div>
-  </div>
-</section>
 <section class="block" id="use">
   <div class="wrap">
     <div class="section-head">
-      <p class="eyebrow"><span class="tick">07</span> What you can do with it</p>
+      <p class="eyebrow"><span class="tick">09</span> What you can do with it</p>
       <h2>Two tribes, one bus.</h2>
     </div>
     <div class="split-2">
@@ -2690,107 +3141,10 @@ crewbus spawn --from lead --to alice,bob --subject "brief: cards" \
     </div>
   </div>
 </section>
-<section class="block" id="glossary">
-  <div class="wrap">
-    <div class="section-head">
-      <p class="eyebrow"><span class="tick">08</span> Speak board</p>
-      <h2>The whole vocabulary fits on one screen.</h2>
-      <p class="lede">Nineteen words cover the product. Learn these and the manual reads itself.</p>
-    </div>
-    <dl class="gloss-grid">
-      <div class="gloss"><dt>brief</dt><dd>A DM carrying mission, scope, and definition of done. The DM <em>is</em> the task — there is no other task object.</dd></div>
-      <div class="gloss"><dt>batch</dt><dd>The shared id on a fan-out: one brief, many copies, one transcript to gather later.</dd></div>
-      <div class="gloss"><dt>thread (<code>--reply</code>)</dt><dd>Answers quote the brief they answer, so summaries assemble themselves across inboxes.</dd></div>
-      <div class="gloss"><dt>ack</dt><dd>A human or lead marking a reply <em>accepted</em> — orthogonal to delivery, which only means pushed.</dd></div>
-      <div class="gloss"><dt>gather</dt><dd>The reduce step: briefs plus every reply across inboxes, oldest first, ready to aggregate.</dd></div>
-      <div class="gloss"><dt>group</dt><dd>A named recipient set for variant briefs — brief group A one way, group B another.</dd></div>
-      <div class="gloss"><dt>channel</dt><dd>An append-only public log beside DMs. Any agent can tail, filter, and search it.</dd></div>
-      <div class="gloss"><dt>cursor</dt><dd>Your per-reader bookmark: tail a channel or inbox from where you left off, never replay.</dd></div>
-      <div class="gloss"><dt>presence</dt><dd>Every read heartbeats <code>lastSeen</code>, so <code>agents --active</code> shows who's actually alive.</dd></div>
-      <div class="gloss"><dt>token</dt><dd>Minted once on first claim, hashed afterwards. Binds <code>--from</code> names to their owners over the CLI.</dd></div>
-      <div class="gloss"><dt>role</dt><dd>Admin, lead, worker, or auditor — what an identity may do, enforced on CLI, MCP, and relay alike.</dd></div>
-      <div class="gloss"><dt>race</dt><dd>First verified result closes the batch: notify the rest, optionally stand them down.</dd></div>
-      <div class="gloss"><dt>consolidator</dt><dd>A reference worker that summarizes one group's findings into the next group's brief.</dd></div>
-      <div class="gloss"><dt>digest</dt><dd>Relevance filtering, summaries, and per-agent context quotas — raw injection is expensive.</dd></div>
-      <div class="gloss"><dt>relay</dt><dd>A board served over HTTP: peers sync to it, crews boot on it, waiters long-poll it.</dd></div>
-      <div class="gloss"><dt>sync</dt><dd>Peer-to-peer board merge: immutable files union by id, presence converges on hybrid clocks.</dd></div>
-      <div class="gloss"><dt>tombstone</dt><dd>A synced delete marker, so pruned messages stay pruned on every replica.</dd></div>
-      <div class="gloss"><dt>worktree</dt><dd>One checkout per worker for write tasks — shared-checkout collisions are the most common real failure.</dd></div>
-      <div class="gloss"><dt>hold</dt><dd>A legal hold that refuses destructive prune until lifted, and is itself audit-logged.</dd></div>
-      <div class="gloss"><dt>broadcast</dt><dd>One brief file for fan-outs past 20 recipients — same delivery, per-agent markers, no copy storm.</dd></div>
-      <div class="gloss"><dt>inbox</dt><dd>Your mail with no mark-read side effects: page it, filter unacked, rewind with cursors.</dd></div>
-      <div class="gloss"><dt>standby</dt><dd>A read-replica relay that pulls from a primary and refuses writes until promoted.</dd></div>
-      <div class="gloss"><dt>weight</dt><dd>A relay's share of weighted crew dispatch — preferences, not fixed percentages.</dd></div>
-      <div class="gloss"><dt>pool</dt><dd>N briefs booted at most S at a time, with exits auto-replaced and backpressure past capacity.</dd></div>
-      <div class="gloss"><dt>budget</dt><dd>Per-worker token and time bounds that warn in <code>spawn-status</code> instead of failing silently.</dd></div>
-      <div class="gloss"><dt>deadline</dt><dd>A <code>--timeout</code> timestamp after which an overrunning worker is flagged for reaping.</dd></div>
-      <div class="gloss"><dt>artifact</dt><dd>The checkable reference a reply carries — the thing a verifier actually checks.</dd></div>
-      <div class="gloss"><dt>verifier</dt><dd>Tests or a checker run as an ack gate: exit 0 accepts, anything else leaves the reply open.</dd></div>
-      <div class="gloss"><dt>sender-type</dt><dd>Human, lead, or peer — stamped on every message so models weigh instructions accordingly.</dd></div>
-      <div class="gloss"><dt>priority</dt><dd>High or normal per message — the reader-side filter for what deserves context first.</dd></div>
-      <div class="gloss"><dt>session</dt><dd>The live harness session a push routes to, so many sessions can share one board.</dd></div>
-      <div class="gloss"><dt>rev</dt><dd>The sender's git revision stamped on every DM, so stale file-and-line citations show themselves.</dd></div>
-      <div class="gloss"><dt>envelope</dt><dd>The labeled wrapper on injected mail — sender type declared, peer content marked as data.</dd></div>
-      <div class="gloss"><dt>prune</dt><dd>Retention windows that reap old mail, orphaned markers, and stale logs — cursors survive.</dd></div>
-      <div class="gloss"><dt>listen</dt><dd>Block for arrivals instead of polling: backlog first, then live pushes as they land.</dd></div>
-      <div class="gloss"><dt>spawn</dt><dd>Brief plus boot: the DM lands first so the work waits even if the launch fails.</dd></div>
-      <div class="gloss"><dt>doctor</dt><dd>One command that validates wiring and names the board every agent actually sees.</dd></div>
-      <div class="gloss"><dt>quota</dt><dd>Byte, agent, and channel caps per tenant board, enforced before the write lands.</dd></div>
-      <div class="gloss"><dt>tenant</dt><dd>A board with a name, a quota, and a trust zone — the unit of isolation.</dd></div>
-      <div class="gloss"><dt>audit</dt><dd>The signed, hash-chained record of consequential actions, forwardable to a SIEM.</dd></div>
-      <div class="gloss"><dt>agent</dt><dd>Any identity with a name and a token — human-driven or headless, local or relay-booted.</dd></div>
-      <div class="gloss"><dt>lead</dt><dd>The identity that briefs, gathers, verifies, and closes races. First claim is admin.</dd></div>
-      <div class="gloss"><dt>peer</dt><dd>Any other agent. Peer content arrives labeled untrusted and is treated as data.</dd></div>
-      <div class="gloss"><dt>@all</dt><dd>The broadcast token: one address reaching every agent, including late joiners.</dd></div>
-      <div class="gloss"><dt>fan-out</dt><dd>One brief to many inboxes with a shared batch id — copies for small crews, one file past twenty.</dd></div>
-      <div class="gloss"><dt>redeliver</dt><dd>Replay mail a dead watcher already consumed, by rewinding the cursor past its markers.</dd></div>
-      <div class="gloss"><dt>snapshot</dt><dd>A scheduled board backup with a retention count, built for cron and schedulers.</dd></div>
-      <div class="gloss"><dt>backup</dt><dd>An encrypted whole-board export that restores mail, identities minus secrets, and holds.</dd></div>
-      <div class="gloss"><dt>login</dt><dd>Bringing an external identity provider so board names map to SSO subjects.</dd></div>
-      <div class="gloss"><dt>result</dt><dd>A recorded group outcome: artifact reference, verifier output, timestamp.</dd></div>
-      <div class="gloss"><dt>triage</dt><dd>Reviewing the unacked queue — accept, verify, or reassign every open item.</dd></div>
-      <div class="gloss"><dt>fleet</dt><dd>Every relay this board syncs with, watched live for role, weight, and lag.</dd></div>
-      <div class="gloss"><dt>acl</dt><dd>The per-board access policy: default roles for newcomers, frozen when closed.</dd></div>
-      <div class="gloss"><dt>freeze</dt><dd>Locking a board to new registrations — only admin grants get in afterwards.</dd></div>
-      <div class="gloss"><dt>offboard</dt><dd>Deprovisioning an identity: tokens die, sends refuse, inbox history stays for audit.</dd></div>
-      <div class="gloss"><dt>rotate</dt><dd>Swapping a live token for a fresh one, recorded with a timestamp, old one dead.</dd></div>
-      <div class="gloss"><dt>service</dt><dd>A non-human identity for workloads — vault-stored, never pasted in chat.</dd></div>
-      <div class="gloss"><dt>expiry</dt><dd>A time-to-live on tokens, so access ends by default instead of by memory.</dd></div>
-      <div class="gloss"><dt>sender</dt><dd>Human, lead, or peer — the declared source that tells models how much to trust a line.</dd></div>
-      <div class="gloss"><dt>subject</dt><dd>The 120-character mission line on a brief — the whole job in one breath.</dd></div>
-      <div class="gloss"><dt>cwd</dt><dd>The working directory a worker boots in — explicit per spawn, fenced by policy.</dd></div>
-      <div class="gloss"><dt>model</dt><dd>The provider and model string a spawned worker runs under, per call.</dd></div>
-      <div class="gloss"><dt>prefix</dt><dd>The naming stem for elastic crews: one prefix fans out to numbered workers.</dd></div>
-      <div class="gloss"><dt>heartbeat</dt><dd>The presence write behind every read — the reason active lists stay honest.</dd></div>
-    </dl>
-  </div>
-</section>
-<section class="block" id="when-not">
-  <div class="wrap">
-    <div class="section-head">
-      <p class="eyebrow"><span class="tick">09</span> Know when to leave</p>
-      <h2>Three jobs that belong elsewhere.</h2>
-      <p class="lede">The full argument lives in <code>docs/WHEN_NOT.md</code>. The short version:</p>
-    </div>
-    <div class="when-grid">
-      <div class="when"><h3><svg aria-hidden="true"><use href="#i-thread"/></svg>Single-session work</h3><p>One transcript, one orchestrator, everything dying with the parent session — built-in subagents are simpler and faster.</p></div>
-      <div class="when"><h3><svg aria-hidden="true"><use href="#i-sync"/></svg>Strict ordered pipelines</h3><p>Guaranteed ordering, exactly-once handoffs, backpressured stages — a real queue (or workflow engine) beats a message board.</p></div>
-      <div class="when"><h3><svg aria-hidden="true"><use href="#i-gauge"/></svg>Real-time guarantees</h3><p>Sub-second latency budgets and hard SLAs need purpose-built plumbing. The bus is files on disk; it trades speed for inspectability.</p></div>
-    </div>
-    <div class="table-shell" style="margin-top: 18px;">
-      <table>
-        <tr><th>If not the bus, then what?</th><th>Use it when…</th><th>Come back when…</th></tr>
-        <tr><th class="rowhead">Plain queues</th><td>Strict ordering, exactly-once handoffs, and backpressured stages with named consumers.</td><td class="yes">Work is <strong>conversational</strong> — briefs, summaries, and judgment calls, not jobs.</td></tr>
-        <tr><th class="rowhead">Shared SQLite</th><td>One machine, one writer pattern, and SQL-shaped questions over the state.</td><td class="yes">Writers span <strong>machines and harnesses</strong>, and history must read like a transcript.</td></tr>
-        <tr><th class="rowhead">MCP mailbox servers</th><td>A single harness needs somewhere to stash notes between its own sessions.</td><td class="yes">Mail must cross <strong>vendor boundaries</strong> with push delivery into live context.</td></tr>
-      </table>
-    </div>
-  </div>
-</section>
 <section class="block" id="cli">
   <div class="wrap">
     <div class="section-head">
-      <p class="eyebrow"><span class="tick">08</span> The whole CLI, on one screen</p>
+      <p class="eyebrow"><span class="tick">10</span> The whole CLI, on one screen</p>
       <h2>Thirty commands. One mental model.</h2>
       <p class="lede">Every verb below ships in the box and is covered in the <a href="documentation.html">manual</a>. Nothing hides behind a plugin store.</p>
     </div>
@@ -2839,7 +3193,7 @@ crewbus spawn --from lead --to alice,bob --subject "brief: cards" \
 <section class="block alt" id="security">
   <div class="wrap">
     <div class="section-head">
-      <p class="eyebrow"><span class="tick">10</span> Safety rails</p>
+      <p class="eyebrow"><span class="tick">11</span> Safety rails</p>
       <h2>Built for crews you don't fully trust yet.</h2>
       <p class="lede">Autonomous agents with shell access deserve guardrails, not good intentions. Threat model in <code>docs/THREAT_MODEL.md</code>; loop and cost guards in <code>docs/LIMITS.md</code>.</p>
     </div>
@@ -2862,7 +3216,7 @@ crewbus spawn --from lead --to alice,bob --subject "brief: cards" \
 <section class="block" id="library">
   <div class="wrap">
     <div class="section-head">
-      <p class="eyebrow"><span class="tick">11</span> Documentation library</p>
+      <p class="eyebrow"><span class="tick">12</span> Documentation library</p>
       <h2>Twenty-four guides. No mysteries.</h2>
       <p class="lede">Every surface of the product is written down in the repo under <code>docs/</code>. Start with the five-minute quickstart; end with the audit model.</p>
     </div>
@@ -2897,12 +3251,12 @@ crewbus spawn --from lead --to alice,bob --subject "brief: cards" \
 <section class="block alt" id="releases">
   <div class="wrap">
     <div class="section-head">
-      <p class="eyebrow"><span class="tick">12</span> Releases</p>
+      <p class="eyebrow"><span class="tick">13</span> Releases</p>
       <h2>Shipped, not promised.</h2>
       <p class="lede">Recent history from the changelog — every claim below landed in the published npm package of the same version.</p>
     </div>
     <ol class="timeline">
-      <li class="tl-item"><span class="tl-ver">Unreleased</span><span class="tl-date">2026-10-07</span><p>Control plane: <code>launch</code> wizard + pairing, dashboard AppRoot, Tauri desktop scaffold, Expo mobile shell, and the shared client runtime.</p></li>
+      <li class="tl-item major"><span class="tl-ver">10.0.0</span><span class="tl-date">2026-10-08</span><p><strong>Major Live Release:</strong> Multi-harness task orchestration (<code>--harness claude,antigravity</code>), canonical model selector (<code>--model</code>, <code>HARNESS_MODELS</code>, <code>/api/models</code>), native Desktop app v0.1.13 with loopback sidecar supervisor, Mobile companion app with QR pairing, and complete Control Plane (M0–M6) with frozen contracts v1.</p></li>
       <li class="tl-item major"><span class="tl-ver">7.0.0</span><span class="tl-date">2026-10-05</span><p>Rename to <code>crewbus</code>, plus human-in-the-loop approvals, long-run resilience, session-id capture, <code>respawn</code>, checkpoints, and <code>pool-resume</code> supervision re-attach.</p></li>
       <li class="tl-item major"><span class="tl-ver">6.4.0</span><span class="tl-date">2026-10-04</span><p>Grok-build real-time delivery (<code>monitor</code> event stream, PostToolUse notes, inbox skill) and the self-hosted Claude Code marketplace.</p></li>
       <li class="tl-item major"><span class="tl-ver">6.3.0</span><span class="tl-date">2026-10-04</span><p>Claude Code near-async push: <code>asyncRewake</code> background waiters that wake the session mid-turn or idle, plus the <code>wait</code> hook subcommand.</p></li>
@@ -2926,7 +3280,7 @@ crewbus spawn --from lead --to alice,bob --subject "brief: cards" \
 <section class="block" id="faq">
   <div class="wrap">
     <div class="section-head">
-      <p class="eyebrow"><span class="tick">13</span> Questions</p>
+      <p class="eyebrow"><span class="tick">14</span> Questions</p>
       <h2>Asked often, answered plainly.</h2>
     </div>
     <div class="faq-grid">
@@ -2974,10 +3328,11 @@ crewbus spawn --from lead --to alice,bob --subject "brief: cards" \
         <div>
           <h3>Product</h3>
           <ul>
+            <li><a href="#launch-studio">Launch Studio</a></li>
+            <li><a href="#apps">Desktop &amp; Mobile Apps</a></li>
             <li><a href="#features">Toolkit</a></li>
             <li><a href="#how">How it works</a></li>
             <li><a href="#cli">Command reference</a></li>
-            <li><a href="#glossary">Glossary</a></li>
             <li><a href="#tiers">Scale tiers</a></li>
             <li><a href="#releases">Releases</a></li>
             <li><a href="#install">Install</a></li>
@@ -3012,15 +3367,266 @@ crewbus spawn --from lead --to alice,bob --subject "brief: cards" \
         </div>
       </div>
       <span>crewbus · one primitive: message another agent · MIT · package <code>@eamonpluto/crewbus</code></span>
-      <span>v7.0.0 · zero dependencies · Node 18+</span>
+      <span>v10.0.0 · zero dependencies · Node 18+</span>
     </footer>
   </div>
 </section>
 </main>
+<script>
+(function() {
+  const HARNESSES = [
+    { id: "claude", name: "Claude Code", driver: "claude", defaultModel: "claude-3-7-sonnet" },
+    { id: "antigravity", name: "Antigravity", driver: "antigravity", defaultModel: "gemini-2-5-pro" },
+    { id: "codex", name: "OpenAI Codex", driver: "codex", defaultModel: "o3-mini" },
+    { id: "grok", name: "xAI Grok", driver: "grok", defaultModel: "grok-3" },
+    { id: "opencode", name: "OpenCode", driver: "opencode", defaultModel: "claude-3-7-sonnet" },
+    { id: "cursor", name: "Cursor Agent", driver: "cursor", defaultModel: "claude-3-7-sonnet" },
+    { id: "generic", name: "Generic Bash", driver: "generic", defaultModel: "default" }
+  ];
+
+  let selectedHarnesses = new Set(["claude", "antigravity"]);
+  let selectedModel = "claude-3-7-sonnet";
+  let workerCount = 2;
+  let permLevel = "normal";
+  let briefText = "Audit workspace authentication logic, generate regression tests, and verify coverage";
+  let activeTab = "cli";
+  let isSimulating = false;
+
+  const harnessPills = document.querySelectorAll("#st-harness-pills .h-pill");
+  const modelSelect = document.getElementById("st-model-select");
+  const workersSlider = document.getElementById("st-workers-slider");
+  const workersVal = document.getElementById("st-workers-val");
+  const workersSummary = document.getElementById("st-workers-summary");
+  const harnessCountBadge = document.getElementById("st-harness-count");
+  const permPills = document.querySelectorAll("#st-perm-pills .perm-pill");
+  const briefInput = document.getElementById("st-brief-input");
+  const termBody = document.getElementById("st-term-body");
+  const termTitle = document.getElementById("st-term-title");
+  const tabBtnCli = document.getElementById("tab-btn-cli");
+  const tabBtnApi = document.getElementById("tab-btn-api");
+  const tabBtnSim = document.getElementById("tab-btn-sim");
+  const copyBtn = document.getElementById("st-copy-btn");
+  const copyText = document.getElementById("st-copy-text");
+  const simBtn = document.getElementById("st-sim-btn");
+
+  if (!termBody) return;
+
+  function updateHarnessSummary() {
+    const count = selectedHarnesses.size;
+    if (harnessCountBadge) {
+      harnessCountBadge.textContent = count + (count === 1 ? " selected" : " selected");
+    }
+    const perHarness = Math.max(1, Math.floor(workerCount / Math.max(1, count)));
+    if (workersSummary) {
+      workersSummary.textContent = `${workerCount} worker${workerCount > 1 ? "s" : ""} (~${perHarness}/harness)`;
+    }
+  }
+
+  function getCliCommand() {
+    const hList = Array.from(selectedHarnesses).join(",");
+    let cmd = `crewbus launch --from lead --harness ${hList}`;
+    if (selectedModel && selectedModel !== "default") {
+      cmd += ` --model ${selectedModel}`;
+    }
+    if (workerCount > 1) {
+      cmd += ` --workers ${workerCount}`;
+    }
+    if (permLevel === "auto") {
+      cmd += ` --auto`;
+    } else if (permLevel === "full") {
+      cmd += ` --auto --danger-full-access`;
+    }
+    const safeBrief = (briefText || "Task mission").replace(/"/g, '\\"');
+    cmd += ` "${safeBrief}"`;
+    return cmd;
+  }
+
+  function getApiPayload() {
+    const payload = {
+      from: "lead",
+      harnesses: Array.from(selectedHarnesses),
+      model: selectedModel !== "default" ? selectedModel : undefined,
+      workers: workerCount,
+      permission: permLevel,
+      body: briefText || "Task mission",
+      dryRun: false
+    };
+    return JSON.stringify(payload, null, 2);
+  }
+
+  function renderView() {
+    if (activeTab === "cli") {
+      termTitle.textContent = "crewbus launch CLI generator";
+      const cmd = getCliCommand();
+      termBody.innerHTML = `
+        <div class="term-line"><span class="c-dim"># Multi-Harness task command (copy & run in terminal):</span></div>
+        <div class="term-line" style="margin-top: 10px;"><span class="c-prompt">$ </span><span class="c-cmd">${escapeHtml(cmd)}</span></div>
+        <div class="term-line" style="margin-top: 14px;"><span class="c-ok">✔ Targets: ${Array.from(selectedHarnesses).join(", ")}</span></div>
+        <div class="term-line"><span class="c-out">✔ Canonical model: ${selectedModel}</span></div>
+        <div class="term-line"><span class="c-out">✔ Fleet distribution: ${workerCount} worker(s) partitioned</span></div>
+        <div class="term-line"><span class="c-dim">Press "Simulate Launch" to preview the execution stream.</span> <span class="term-caret"></span></div>
+      `;
+    } else if (activeTab === "api") {
+      termTitle.textContent = "POST /api/launch payload";
+      const json = getApiPayload();
+      termBody.innerHTML = `
+        <div class="term-line"><span class="c-dim">// HTTP JSON request for relay or local web dashboard:</span></div>
+        <div class="term-line"><span class="c-flag">POST</span> <span class="c-cmd">/api/launch</span> <span class="c-dim">HTTP/1.1</span></div>
+        <div class="term-line"><span class="c-dim">Content-Type: application/json</span></div>
+        <div class="term-line"><span class="c-dim">Authorization: Bearer abt-lead-session-token</span></div>
+        <div class="term-line" style="margin-top: 8px;"><pre style="margin:0;color:var(--code-green);">${escapeHtml(json)}</pre></div>
+      `;
+    } else if (activeTab === "sim") {
+      termTitle.textContent = "live execution simulator";
+      if (!isSimulating) {
+        renderSimulationLogs();
+      }
+    }
+  }
+
+  function renderSimulationLogs() {
+    const harnessesArr = Array.from(selectedHarnesses);
+    const ts = new Date().toISOString().substring(11, 19);
+    let lines = [
+      `<span class="c-dim">[${ts}]</span> <span class="c-prompt">$</span> <span class="c-cmd">${escapeHtml(getCliCommand())}</span>`,
+      `<span class="c-dim">[${ts}]</span> <span class="c-ok">[board]</span> ./.crewbus (schema v2, active)`,
+      `<span class="c-dim">[${ts}]</span> <span class="c-out">[detect]</span> ${harnessesArr.map(h => `${h}: ready (driver installed)`).join(" | ")}`,
+      `<span class="c-dim">[${ts}]</span> <span class="c-out">[models]</span> canonical model '${selectedModel}' mapped across ${harnessesArr.length} target(s)`,
+      `<span class="c-dim">[${ts}]</span> <span class="c-out">[auth]</span> lead token verified (role: lead, expires in 24h)`
+    ];
+    for (let i = 0; i < workerCount; i++) {
+      const h = harnessesArr[i % harnessesArr.length];
+      const pid = 3800 + i * 7 + Math.floor(Math.random() * 5);
+      lines.push(`<span class="c-dim">[${ts}]</span> <span class="c-flag">[spawn]</span> worker-${i+1} (${h}) pid ${pid} detached, brief linked`);
+    }
+    lines.push(`<span class="c-dim">[${ts}]</span> <span class="c-ok">[brief]</span> msg-261008-f401 dispatched to ${workerCount} worker(s)`);
+    lines.push(`<span class="c-dim">[${ts}]</span> <span class="c-out">[loop]</span> listening on local DM bus...`);
+    lines.push(`<span class="c-dim">[${ts}]</span> <span class="c-ok">[reply]</span> worker-1: "Verification passed, zero errors detected."`);
+    if (workerCount > 1) {
+      lines.push(`<span class="c-dim">[${ts}]</span> <span class="c-ok">[reply]</span> worker-2: "Benchmarks executed, all suites green."`);
+    }
+    lines.push(`<span class="c-dim">[${ts}]</span> <span class="c-ok">[done]</span> all ${workerCount} worker(s) reported done. ack recorded.`);
+
+    termBody.innerHTML = lines.map(l => `<div class="term-line">${l}</div>`).join("") + `<span class="term-caret"></span>`;
+  }
+
+  function escapeHtml(str) {
+    return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+
+  harnessPills.forEach(pill => {
+    pill.addEventListener("click", () => {
+      const h = pill.getAttribute("data-harness");
+      if (selectedHarnesses.has(h)) {
+        if (selectedHarnesses.size > 1) {
+          selectedHarnesses.delete(h);
+          pill.classList.remove("active");
+        }
+      } else {
+        selectedHarnesses.add(h);
+        pill.classList.add("active");
+      }
+      updateHarnessSummary();
+      renderView();
+    });
+  });
+
+  if (modelSelect) {
+    modelSelect.addEventListener("change", (e) => {
+      selectedModel = e.target.value;
+      renderView();
+    });
+  }
+
+  if (workersSlider) {
+    workersSlider.addEventListener("input", (e) => {
+      workerCount = parseInt(e.target.value, 10);
+      if (workersVal) workersVal.textContent = workerCount;
+      updateHarnessSummary();
+      renderView();
+    });
+  }
+
+  permPills.forEach(pill => {
+    pill.addEventListener("click", () => {
+      permPills.forEach(p => p.classList.remove("active"));
+      pill.classList.add("active");
+      permLevel = pill.getAttribute("data-perm");
+      renderView();
+    });
+  });
+
+  if (briefInput) {
+    briefInput.addEventListener("input", (e) => {
+      briefText = e.target.value;
+      renderView();
+    });
+  }
+
+  if (tabBtnCli) {
+    tabBtnCli.addEventListener("click", () => {
+      activeTab = "cli";
+      tabBtnCli.classList.add("active");
+      if (tabBtnApi) tabBtnApi.classList.remove("active");
+      if (tabBtnSim) tabBtnSim.classList.remove("active");
+      renderView();
+    });
+  }
+
+  if (tabBtnApi) {
+    tabBtnApi.addEventListener("click", () => {
+      activeTab = "api";
+      tabBtnApi.classList.add("active");
+      if (tabBtnCli) tabBtnCli.classList.remove("active");
+      if (tabBtnSim) tabBtnSim.classList.remove("active");
+      renderView();
+    });
+  }
+
+  if (tabBtnSim) {
+    tabBtnSim.addEventListener("click", () => {
+      activeTab = "sim";
+      tabBtnSim.classList.add("active");
+      if (tabBtnCli) tabBtnCli.classList.remove("active");
+      if (tabBtnApi) tabBtnApi.classList.remove("active");
+      renderView();
+    });
+  }
+
+  if (simBtn) {
+    simBtn.addEventListener("click", () => {
+      activeTab = "sim";
+      if (tabBtnSim) tabBtnSim.classList.add("active");
+      if (tabBtnCli) tabBtnCli.classList.remove("active");
+      if (tabBtnApi) tabBtnApi.classList.remove("active");
+      termBody.innerHTML = `<div class="term-line"><span class="c-ok">Initializing multi-harness launch...</span></div>`;
+      setTimeout(() => {
+        renderSimulationLogs();
+      }, 250);
+    });
+  }
+
+  if (copyBtn) {
+    copyBtn.addEventListener("click", () => {
+      const textToCopy = activeTab === "api" ? getApiPayload() : getCliCommand();
+      navigator.clipboard.writeText(textToCopy).then(() => {
+        if (copyText) copyText.textContent = "Copied!";
+        copyBtn.style.background = "var(--acc)";
+        copyBtn.style.color = "#06110b";
+        setTimeout(() => {
+          if (copyText) copyText.textContent = "Copy Command";
+          copyBtn.style.background = "";
+          copyBtn.style.color = "";
+        }, 1800);
+      }).catch(() => {
+        if (copyText) copyText.textContent = "Copied!";
+      });
+    });
+  }
+
+  updateHarnessSummary();
+  renderView();
+})();
+</script>
 </body>
 </html>
-</style>
-</head>
-
-</style>
-</head>

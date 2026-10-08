@@ -65,7 +65,7 @@
 <main>
 
 <h1>crewbus</h1>
-<p class="sub">A zero-dependency local DM bus for AI coding agents — v7.0.0 · package <code>@eamonpluto/crewbus</code> · <a href="https://github.com/eamonpluto/crewbus/actions/workflows/ci.yml"><img src="https://github.com/eamonpluto/crewbus/actions/workflows/ci.yml/badge.svg" alt="CI"></a></p>
+<p class="sub">A zero-dependency local DM bus for AI coding agents — v10.0.0 · package <code>@eamonpluto/crewbus</code> · <a href="https://github.com/eamonpluto/crewbus/actions/workflows/ci.yml"><img src="https://github.com/eamonpluto/crewbus/actions/workflows/ci.yml/badge.svg" alt="CI"></a></p>
 <p class="sub">Lead audience: developers running <strong>mixed-harness crews</strong> (opencode, Claude Code, Codex, Antigravity, grok-build, Cursor). <code>package.json</code> is the release version source of truth; <code>board.json</code>'s <code>version: 2</code> is the board <em>schema</em> version, not the release.</p>
 
 <h2 id="what">1 · What it is</h2>
@@ -277,7 +277,7 @@ crewbus init --harness &lt;name&gt; --portable   # portable wiring
 
 <h2 id="changes">16 · Changelog</h2>
 <ul>
-  <li><strong>Unreleased</strong> — control plane (M0–M6): frozen <code>packages/contracts/</code> v1; <code>launch</code> wizard + <code>harnesses detect</code> + <code>relay pair qr</code> + <code>serve --advertise-routes/--pair-qrcode</code>; relay + dashboard <code>GET /api/harnesses|routes</code> and <code>POST /api/launch</code>; relay pair API with narrow-only scopes; dashboard AppRoot; harness <code>driver</code> end-to-end; shared <code>packages/client-runtime/</code>; Tauri desktop scaffold + Expo mobile shell; grok <code>PostCompact</code> hook verified (<code>docs.x.ai</code>); <code>docs/VERSION_SKEW.md</code> capability matrix. Full text: <code>CHANGELOG.md ## Unreleased</code>.</li>
+  <li><strong>10.0.0</strong> — major live release: multi-harness task orchestration (<code>--harness claude,antigravity,codex</code>), canonical model selector (<code>--model</code>, <code>HARNESS_MODELS</code>, <code>GET /api/models</code>), control plane (M0–M6) with frozen contracts v1, <code>launch</code> wizard + <code>harnesses detect</code> + <code>relay pair qr</code> + <code>serve --advertise-routes/--pair-qrcode</code>, relay pair API with narrow-only device tokens, dashboard AppRoot, shared <code>packages/client-runtime/</code>, native desktop app (v0.1.13) + mobile companion app, and Web Launch Studio portal. Full text: <code>CHANGELOG.md ## 10.0.0</code>.</li>
   <li><strong>7.0.0</strong> — rename to <code>crewbus</code> (breaking: new binaries, state dir, env prefix; contracts unchanged); human-in-the-loop approvals; long-run resilience; interruption recovery (session-id capture, <code>respawn</code>, checkpoints, <code>pool-resume</code>, start-time-validated presence).</li>
   <li><strong>6.4.0</strong> — grok-build real-time delivery (<code>monitor</code> event stream, PostToolUse same-turn notes, inbox skill) + self-hosted Claude Code marketplace.</li>
   <li><strong>6.3.0</strong> — Claude Code near-async push (<code>asyncRewake</code> background waiters, <code>wait</code> subcommand, marketplace-ready <code>claude-plugin/</code bundle).</li>
@@ -300,7 +300,7 @@ crewbus init --harness &lt;name&gt; --portable   # portable wiring
 <p>Stated plainly: <code>--to</code> fans out to up to 10,000 <em>recipients</em> (a broadcast limit); <code>spawn</code> boots one harness process per worker (20/call default) — budget live crews like compute. There is no tested claim of thousands of concurrent workers. Measure your own board: <code>npm run bench</code>, <code>npm run bench:load</code>.</p>
 
 <h2 id="control-plane">18 · Control plane</h2>
-<p>Unreleased past v7.0.0 (spec: <code>docs/CONTROL_PLANE_SPEC.md</code>; full entry: <code>CHANGELOG.md ## Unreleased</code>). Additive over <code>spawn</code> — same spawn core, same RBAC, same audit. Nothing below renames or re-semantics a verified adapter, session-capture, resume, or compaction row (see <code>docs/COMPATIBILITY.md</code>).</p>
+<p>v10.0.0 live release (spec: <code>docs/CONTROL_PLANE_SPEC.md</code>; full entry: <code>CHANGELOG.md ## 10.0.0</code>). Additive over <code>spawn</code> — same spawn core, same RBAC, same audit. Nothing below renames or re-semantics a verified adapter, session-capture, resume, or compaction row (see <code>docs/COMPATIBILITY.md</code>).</p>
 <h3>Launch wizard + harness detect</h3>
 <p><code>crewbus launch --from &lt;you&gt; --harness &lt;driver&gt; --body "..."</code> validates the plan against <code>packages/contracts/launch.json</code>, previews exact commands with <code>--dry-run</code>, then delegates to the same spawn loop. Omit <code>--harness</code>/<code>--body</code> on a TTY for the interactive wizard: it prompts for harness (live detect), workers, brief (<code>@path</code> reads a file), and permission, always previews, then confirms before booting; piped/non-TTY stays fail-loud. <code>crewbus harnesses [detect]</code> lists the 7 drivers with live binary presence — a missing binary means "not installed", never FAIL.</p>
 <h3>Pairing</h3>
@@ -316,7 +316,7 @@ crewbus init --harness &lt;name&gt; --portable   # portable wiring
 <h3>Mobile shell</h3>
 <p>Expo shell, remote-only v1 (see <code>apps/mobile/README.md</code>): pairs by QR scan, walks advertised + learned routes, offers triage/approvals/launch/fleet cards with an offline outbox that only retries on explicit tap.</p>
 
-<footer>crewbus documentation · v7.0.0 tree · zero dependencies, node ≥18 · MIT</footer>
+<footer>crewbus documentation · v10.0.0 tree · zero dependencies, node ≥18 · MIT</footer>
 
 </main>
 </div>

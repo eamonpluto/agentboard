@@ -29,7 +29,13 @@
     },
     "android": {
       "package": "com.crewbus.mobile",
-      "permissions": ["CAMERA", "USE_BIOMETRIC", "USE_FINGERPRINT"],
+      "permissions": [
+        "CAMERA",
+        "USE_BIOMETRIC",
+        "USE_FINGERPRINT",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-foreground.png",
         "backgroundColor": "#0B1020"
@@ -37,7 +43,11 @@
     },
     "extra": {
       "remoteOnly": true,
-      "foregroundRefreshOnly": true
-    }
+      "foregroundRefreshOnly": true,
+      "eas": {
+        "projectId": "02b4ed75-d876-46df-bbce-3779fd608492"
+      }
+    },
+    "owner": "eamonpluto"
   }
 }

@@ -1,7 +1,7 @@
 # Version skew (mixed-relay operation)
 
-How crewbus versions interoperate. Evidence: `package.json:2` (`7.0.0`),
-`CHANGELOG.md` (7.0.0 2026-10-05; 6.4.0–6.0.0; 4.1.0/4.0.0 baseline).
+How crewbus versions interoperate. Evidence: `package.json:2` (`10.0.0`),
+`CHANGELOG.md` (10.0.0 2026-10-08; 7.0.0 2026-10-05; 6.4.0–6.0.0; 4.1.0/4.0.0 baseline).
 Capabilities: `RELAY_CAPS` + `launch` per `packages/contracts/board-caps.json:6-8`.
 Cell behavior is the NEW side's verified behavior (`bin/lib/sync.js` refs);
 old-side behavior against a new relay is NOT verified in this tree.
@@ -12,9 +12,10 @@ old-side behavior against a new relay is NOT verified in this tree.
 warning (never an error). `refuse` = loud client-side throw with a hint
 (never a 500 — see Rules).
 
-| Peer vs current (v7.x tree) | hlc | tombstones | channels | revoked | holds | tls/mtls/oidc | standby | audit-forward | launch |
+| Peer vs current (v10.x tree) | hlc | tombstones | channels | revoked | holds | tls/mtls/oidc | standby | audit-forward | launch |
 |---|---|---|---|---|---|---|---|---|---|
-| v7.x ↔ v7.x (same caps) | full | full | full | full | full | full | full | full | full |
+| v10.x ↔ v10.x (same caps) | full | full | full | full | full | full | full | full | full |
+| v7.0–7.x (advertises `RELAY_CAPS`; pre-control-plane release) | full | full | full | full | full | full | full | full | degrade (`board-caps.json:17`: "launch RPC unavailable — upgrade relay or use CLI spawn") |
 | v6.0–6.4 (advertises `RELAY_CAPS`; caps negotiation shipped 6.0.0) | full | full | full | full | full | full | full | full | degrade (`board-caps.json:17`: "launch RPC unavailable — upgrade relay or use CLI spawn") |
 | v4.x baseline (no `capabilities` field = 4.0 areas only, `sync.js:55-56,357`) | full (baseline LWW still applies) | degrade ("deletions stay local", `sync.js:60-65`) | degrade ("channel posts stay local") | degrade ("revocations stay local") | degrade ("holds stay local") | n/a (transport negotiated per connection, not synced areas) | n/a | n/a | degrade (no `POST /api/launch` route on old relay: 404/unknown — upgrade relay or use CLI spawn) |
 | Any peer, board version ≠ 2 (`store.js:22`) | refuse (`sync.js:354`: "peer spoke an incompatible board version") | refuse | refuse | refuse | refuse | refuse | refuse | refuse | refuse |

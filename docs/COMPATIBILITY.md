@@ -96,7 +96,7 @@ new harness binaries present so `test/integration.mjs` exercises the real
 any flag changes in the changelog. Vendors change flags without notice —
 this table rots unless someone re-checks it per release.
 
-## Control-plane additions (v7.x, unreleased past 7.0.0)
+## Control-plane additions (v10.0.0)
 
 Since the last vendor-verification dates above, the control plane landed
 (M0+M1 `2a1015c`, M6-lite `0893026`, M2 `3715344`, M3 `46e8989`, M4

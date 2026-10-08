@@ -1,29 +1,43 @@
 # Changelog
 
-## Unreleased
+## 10.0.0 (2026-10-08)
 
-Control plane (M0–M6, unreleased): frozen `packages/contracts/` v1
-(harness/launch/pairing/board-caps) with contract tests; `crewbus launch`
-wizard + `harnesses detect` + `relay pair qr` + `serve
---advertise-routes/--pair-qrcode` (additive, same spawn core/RBAC/audit);
-relay + dashboard `GET /api/harnesses|routes` and `POST /api/launch`
-(dry-run preview or live boot); relay pair API (`issue/exchange/devices/
-revoke`, narrow-only scopes, per-call scope enforcement, standby 503s);
-dashboard AppRoot (nav, `Ctrl+K` palette, harness cards, dry-run diff,
-worker inspector, Undo toast, Holds & quotas cards); harness `driver`
-end-to-end; shared `packages/client-runtime/` (route walk, reconnect
-supervisor, auth store, offline cache); Tauri desktop scaffold + sidecar
-supervisor; Expo mobile shell + tested relay API client; grok `PostCompact`
-hook verified (docs.x.ai); `docs/VERSION_SKEW.md` capability matrix.
-No verified adapter/session/compaction behavior moved (see
-`docs/COMPATIBILITY.md`).
+MAJOR LIVE RELEASE: Multi-Harness task orchestration, canonical model selection, native desktop and mobile companion applications, and the complete Control Plane (M0–M6).
 
-- Interactive `crewbus launch` wizard (spec §4.1 TTY prompts, as the
-  original form-factor question offered): omit `--harness`/`--body` on a
-  TTY and it prompts for harness (live detect), workers, brief
-  (`@path` file), and permission — always previews exact commands, then
-  confirms (the yes doubles as the danger confirm); `--yes`
-  pre-confirms, `--json`/piped stays fail-loud and never prompts.
+- **Multi-Harness Task Orchestration**:
+  - Run tasks across multiple AI harnesses in a single launch or fan-out brief (`--harness claude,antigravity,codex`).
+  - Native CLI, MCP, and web endpoints accept comma-separated harnesses or string arrays (`harnesses: [...]`).
+  - Interactive multi-harness selection pills in Web Launch Studio, Desktop sidecar, and Mobile companion app.
+  - Workers partitioned evenly across selected harnesses (`--workers N` / `--count N` or explicit `--to worker1,worker2`).
+
+- **Canonical Model Selector**:
+  - Context-sensitive model selection (`--model <name>`) mapped cleanly per harness (`HARNESS_MODELS` spec).
+  - Out-of-the-box support for industry-leading frontier models: Claude 3.7 Sonnet, Gemini 2.5 Pro, OpenAI o3-mini, Grok 3, DeepSeek R1.
+  - New `GET /api/models` endpoint serving model catalog and default mappings for web and mobile clients.
+  - Interactive model selection in the Launch wizard, Web Launch Studio, and Mobile companion app.
+
+- **Control Plane M0–M6**:
+  - Frozen contracts v1 (`packages/contracts/`: harness, launch, pairing, board-caps) with contract test coverage.
+  - Interactive `crewbus launch` wizard + `harnesses detect` + `relay pair qr` + `serve --advertise-routes/--pair-qrcode` (additive, preserving spawn core/RBAC/audit).
+  - Relay + dashboard `GET /api/harnesses|routes|models` and `POST /api/launch` (dry-run preview or live boot).
+  - Relay pair API (`POST /api/pair/issue`, `POST /api/pair/exchange`, `GET /api/pair/devices`, `POST /api/pair/revoke`, narrow-only scopes, per-call scope enforcement, standby 503s).
+  - Dashboard AppRoot (nav, `Ctrl+K` palette, harness cards, dry-run diff, worker inspector, Undo toast, Holds & quotas cards).
+  - Shared `packages/client-runtime/` (route walk with learned routes, reconnect supervisor, auth store, offline cache with explicit-retry queue).
+  - Grok `PostCompact` hook verified (`docs.x.ai`); `docs/VERSION_SKEW.md` and `docs/COMPATIBILITY.md` verified matrices.
+
+- **Native Desktop App (v0.1.13)**:
+  - Tauri v2 multi-platform application (Windows, macOS, Linux).
+  - Embedded dashboard with loopback sidecar supervisor (`serve --port 0` on 127.0.0.1).
+  - Custom dark scrollbar styling and full Lucide-style icon suite replacing legacy emojis.
+  - Tagged `desktop-v0.1.13` in git; buildable from source with Tauri CLI (binary installers publishable following maintainer review).
+
+- **Mobile Companion App**:
+  - React Native / Expo companion app with QR code pairing (`crewbus://pair`).
+  - Offline outbox with manual retry, approval queue triage, fleet monitoring, and multi-harness task launcher.
+
+- **Web Launch Studio & Marketing Portal**:
+  - `index.html` upgraded to a full Launch & Marketing portal.
+  - Interactive Launch Studio playground with live harness pills, model selector, permission ladder, dry-run simulation, and copyable CLI commands.
 
 ## 7.0.0 (2026-10-05)
 

@@ -23,7 +23,7 @@ No harness terminal required. Harnesses become executors behind the bus;
 the board remains shared memory. The DM is still the task — this plane
 adds no workflow engine, no cross-board queries, no hosted proxy tier.
 
-## 1. Current state (CrewBus v7.0.0)
+## 1. Current state (CrewBus v7.0.0 baseline → v10.0.0 live release)
 
 ### 1.1 Board layout (`bin/lib/store.js`)
 
