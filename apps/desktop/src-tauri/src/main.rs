@@ -328,7 +328,13 @@ fn main() {
                     }
                 };
                 let state: tauri::State<SidecarState> = handle.state();
-                *state.child.lock().expect("sidecar lock") = Some(child);
+                match state.child.lock() {
+                    Ok(mut guard) => *guard = Some(child),
+                    Err(e) => {
+                        err(format!("sidecar state lock failed: {e}"));
+                        return;
+                    }
+                };
                 // Sidecar log file (<app-data>/sidecar.log, truncated per
                 // boot): post-mortem when the window only says "waiting".
                 // Best-effort — a missing log never blocks the sidecar.
@@ -346,15 +352,24 @@ fn main() {
                         if let Some(f) = logf.as_mut() {
                             let _ = writeln!(f, "{}", text);
                         }
-                        if state.url.lock().expect("url lock").is_none() {
+                        let already_known = state.url.lock().map(|g| g.is_some()).unwrap_or(true);
+                        if !already_known {
                             if let Some(url) = first_loopback_url(&text) {
-                                *state.url.lock().expect("url lock") = Some(url.clone());
-                                note("ready", url.clone());
-                                learned_url = true;
-                                let _ = handle.emit(
-                                    "dashboard-ready",
-                                    serde_json::json!({ "url": url }),
-                                );
+                                match state.url.lock() {
+                                    Ok(mut u) => {
+                                        *u = Some(url.clone());
+                                        note("ready", url.clone());
+                                        learned_url = true;
+                                        let _ = handle.emit(
+                                            "dashboard-ready",
+                                            serde_json::json!({ "url": url }),
+                                        );
+                                    }
+                                    Err(e) => {
+                                        err(format!("sidecar state lock failed while recording URL: {e}"));
+                                        return;
+                                    }
+                                }
                             }
                         }
                     }

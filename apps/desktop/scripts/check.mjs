@@ -127,6 +127,14 @@ for (const f of ['icons/32x32.png', 'icons/128x128.png', 'icons/256x256.png', 'i
   ok(bundleIcons.includes(f) && isFile(path.join(desktop, 'src-tauri', f)), `bundle icon listed + present: ${f}`);
 }
 ok(conf.productName === 'CrewBus', 'productName stays "CrewBus" for the installer');
+// Release hygiene: tag desktop-v<X> requires tree versions X BEFORE tagging
+// (v0.1.1 shipped a 0.1.0-labelled asset because the tag went out unbumped).
+const pkgVersion = JSON.parse(read('package.json')).version;
+const confVersion = conf.version;
+const cargoVersion = (read('src-tauri/Cargo.toml').match(/^version\s*=\s*"([^"]+)"/m) || [])[1];
+ok(typeof pkgVersion === 'string' && pkgVersion.length > 0, `package.json version readable (${pkgVersion})`);
+ok(confVersion === pkgVersion, `tauri.conf.json version matches package.json (${confVersion} vs ${pkgVersion})`);
+ok(cargoVersion === pkgVersion, `Cargo.toml [package] version matches package.json (${cargoVersion} vs ${pkgVersion})`);
 ok(
   conf.bundle.windows && conf.bundle.windows.nsis && conf.bundle.windows.nsis.installMode === 'currentUser',
   'NSIS installMode is currentUser (per-user default, no admin prompt for normies)',
@@ -173,6 +181,9 @@ ok(mainRsRel.includes('sidecar_status'), 'main.rs exposes sidecar_status (race-p
 ok(mainRsRel.includes('sidecar.log'), 'main.rs persists sidecar stdout to sidecar.log (post-mortem for waiting)');
 const shellJs = read('src/main.js');
 ok(shellJs.includes("invoke2('sidecar_status')") || shellJs.includes('invoke("sidecar_status")') || shellJs.includes("sidecar_status"), 'src/main.js queries sidecar_status on boot (late listener catches up)');
+ok(conf.app && conf.app.withGlobalTauri === true, 'app.withGlobalTauri ON (static shell reads window.__TAURI__; Tauri v2 default false leaves the bridge undefined)');
+ok(shellJs.includes('sidecar status query failed'), 'src/main.js surfaces a failed sidecar_status invoke instead of idling on waiting text');
+ok(!mainRsRel.includes('.expect("sidecar lock")') && !mainRsRel.includes('.expect("url lock")'), 'main.rs never panics on sidecar state locks (every early path emits dashboard-error)');
 ok(mainRsRel.includes('tauri_plugin_updater::Builder::new().build()'), 'main.rs registers the updater plugin (no startup check call)');
 ok(!/\.check\(\)\.await/.test(mainRsRel), 'main.rs never auto-checks for updates at startup (inert without keys)');
 

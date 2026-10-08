@@ -163,7 +163,12 @@ try {
         markConn(false, 'sidecar error');
         say('sidecar failed: ' + st.detail + ' — board untouched. Restart the app; if it repeats, run the sidecar by hand: node <core> serve --port 0 --board <app-data>/board');
       }
-    }).catch(function () { /* backend older than status command */ });
+    }).catch(function (e) {
+      // A failed invoke must NEVER leave the static "no sidecar URL yet"
+      // text with no explanation (installed-binary symptom, Oct 2026):
+      // either the backend predates sidecar_status or the bridge is broken.
+      say('sidecar status query failed (' + (e || 'invoke rejected') + ') — backend may predate sidecar_status; reinstall from the latest desktop-v* release.');
+    });
   }
 } catch (_) { /* static fallback: events only */ }
 

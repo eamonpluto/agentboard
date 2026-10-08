@@ -50,11 +50,18 @@ sidecar → pair phone via QR. No node, no Rust, no terminal on the user side.
 3. ~~Put the public key in `src-tauri/tauri.conf.json`
    `plugins.updater.pubkey`~~ DONE 2026-10-07 (pubkey set,
    `bundle.createUpdaterArtifacts` flipped back to `true`).
-4. Release: bump `version` in `src-tauri/tauri.conf.json`,
-   `src-tauri/Cargo.toml`, and `apps/desktop/package.json` to the SAME
-   number, commit, then FIRST create the draft
-   (`gh release create desktop-v<X.Y.Z> --draft --title ...`), THEN
-   `git tag desktop-v<same> && git push origin desktop-v<same>`.
+4. Release: tag `desktop-v<X.Y.Z>` requires the tree versions to ALREADY
+   be `X.Y.Z` BEFORE tagging — bump `version` in
+   `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, and
+   `apps/desktop/package.json` to the SAME number, commit, verify
+   `node apps/desktop/scripts/check.mjs` is green (it fails loudly on
+   version drift), and ONLY then create the tag/release
+   (`gh release create desktop-v<X.Y.Z> --draft --title ...`, THEN
+   `git tag desktop-v<same> && git push origin desktop-v<same>`).
+   (Incident 2026-10-08: tag `desktop-v0.1.1` went out while the tree
+   still said `0.1.0`, so the release page read `desktop-v0.1.1` but the
+   Windows asset was `CrewBus_0.1.0_x64-setup.exe` — artifact identities
+   lied. Never retag to fix; bump-then-tag in this order.)
    (Lesson 2026-10-07: tauri-action could not create the release itself —
    `Resource not accessible by integration` even with repo workflow
    permissions at write; pre-creating the draft sidesteps it and uploads
