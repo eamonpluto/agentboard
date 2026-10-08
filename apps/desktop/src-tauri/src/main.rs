@@ -233,6 +233,18 @@ async fn stop_sidecar(app: tauri::AppHandle, state: tauri::State<'_, SidecarStat
     Ok(())
 }
 
+#[tauri::command]
+async fn open_pair_window(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(win) = app.get_webview_window("pair") {
+        let _ = win.show();
+        let _ = win.unminimize();
+        let _ = win.set_focus();
+        Ok(())
+    } else {
+        Err("pair window not found".to_string())
+    }
+}
+
 fn main() {
     tauri::Builder::default()
         // Single-instance MUST register first (per the plugin docs): a
@@ -518,7 +530,7 @@ fn main() {
             });
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![sidecar_status, stop_sidecar])
+        .invoke_handler(tauri::generate_handler![sidecar_status, stop_sidecar, open_pair_window])
         .run(tauri::generate_context!())
         .expect("crewbus desktop failed");
 }

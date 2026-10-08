@@ -563,6 +563,7 @@ details.tech-details summary{cursor:pointer;font-weight:500;user-select:none}
           <button type="button" class="pop-btn" id="open-folder-btn">📂 Open Project Folder…</button>
           <input type="file" id="folder-picker" webkitdirectory directory style="display:none">
         </label>
+        <button type="button" class="pop-btn" id="pop-pair-btn" style="margin-top:8px">📱 Pair Mobile Client (QR)…</button>
       </div>
     </div>
 
@@ -1136,6 +1137,7 @@ function paletteSections(){
     {kind:'action',label:'✓ Ack all triage mail',action:'ackall'},
     {kind:'action',label:'📋 Copy board path',action:'copyboard'},
     {kind:'action',label:'📂 Open project folder…',action:'openfolder'},
+    {kind:'action',label:'📱 Pair mobile client (QR)…',action:'pairmobile'},
     {kind:'action',label:'🔄 Refresh board state',action:'refresh'},
     {kind:'section',label:'Launch',id:'sec-launch'},
     {kind:'section',label:'Boards',id:'sec-boards'},
@@ -1199,6 +1201,10 @@ function paletteActivate(m){
     else if(m.action==='ackall'){document.getElementById('ackall').click();}
     else if(m.action==='copyboard'){copyBoardPath();}
     else if(m.action==='openfolder'){document.getElementById('folder-picker').click();}
+    else if(m.action==='pairmobile'){
+      try{window.parent.postMessage({type:'crewbus:open-pair'},'*');}catch(_){}
+      try{window.open('./pair.html','_blank','width=420,height=560');}catch(_){}
+    }
     else if(m.action==='refresh'){refresh();}
   }else if(m.kind==='section'){
     approotNavTo(m.id);
@@ -1402,6 +1408,11 @@ function copyBoardPath(){
   say('copied board path: '+p);
 }
 document.getElementById('copy-board-btn').onclick=copyBoardPath;
+var ppb=document.getElementById('pop-pair-btn');
+if(ppb){ppb.onclick=function(){
+  try{window.parent.postMessage({type:'crewbus:open-pair'},'*');}catch(_){}
+  try{window.open('./pair.html','_blank','width=420,height=560');}catch(_){}
+};}
 document.getElementById('project-trigger').onclick=function(e){
   e.stopPropagation();
   var pop=document.getElementById('project-popover');

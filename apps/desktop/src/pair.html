@@ -5,26 +5,41 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Pair a device — CrewBus</title>
 <style>
-body{margin:0;background:#0f1419;color:#d7dee6;font:14px/1.5 system-ui,sans-serif;padding:18px}
-.dim{color:#8b98a5;font-size:.85em}
-#qr{width:240px;height:240px;margin:12px auto;border:1px dashed #4cc38a;border-radius:8px;display:flex;align-items:center;justify-content:center;text-align:center;padding:12px}
-textarea{width:95%;background:#0b0f14;border:1px solid #2a343e;color:#d7dee6;border-radius:5px;padding:6px 8px;font-size:.85em}
-button{background:#182028;border:1px solid #4cc38a;color:#4cc38a;border-radius:5px;padding:4px 12px;font-size:.9em;cursor:pointer}
-#msg{min-height:1.5em;margin-top:8px}
-.warn{color:#e5534b}
+body{margin:0;background:#090a0f;color:#f1f5f9;font:13px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;padding:20px;box-sizing:border-box}
+h2{margin:0 0 6px;font-size:17px;font-weight:700;color:#f1f5f9}
+.dim{color:#94a3b8;font-size:12px;line-height:1.4}
+#qr-wrap{width:220px;height:220px;margin:16px auto;border:1px solid #1e2235;background:#12151f;border-radius:12px;display:flex;align-items:center;justify-content:center;text-align:center;padding:10px;overflow:hidden;box-sizing:border-box}
+#qr-wrap svg{width:100%;height:100%;display:block;border-radius:6px}
+#qr{color:#64748b;font-size:12px}
+textarea{width:100%;background:#12151f;border:1px solid #1e2235;color:#f1f5f9;border-radius:8px;padding:8px 10px;font-size:12px;box-sizing:border-box;resize:vertical;font-family:monospace}
+textarea:focus{border-color:#6366f1;outline:none}
+.btn-row{display:flex;gap:8px;margin-top:10px}
+button{background:#12151f;border:1px solid #1e2235;color:#f1f5f9;border-radius:6px;padding:7px 14px;font-size:12px;font-weight:600;cursor:pointer;transition:all .15s}
+button:hover{border-color:#6366f1;color:#fff}
+button.primary{background:#6366f1;border-color:#6366f1;color:#fff}
+button.primary:hover{background:#4f46e5}
+#msg{min-height:1.5em;margin-top:10px;font-size:12px}
+.warn{color:#f43f5e}
+.ok{color:#10b981}
 </style>
 </head>
 <body>
-<h2>Pair a device</h2>
-<p class="dim">Paste the one-time <code>crewbus://pair</code> URL minted by
-<code>serve --pair-qrcode</code> or <code>relay pair qr</code>. The QR below
-encodes it for the mobile client (M5). The pairing secret stays in the URL
-<code>#fragment</code> only — never query — and is never logged or saved.</p>
-<div id="qr" aria-label="pairing QR placeholder">QR placeholder — wire a renderer on the toolchain machine (M5)</div>
-<label class="dim" for="pair-url">pairing URL (in-memory only, never leaves this window except into the QR)</label><br>
-<textarea id="pair-url" rows="3" placeholder="crewbus://pair?env=…&amp;routes=…&amp;caps=…#abp-…"></textarea><br>
-<button id="pair-render">Render QR</button>
-<button id="pair-clear">Clear</button>
+<h2>Pair Mobile Client</h2>
+<p class="dim">Paste a <code>crewbus://pair</code> URL minted by
+<code>relay pair qr</code> or <code>serve --pair-qrcode</code> to display a scannable QR code for the mobile client.</p>
+
+<div id="qr-wrap">
+  <div id="qr" aria-label="pairing QR">QR code will appear here after rendering</div>
+</div>
+
+<label class="dim" for="pair-url">Pairing URL (in-memory only, secret in #fragment never saved):</label>
+<textarea id="pair-url" rows="3" placeholder="crewbus://pair?env=…&amp;routes=…&amp;caps=…#abp-…"></textarea>
+
+<div class="btn-row">
+  <button id="pair-render" class="primary">Render QR</button>
+  <button id="pair-clear">Clear</button>
+</div>
+
 <div id="msg" class="dim" role="status"></div>
 <script type="module" src="./pair.js"></script>
 </body>

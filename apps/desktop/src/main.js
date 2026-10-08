@@ -211,19 +211,40 @@ if (localEnv) {
 // Pair window: Tauri `pair` webview when available, else a plain tab.
 // The pair URL (crewbus://pair?...#abp-…) is handled in pair.js under
 // fragment-secret hygiene (never logged, never persisted, #fragment only).
+async function openPairWindow() {
+  try {
+    var invoke = window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke;
+    if (typeof invoke === 'function') {
+      await invoke('open_pair_window');
+      return;
+    }
+  } catch (_) { }
+
+  try {
+    var ww = (window.__TAURI__ && window.__TAURI__.webviewWindow && window.__TAURI__.webviewWindow.WebviewWindow)
+      || (window.__TAURI__ && window.__TAURI__.window && window.__TAURI__.window.WebviewWindow);
+    if (ww && ww.getByLabel) {
+      var existing = await ww.getByLabel('pair');
+      if (existing) {
+        if (existing.show) await existing.show();
+        if (existing.unminimize) await existing.unminimize();
+        if (existing.setFocus) await existing.setFocus();
+        return;
+      }
+    }
+  } catch (_) { }
+
+  window.open('./pair.html', '_blank', 'width=420,height=560');
+}
+
 if (pairBtn) {
   pairBtn.addEventListener('click', function () {
-    try {
-      var win = window.__TAURI__ && window.__TAURI__.window;
-      if (win && win.WebviewWindow) {
-        var existing = win.WebviewWindow.getByLabel ? win.WebviewWindow.getByLabel('pair') : null;
-        if (existing && existing.show) {
-          existing.show();
-          if (existing.setFocus) existing.setFocus();
-          return;
-        }
-      }
-    } catch (_) { /* fall through to tab */ }
-    window.open('./pair.html', '_blank', 'width=420,height=560');
+    openPairWindow().catch(function () {});
   });
 }
+
+window.addEventListener('message', function (ev) {
+  if (ev.data && ev.data.type === 'crewbus:open-pair') {
+    openPairWindow().catch(function () {});
+  }
+});

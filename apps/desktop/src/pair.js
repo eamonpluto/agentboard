@@ -12,19 +12,16 @@
 //   3. One-time link per device: Clear wipes the textarea + QR on demand;
 //      the window holds no copy afterwards.
 //
-// Mint source: `node bin/crewbus.js serve --port 0 --pair-qrcode --from
-// <admin>` (same mint + audit as `relay pair`) or `relay pair qr --from
-// <admin>`. Exchange (swap abp-… once for abd-… with narrow-only scopes)
-// happens on the device being paired (M5 mobile), not here.
-//
 // Runs as plain static JS: browser globals only, `node --check` clean.
 
 'use strict';
 
 import { parsePairUrl } from './vendor/runtime/index.js';
+import { renderQrSvg } from './vendor/qrcode.js';
 
 var box = document.getElementById('pair-url');
 var qr = document.getElementById('qr');
+var qrWrap = document.getElementById('qr-wrap') || (qr ? qr.parentElement : null);
 var msg = document.getElementById('msg');
 var renderBtn = document.getElementById('pair-render');
 var clearBtn = document.getElementById('pair-clear');
@@ -32,30 +29,32 @@ var clearBtn = document.getElementById('pair-clear');
 function say(t, isErr) {
   if (!msg) return;
   msg.textContent = t;
-  msg.className = isErr ? 'warn' : 'dim';
+  msg.className = isErr ? 'warn' : 'ok';
 }
 
-// Thin wrapper over the runtime parser (fragment-only secret, query
-// rejected). Throws Error with the runtime message for the status line.
 function parsePairUrlSpike(raw) {
   var parsed = parsePairUrl(String(raw == null ? '' : raw).trim());
   return { env: parsed.env || '(unknown env)', pairToken: parsed.pairToken };
 }
 
 function describeForDisplay(u) {
-  // Strip the fragment BEFORE touching any status surface.
   return String(u).split('#')[0];
 }
 
 function clearAll() {
   if (box) box.value = '';
-  if (qr) qr.textContent = 'QR placeholder — wire a renderer on the toolchain machine (M5)';
+  if (qrWrap) qrWrap.innerHTML = '<div id="qr" aria-label="pairing QR">QR code will appear here after rendering</div>';
+  qr = document.getElementById('qr');
   say('');
 }
 
 if (renderBtn) {
   renderBtn.addEventListener('click', function () {
     var raw = box ? box.value : '';
+    if (!raw.trim()) {
+      say('paste a pair URL first', true);
+      return;
+    }
     var parsed;
     try {
       parsed = parsePairUrlSpike(raw);
@@ -63,13 +62,19 @@ if (renderBtn) {
       say('rejected: ' + String((e && e.message) || e), true);
       return;
     }
-    // Placeholder render: show env + token length, NEVER the secret itself.
-    // Toolchain machine replaces this block with a real QR encoder over the
-    // full in-memory URL string (canvas, no network).
-    if (qr) {
-      qr.textContent = 'QR for ' + parsed.env + ' (' + parsed.pairToken.length + '-char fragment secret, hidden)';
+
+    try {
+      var svg = renderQrSvg(raw.trim(), {
+        width: 200,
+        margin: 1,
+        color: { dark: '#f1f5f9', light: '#12151f' },
+      });
+      if (qrWrap) qrWrap.innerHTML = svg;
+      say('QR code ready for ' + describeForDisplay(raw) + ' — scan with CrewBus Mobile.');
+    } catch (err) {
+      if (qr) qr.textContent = 'QR for ' + parsed.env + ' (' + parsed.pairToken.length + '-char secret)';
+      say('QR render fallback: ' + String(err.message || err), true);
     }
-    say('pairing URL accepted for ' + describeForDisplay(raw) + ' — secret kept in memory only.');
   });
 }
 
