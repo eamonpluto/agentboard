@@ -924,6 +924,145 @@ setInterval(refresh,5000);
 </main></body></html>`;
 }
 
+// Reads a JSON request body without fail() (which would exit the server).
+export const readKillBody = (req) =>
+  new Promise((resolve) => {
+    const chunks = [];
+    let size = 0;
+    req.on("data", (c) => {
+      size += c.length;
+      if (size <= 65536) chunks.push(c);
+    });
+    req.on("end", () => {
+      if (size > 65536) return resolve({ error: [413, "body too large (max 64KB)"] });
+      let body = null;
+      try {
+        body = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+      } catch {
+        return resolve({ error: [400, "invalid JSON body"] });
+      }
+      resolve({ body });
+    });
+    req.on("error", () => resolve({ error: [400, "unreadable body"] }));
+  });
+
+// Shared web dashboard API routes for both `crewbus web` and `crewbus serve`
+// (embedded Tauri webview). Returns true if the route was handled, false otherwise.
+export async function handleWebDashboardRoute(req, res, url, d) {
+  if (req.method === "GET" && url.pathname === "/api/board") {
+    const body = JSON.stringify(boardSnapshot(d, 300));
+    res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+    res.end(body);
+    return true;
+  }
+  if (req.method === "GET" && url.pathname === "/api/fleet") {
+    const body = JSON.stringify(await fleetSnapshot(d));
+    res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+    res.end(body);
+    return true;
+  }
+  if (req.method === "GET" && url.pathname === "/api/channels") {
+    const body = JSON.stringify(channelsSnapshot(d, 5));
+    res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+    res.end(body);
+    return true;
+  }
+  if (req.method === "GET" && url.pathname === "/api/results") {
+    const body = JSON.stringify(resultsSnapshot(d));
+    res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+    res.end(body);
+    return true;
+  }
+  if (req.method === "GET" && url.pathname === "/api/audit") {
+    const body = JSON.stringify(auditSnapshot(d, 15));
+    res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+    res.end(body);
+    return true;
+  }
+  if (req.method === "GET" && url.pathname === "/api/holds") {
+    // Open read like /api/board (holds are visible to every board
+    // reader via `hold status`; secrets never included — publicHold
+    // allowlists hold metadata only, inactive serves as null).
+    const body = JSON.stringify({ board: d.root, hold: publicHold(readHold(d)) });
+    res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+    res.end(body);
+    return true;
+  }
+  if (req.method === "GET" && url.pathname === "/api/quotas") {
+    // Open read like /api/board (quotas are visible to every board
+    // reader via `quota show`; limits + tenant only, never secrets).
+    const body = JSON.stringify({ board: d.root, quotas: readBoardQuotas(d) });
+    res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+    res.end(body);
+    return true;
+  }
+  if (req.method === "GET" && url.pathname === "/api/inbox") {
+    // Open read like /api/board (recent messages are already public
+    // there); item lists power the triage queue. Secrets never included.
+    const agent = cleanWebName(url.searchParams.get("agent"));
+    if (!agent) {
+      res.writeHead(400, { "content-type": "application/json; charset=utf-8" });
+      res.end(JSON.stringify({ error: "pass ?agent=<name>" }));
+      return true;
+    }
+    const limitRaw = Number(url.searchParams.get("limit") || 50);
+    const limit = Number.isInteger(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 200) : 50;
+    const known = ackedIds(d, agent);
+    const items = readVisible(d, agent)
+      .filter((m) => (url.searchParams.get("unacked") === "1" ? !known.has(m.id) : true))
+      .slice(-limit)
+      .map((m) => ({
+        id: m.id, from: m.from, at: m.at, subject: m.subject || "",
+        head: String(m.body || "").slice(0, 160),
+        replyTo: m.replyTo || "", batch: m.batch || "",
+        artifact: m.artifact || "", acked: known.has(m.id),
+      }));
+    res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+    res.end(JSON.stringify({ board: d.root, agent, items }));
+    return true;
+  }
+  if (req.method === "POST" && url.pathname === "/api/ack") {
+    // JSON-only like /api/kill (plain browser forms can't reach it),
+    // token-checked like the CLI, no --verify over HTTP.
+    if (!String(req.headers["content-type"] || "").includes("application/json")) {
+      res.writeHead(415, { "content-type": "application/json; charset=utf-8" });
+      res.end(JSON.stringify({ error: "content-type must be application/json" }));
+      return true;
+    }
+    const { body, error } = await readKillBody(req);
+    if (error) {
+      res.writeHead(error[0], { "content-type": "application/json; charset=utf-8" });
+      res.end(JSON.stringify({ error: error[1] }));
+      return true;
+    }
+    const out = await handleApiAck(d, body);
+    res.writeHead(out.status, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+    res.end(JSON.stringify(out.payload));
+    return true;
+  }
+  if (req.method === "POST" && url.pathname === "/api/approve") {
+    // JSON-only like /api/ack (plain browser forms can't reach it),
+    // token-checked like the CLI. Any valid identity may answer; the
+    // worker-side sender check is the real gate.
+    if (!String(req.headers["content-type"] || "").includes("application/json")) {
+      res.writeHead(415, { "content-type": "application/json; charset=utf-8" });
+      res.end(JSON.stringify({ error: "content-type must be application/json" }));
+      return true;
+    }
+    const { body, error } = await readKillBody(req);
+    if (error) {
+      res.writeHead(error[0], { "content-type": "application/json; charset=utf-8" });
+      res.end(JSON.stringify({ error: error[1] }));
+      return true;
+    }
+    const out = await handleApiApprove(d, body);
+    res.writeHead(out.status, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+    res.end(JSON.stringify(out.payload));
+    return true;
+  }
+  return false;
+}
+
 export async function cmdWeb(args) {
   const root = boardDir(args);
   const d = requireBoard(root);
@@ -933,142 +1072,11 @@ export async function cmdWeb(args) {
   if (host !== "127.0.0.1" && host !== "localhost" && host !== "::1") {
     process.stderr.write(`crewbus: warning: binding non-local ${host} — the dashboard has no auth, anyone who can reach it can read the board\n`);
   }
-// Reads the JSON kill request without fail() (which would exit the server).
-  const readKillBody = (req) =>
-    new Promise((resolve) => {
-      const chunks = [];
-      let size = 0;
-      req.on("data", (c) => {
-        size += c.length;
-        if (size <= 65536) chunks.push(c);
-      });
-      req.on("end", () => {
-        if (size > 65536) return resolve({ error: [413, "body too large (max 64KB)"] });
-        let body = null;
-        try {
-          body = JSON.parse(Buffer.concat(chunks).toString("utf8"));
-        } catch {
-          return resolve({ error: [400, "invalid JSON body"] });
-        }
-        resolve({ body });
-      });
-      req.on("error", () => resolve({ error: [400, "unreadable body"] }));
-    });
   const server = http.createServer((req, res) => {
     (async () => {
       try {
         const url = new URL(req.url || "/", "http://x");
-        if (req.method === "GET" && url.pathname === "/api/board") {
-          const body = JSON.stringify(boardSnapshot(d, 300));
-          res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
-          res.end(body);
-          return;
-        }
-        if (req.method === "GET" && url.pathname === "/api/fleet") {
-          const body = JSON.stringify(await fleetSnapshot(d));
-          res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
-          res.end(body);
-          return;
-        }
-        if (req.method === "GET" && url.pathname === "/api/channels") {
-          const body = JSON.stringify(channelsSnapshot(d, 5));
-          res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
-          res.end(body);
-          return;
-        }
-        if (req.method === "GET" && url.pathname === "/api/results") {
-          const body = JSON.stringify(resultsSnapshot(d));
-          res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
-          res.end(body);
-          return;
-        }
-        if (req.method === "GET" && url.pathname === "/api/audit") {
-          const body = JSON.stringify(auditSnapshot(d, 15));
-          res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
-          res.end(body);
-          return;
-        }
-        if (req.method === "GET" && url.pathname === "/api/holds") {
-          // Open read like /api/board (holds are visible to every board
-          // reader via `hold status`; secrets never included — publicHold
-          // allowlists hold metadata only, inactive serves as null).
-          const body = JSON.stringify({ board: d.root, hold: publicHold(readHold(d)) });
-          res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
-          res.end(body);
-          return;
-        }
-        if (req.method === "GET" && url.pathname === "/api/quotas") {
-          // Open read like /api/board (quotas are visible to every board
-          // reader via `quota show`; limits + tenant only, never secrets).
-          const body = JSON.stringify({ board: d.root, quotas: readBoardQuotas(d) });
-          res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
-          res.end(body);
-          return;
-        }
-        if (req.method === "GET" && url.pathname === "/api/inbox") {
-          // Open read like /api/board (recent messages are already public
-          // there); item lists power the triage queue. Secrets never included.
-          const agent = cleanWebName(url.searchParams.get("agent"));
-          if (!agent) {
-            res.writeHead(400, { "content-type": "application/json; charset=utf-8" });
-            res.end(JSON.stringify({ error: "pass ?agent=<name>" }));
-            return;
-          }
-          const limitRaw = Number(url.searchParams.get("limit") || 50);
-          const limit = Number.isInteger(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 200) : 50;
-          const known = ackedIds(d, agent);
-          const items = readVisible(d, agent)
-            .filter((m) => (url.searchParams.get("unacked") === "1" ? !known.has(m.id) : true))
-            .slice(-limit)
-            .map((m) => ({
-              id: m.id, from: m.from, at: m.at, subject: m.subject || "",
-              head: String(m.body || "").slice(0, 160),
-              replyTo: m.replyTo || "", batch: m.batch || "",
-              artifact: m.artifact || "", acked: known.has(m.id),
-            }));
-          res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
-          res.end(JSON.stringify({ board: d.root, agent, items }));
-          return;
-        }
-        if (req.method === "POST" && url.pathname === "/api/ack") {
-          // JSON-only like /api/kill (plain browser forms can't reach it),
-          // token-checked like the CLI, no --verify over HTTP.
-          if (!String(req.headers["content-type"] || "").includes("application/json")) {
-            res.writeHead(415, { "content-type": "application/json; charset=utf-8" });
-            res.end(JSON.stringify({ error: "content-type must be application/json" }));
-            return;
-          }
-          const { body, error } = await readKillBody(req);
-          if (error) {
-            res.writeHead(error[0], { "content-type": "application/json; charset=utf-8" });
-            res.end(JSON.stringify({ error: error[1] }));
-            return;
-          }
-          const out = await handleApiAck(d, body);
-          res.writeHead(out.status, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
-          res.end(JSON.stringify(out.payload));
-          return;
-        }
-        if (req.method === "POST" && url.pathname === "/api/approve") {
-          // JSON-only like /api/ack (plain browser forms can't reach it),
-          // token-checked like the CLI. Any valid identity may answer; the
-          // worker-side sender check is the real gate.
-          if (!String(req.headers["content-type"] || "").includes("application/json")) {
-            res.writeHead(415, { "content-type": "application/json; charset=utf-8" });
-            res.end(JSON.stringify({ error: "content-type must be application/json" }));
-            return;
-          }
-          const { body, error } = await readKillBody(req);
-          if (error) {
-            res.writeHead(error[0], { "content-type": "application/json; charset=utf-8" });
-            res.end(JSON.stringify({ error: error[1] }));
-            return;
-          }
-          const out = await handleApiApprove(d, body);
-          res.writeHead(out.status, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
-          res.end(JSON.stringify(out.payload));
-          return;
-        }
+        if (await handleWebDashboardRoute(req, res, url, d)) return;
         if (req.method === "POST" && url.pathname === "/api/kill") {
           // JSON-only (browsers preflight this; simple CSRF forms can't reach
           // it), token-checked like the CLI. Same trust zone as the board.

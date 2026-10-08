@@ -51,7 +51,7 @@ import { appendChainRecord, auditHmacKey, boardTotalBytes, chainFilePath, countC
 import { ackedIds, checkSendRateLimit, deliverDMs, enforceMaxChars, filterDigest, findDuplicateSend, findMessageById, heartbeat, isVerified, loadManifest, manifestPath, msgTimeMs, parseRecipients, printDigest, printMsg, readDMs, readVisible, recordBroadcastManifest, requireFanoutConfirm, resolveFwdDepth, runVerifier, verifyMessageSig, isHigh, signMessage, untrustedEnvelope, relTime, rateFilePath, broadcastTargets, readBroadcastsFor, formatTo, msgHeader, readAckMarker, splitCommand, readRecipientsFile } from "./lib/mail.js";
 import { batchReplyIds, collectBatch, contributingGroups, expandGroups, expandGroupsOrFail, gatherTelemetry, groupTelemetryData, heuristicSenderType, readGroup, ensureGroupCreatedAt, readResultRecord, writeResultRecord, findFirstVerifiedReply } from "./lib/groups.js";
 import { appendChannelPost, channelLogPath, groupChannelName, lockAlive, lockPath, mergeChannelText, mirrorToGroupChannels, printChannelPost, readChannelPosts, readLock, summarizePosts, writeChannelCursor, SUMMARY_STOP, channelCursorPath, readChannelCursor, lockHash, acquireLockDoc, releaseLockDoc, tailChannelPosts, listLocks, parseChannelText } from "./lib/channels.js";
-import { boardSnapshot, cmdWeb, escapeHtml, fleetSnapshot, channelsSnapshot, resultsSnapshot, auditSnapshot, handleApiAck, renderBoardHtml, handleApiKill } from "./lib/web.js";
+import { boardSnapshot, cmdWeb, escapeHtml, fleetSnapshot, channelsSnapshot, resultsSnapshot, auditSnapshot, handleApiAck, renderBoardHtml, handleApiKill, handleWebDashboardRoute } from "./lib/web.js";
 import { LAUNCH_DRIVER_FALLBACK, PAIR_SCOPES, advertiseEnv, buildPairUrl, detectHarnessBinaries, formatHarnessMenu, isBodyFileRef, launchDrivers, parseCountChoice, parseHarnessChoice, parsePermissionChoice, parseYesNo, probeBinary, validateLaunchPlan } from "./lib/launch.js";
 import readline from "node:readline";
 
@@ -5023,7 +5023,7 @@ async function cmdServe(args) {
       try {
         const url = new URL(req.url || "/", "http://x");
         if (!requireRelayClientCert(req, res, url, tlsClientCaPem)) return;
-        if (req.method === "GET" && url.pathname === "/") {
+        if (req.method === "GET" && (url.pathname === "/" || url.pathname === "/index.html")) {
           // Control-plane M4: the relay serves the same dashboard as `web`
           // (the desktop shell embeds this URL in its webview). The old
           // plaintext banner stays at /relay.txt for scripts.
@@ -5032,6 +5032,7 @@ async function cmdServe(args) {
           res.end(body);
           return;
         }
+        if (await handleWebDashboardRoute(req, res, url, d)) return;
         if (req.method === "GET" && url.pathname === "/relay.txt") {
           res.writeHead(200, { "content-type": "text/plain; charset=utf-8" });
           res.end(`crewbus sync relay [board ${d.root}]\npeers: GET /sync/manifest, GET /sync/file?path=…, POST /sync/put?path=…\ncrews: POST /api/spawn (JSON, token-checked)\n`);

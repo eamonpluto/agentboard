@@ -88,9 +88,10 @@ function pollOnce() {
 function probeBoard(route) {
   var base = String(route).replace(/\/+$/, '');
   return fetch(base + '/api/board', { cache: 'no-store' }).then(function (r) {
-    return r.ok;
+    if (r.ok) return true;
+    return fetch(base + '/healthz', { cache: 'no-store' }).then(function (r2) { return r2.ok; }).catch(function () { return false; });
   }).catch(function () {
-    return false;
+    return fetch(base + '/healthz', { cache: 'no-store' }).then(function (r2) { return r2.ok; }).catch(function () { return false; });
   });
 }
 
