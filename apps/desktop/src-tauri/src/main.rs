@@ -243,6 +243,7 @@ fn main() {
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             if let Some(win) = app.get_webview_window("main") {
                 let _ = win.show();
+                let _ = win.unminimize();
                 let _ = win.set_focus();
             }
         }))
@@ -267,6 +268,26 @@ fn main() {
             url: Mutex::new(None),
             status: Mutex::new(Some("starting".to_string())),
             detail: Mutex::new(Some("sidecar booting".to_string())),
+        })
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                if window.label() == "main" {
+                    // Main window close exits the app: kill the loopback sidecar
+                    // child process before terminating so no zombie node process
+                    // is orphaned.
+                    if let Ok(mut guard) = window.app_handle().state::<SidecarState>().child.lock() {
+                        if let Some(child) = guard.take() {
+                            let _ = child.kill();
+                        }
+                    }
+                    window.app_handle().exit(0);
+                } else if window.label() == "pair" {
+                    // Pair window close only hides it so it can be re-shown
+                    // by the "Pair a device" button without re-creating webviews.
+                    let _ = window.hide();
+                    api.prevent_close();
+                }
+            }
         })
         .setup(|app| {
             // Autostart start-minimized-friendly: hide `main` on a
