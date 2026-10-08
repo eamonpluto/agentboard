@@ -147,22 +147,55 @@ fn first_loopback_url(line: &str) -> Option<String> {
 // `tauri::Manager::path().resource_dir()` pattern; if the toolchain's Tauri
 // version returns `PathBuf` instead of `Result<PathBuf>` here, drop the
 // `if let Ok(...)` wrapper.
-fn resolve_crewbus_js(app: &tauri::AppHandle) -> Option<std::path::PathBuf> {
+// resolution helper: returns the winning path (if any) plus a
+// `debugReport` fragment echoed into the `dashboard-error` message (and
+// into sidecar.log) so an installed miss is actionable without a checkout.
+// Shape: `crewbus core not found (...) | resource_dir()=... | probed:
+// <cand> (missing|present|present, no lib/store.js); ...`.
+fn resolve_crewbus_js(app: &tauri::AppHandle) -> (Option<std::path::PathBuf>, String) {
     let mut cands = Vec::new();
-    if let Ok(rd) = app.path().resource_dir() {
-        for rel in ["bin/crewbus.js", "crewbus/bin/crewbus.js", "crewbus.js"] {
-            cands.push(rd.join(rel));
+    let rd_note: String = match app.path().resource_dir() {
+        Ok(rd) => {
+            for rel in ["bin/crewbus.js", "crewbus/bin/crewbus.js", "crewbus.js"] {
+                cands.push(rd.join(rel));
+            }
+            format!("resource_dir()={}", rd.display())
         }
-    }
+        Err(e) => format!("resource_dir() Err: {e}"),
+    };
     // Dev-checkout fallback (`tauri dev` before resources are staged).
     #[cfg(debug_assertions)]
     cands.push(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../bin/crewbus.js"));
-    cands.into_iter().find(|p| {
+    let mut annotated = Vec::new();
+    for p in &cands {
+        let tag = if !p.is_file() {
+            "(missing)"
+        } else if !p
+            .parent()
+            .map(|d| d.join("lib/store.js").is_file())
+            .unwrap_or(false)
+        {
+            "(present, no lib/store.js)"
+        } else {
+            "(present)"
+        };
+        annotated.push(format!("{} {}", p.display(), tag));
+    }
+    let probed = if annotated.is_empty() {
+        "(none)".to_string()
+    } else {
+        annotated.join("; ")
+    };
+    let debug_report = format!(
+        "crewbus core not found (resources bin/crewbus.js missing and no dev checkout) | {rd_note} | probed: {probed}"
+    );
+    let hit = cands.into_iter().find(|p| {
         p.is_file()
             && p.parent()
                 .map(|d| d.join("lib/store.js").is_file())
                 .unwrap_or(false)
-    })
+    });
+    (hit, debug_report)
 }
 
 #[tauri::command]
@@ -276,10 +309,24 @@ fn main() {
                 // program, file, verb, and flags stay exact. First-run board
                 // creation is Rust-side ensure_board_dir() (no sidecar verb
                 // needed), so the scope needs exactly one shape.
-                let crewbus_js = match resolve_crewbus_js(&handle) {
+                let (crewbus_opt, crewbus_report) = resolve_crewbus_js(&handle);
+                let crewbus_js = match crewbus_opt {
                     Some(p) => p.to_string_lossy().into_owned(),
                     None => {
-                        err("crewbus core not found (resources bin/crewbus.js missing and no dev checkout)".to_string());
+                        // Mirror the same report line to sidecar.log
+                        // (best-effort; a missing log never blocks the emit).
+                        if let Ok(d) = handle.path().app_data_dir() {
+                            let lp = d.join("sidecar.log");
+                            if let Ok(mut f) = std::fs::OpenOptions::new()
+                                .create(true)
+                                .append(true)
+                                .open(&lp)
+                            {
+                                use std::io::Write as _;
+                                let _ = writeln!(f, "{crewbus_report}");
+                            }
+                        }
+                        err(crewbus_report);
                         return;
                     }
                 };
