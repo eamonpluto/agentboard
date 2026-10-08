@@ -174,6 +174,7 @@ ok(mainRsRel.includes('resolve_crewbus_js'), 'main.rs resolves the shipped core 
 ok(mainRsRel.includes('resource_dir()'), 'main.rs uses the documented path().resource_dir() pattern');
 ok(mainRsRel.includes('(Option<std::path::PathBuf>, String)'), 'main.rs resolve helper returns (Option<PathBuf>, String debugReport)');
 ok(mainRsRel.includes('resource_dir()='), 'main.rs resolution-failure message echoes the resource_dir() value (or its error)');
+ok(mainRsRel.includes('_up_/_up_/bin/crewbus.js'), 'main.rs probes the bundler _up_ layout first (tauri rewrites resource .. as _up_)');
 ok(mainRsRel.includes('(missing)') && mainRsRel.includes('(present, no lib/store.js)'), 'main.rs annotates every probed candidate path ((missing) / (present, no lib/store.js))');
 ok(mainRsRel.includes('probed:'), 'main.rs resolution-failure message lists the probed candidates');
 ok(mainRsRel.includes('crewbus core not found') && mainRsRel.includes('probed:'), 'main.rs dashboard-error keeps the core-missing prefix plus the probe report');

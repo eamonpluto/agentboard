@@ -136,14 +136,14 @@ fn first_loopback_url(line: &str) -> Option<String> {
 
 // Normie-install core resolution: the installed app has no repo checkout,
 // so the crewbus core ships as Tauri `resources` (tauri.conf
-// `bundle.resources: ["../../bin"]` => `<resourceDir>/bin/crewbus.js` plus
-// `<resourceDir>/bin/lib/*.js`, the same relative layout as the repo, so the
-// `./lib/*.js` imports inside crewbus.js resolve unchanged — the core is
-// zero-dep (node builtins only) and no other repo path is read at sidecar
-// runtime). UNCERTAINTY flagged for toolchain review: Tauri may nest
-// resources under an extra subdir on some targets, so every plausible layout
-// is probed and a candidate only wins when its sibling `lib/store.js`
-// exists (proves the import graph shipped intact). This uses the documented
+// `bundle.resources: ["../../../bin"]`, staged by tauri-bundler with `..`
+// rewritten as `_up_` dirs => `<resourceDir>/_up_/_up_/bin/crewbus.js` plus
+// `<resourceDir>/_up_/_up_/bin/lib/*.js`, the same relative layout as the
+// repo, so the `./lib/*.js` imports inside crewbus.js resolve unchanged —
+// the core is zero-dep (node builtins only) and no other repo path is read
+// at sidecar runtime). Every plausible layout is probed below and a
+// candidate only wins when its sibling `lib/store.js` exists (proves the
+// import graph shipped intact). This uses the documented
 // `tauri::Manager::path().resource_dir()` pattern; if the toolchain's Tauri
 // version returns `PathBuf` instead of `Result<PathBuf>` here, drop the
 // `if let Ok(...)` wrapper.
@@ -156,7 +156,16 @@ fn resolve_crewbus_js(app: &tauri::AppHandle) -> (Option<std::path::PathBuf>, St
     let mut cands = Vec::new();
     let rd_note: String = match app.path().resource_dir() {
         Ok(rd) => {
-            for rel in ["bin/crewbus.js", "crewbus/bin/crewbus.js", "crewbus.js"] {
+            // NOTE: tauri-bundler stages resource `..` segments as literal
+            // `_up_` dirs, so `bundle.resources: ["../../../bin"]` lands at
+            // `<resourceDir>/_up_/_up_/bin/` — NOT at `<resourceDir>/bin/`.
+            // The other candidates below cover alternate/past layouts.
+            for rel in [
+                "_up_/_up_/bin/crewbus.js",
+                "bin/crewbus.js",
+                "crewbus/bin/crewbus.js",
+                "crewbus.js",
+            ] {
                 cands.push(rd.join(rel));
             }
             format!("resource_dir()={}", rd.display())
