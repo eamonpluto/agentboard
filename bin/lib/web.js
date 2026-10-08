@@ -450,57 +450,57 @@ async function refresh(){
     document.getElementById('groups').innerHTML=(s.groups||[]).map(function(g){
       var mem=g.members.join(',');
       return '<tr><td><b>'+esc(g.name)+'</b> ('+g.count+')</td><td>'+esc(mem.length>120?mem.slice(0,120)+'…':mem)+'</td></tr>';
-    }).join('')||'<tr><td colspan=\'2\' class=\'dim\'>no groups yet</td></tr>';
+    }).join('')||'<tr><td colspan="2" class="dim">no groups yet</td></tr>';
     document.getElementById('peers').innerHTML=(s.peers||[]).map(function(p){
       return '<tr><td>'+esc(p.peer)+'</td><td>'+esc(p.lastOk)+'</td></tr>';
-    }).join('')||'<tr><td colspan=\'2\' class=\'dim\'>no peers synced yet</td></tr>';
+    }).join('')||'<tr><td colspan="2" class="dim">no peers synced yet</td></tr>';
     document.getElementById('workers').innerHTML=s.workers.map(function(w){
-      var tail=(w.tail||[]).slice(-3).map(function(l){return '<div class=\\'log\\'>'+esc(l)+'</div>';}).join('')||'<span class=\\'dim\\'>no log</span>';
-      var rep=w.reply?esc(w.reply.id)+'<div class=\\'dim\\'>'+esc(w.reply.head)+'</div>':'—';
-      var btn=(w.known&&typeof w.pid==='number')?'<button class=\\'danger\\' data-kill=\\''+esc(w.name)+'\\'>kill</button>':'';
-      return '<tr data-worker="'+esc(w.name)+'" class="worker-row"><td><b>'+esc(w.name)+'</b><div class=\\'dim\\'>by '+esc(w.spawnedBy||'?')+'</div></td><td>'+esc(stateOf(w))+'</td><td>'+(w.pid===null||w.pid===undefined?'—':esc(String(w.pid)))+'</td><td>'+rep+'</td><td>'+tail+'</td><td>'+btn+'</td></tr>';
-    }).join('')||'<tr><td colspan=\\'6\\' class=\\'dim\\'>no spawned workers</td></tr>';
+      var tail=(w.tail||[]).slice(-3).map(function(l){return '<div class="log">'+esc(l)+'</div>';}).join('')||'<span class="dim">no log</span>';
+      var rep=w.reply?esc(w.reply.id)+'<div class="dim">'+esc(w.reply.head)+'</div>':'—';
+      var btn=(w.known&&typeof w.pid==='number')?'<button class="danger" data-kill="'+esc(w.name)+'">kill</button>':'';
+      return '<tr data-worker="'+esc(w.name)+'" class="worker-row"><td><b>'+esc(w.name)+'</b><div class="dim">by '+esc(w.spawnedBy||'?')+'</div></td><td>'+esc(stateOf(w))+'</td><td>'+(w.pid===null||w.pid===undefined?'—':esc(String(w.pid)))+'</td><td>'+rep+'</td><td>'+tail+'</td><td>'+btn+'</td></tr>';
+    }).join('')||'<tr><td colspan="6" class="dim">no spawned workers</td></tr>';
     Array.prototype.forEach.call(document.querySelectorAll('[data-kill]'),function(b){b.onclick=function(){kill([b.getAttribute('data-kill')]);};});
     document.getElementById('agents').innerHTML=s.agents.map(function(a){
       return '<tr><td><b>'+esc(a.name)+'</b></td><td>'+(a.active?'● active':'○ stale')+'</td><td>'+esc(a.lastSeen||'?')+'</td><td>'+esc(a.sessionId||'—')+'</td><td>'+a.dmCount+'</td><td>'+a.unacked+'</td></tr>';
-    }).join('')||'<tr><td colspan=\\'6\\' class=\\'dim\\'>no agents yet</td></tr>';
+    }).join('')||'<tr><td colspan="6" class="dim">no agents yet</td></tr>';
     document.getElementById('bcast').innerHTML=s.broadcasts.map(function(b){
       var to=Array.isArray(b.to)?b.to.join(','):String(b.to||'');
       return '<tr><td>'+esc(b.id)+'</td><td>'+esc(b.from)+'</td><td>'+esc(short(to,80))+'</td><td>'+esc(b.subject||'')+'</td><td>'+esc(short(b.body,140))+'</td></tr>';
-    }).join('')||'<tr><td colspan=\\'5\\' class=\\'dim\\'>no broadcasts</td></tr>';
+    }).join('')||'<tr><td colspan="5" class="dim">no broadcasts</td></tr>';
     document.getElementById('recent').innerHTML=s.recent.map(function(m){
       var to=Array.isArray(m.to)?m.to.join(','):String(m.to||'');
       var acks=(s.ackedBy[m.id]||[]).map(function(x){return '✓'+x;}).join(' ');
-      return '<tr><td>'+esc(m.id)+'</td><td>'+esc(m.from)+' → '+esc(short(to,40))+'</td><td>'+(m.subject?'<b>'+esc(m.subject)+'</b><br>':'')+esc(short(m.body,200))+'<div class=\'dim\'>'+(m.replyTo?('re: '+esc(m.replyTo)+' '):'')+(m.batch?('batch '+esc(m.batch)+' '):'')+esc(acks)+'</div></td></tr>';
-    }).join('')||'<tr><td colspan=\'3\' class=\'dim\'>no messages yet</td></tr>';
+      return '<tr><td>'+esc(m.id)+'</td><td>'+esc(m.from)+' → '+esc(short(to,40))+'</td><td>'+(m.subject?'<b>'+esc(m.subject)+'</b><br>':'')+esc(short(m.body,200))+'<div class="dim">'+(m.replyTo?('re: '+esc(m.replyTo)+' '):'')+(m.batch?('batch '+esc(m.batch)+' '):'')+esc(acks)+'</div></td></tr>';
+    }).join('')||'<tr><td colspan="3" class="dim">no messages yet</td></tr>';
     try{
       var fr=await fetch('/api/fleet',{cache:'no-store'});
       var fl=await fr.json();
       document.getElementById('fleet').innerHTML=(fl.relays||[]).map(function(p){
         var live=p.live;
         return '<tr><td>'+esc(p.peer)+'</td><td>'+esc(live?live.role:'—')+'</td><td>'+esc(live&&live.weight!==null&&live.weight!==undefined?String(live.weight):'—')+'</td><td>'+esc(live&&live.workers!==null&&live.workers!==undefined?String(live.workers):'—')+'</td><td>'+esc(live&&live.lagMs!==null&&live.lagMs!==undefined?String(live.lagMs)+'ms':'—')+'</td><td>'+esc(p.lastOk)+'</td></tr>';
-      }).join('')||'<tr><td colspan=\'6\' class=\'dim\'>no peers synced yet</td></tr>';
+      }).join('')||'<tr><td colspan="6" class="dim">no peers synced yet</td></tr>';
     }catch(e){}
     try{
       var cr=await fetch('/api/channels',{cache:'no-store'});
       var ch=await cr.json();
       document.getElementById('channels').innerHTML=(ch.channels||[]).map(function(c){
         var heads=(c.latest||[]).map(function(p){
-          return '<div class=\'log\'><b>'+esc(p.id)+'</b> ['+esc(p.from)+'] '+(p.subject?'<b>'+esc(p.subject)+'</b> ':'')+esc(p.head)+'</div>';
-        }).join('')||'<div class=\'dim\'>no posts</div>';
-        return '<div class=\'card\' style=\'margin:.5em 0\'><b>'+esc(c.name)+'</b> <span class=\'dim\'>'+c.posts+' posts</span>'+heads+'</div>';
-      }).join('')||'<div class=\'dim\'>no channels yet</div>';
+          return '<div class="log"><b>'+esc(p.id)+'</b> ['+esc(p.from)+'] '+(p.subject?'<b>'+esc(p.subject)+'</b> ':'')+esc(p.head)+'</div>';
+        }).join('')||'<div class="dim">no posts</div>';
+        return '<div class="card" style="margin:.5em 0"><b>'+esc(c.name)+'</b> <span class="dim">'+c.posts+' posts</span>'+heads+'</div>';
+      }).join('')||'<div class="dim">no channels yet</div>';
     }catch(e){}
     try{
       var rr=await fetch('/api/results',{cache:'no-store'});
       var rs=await rr.json();
       document.getElementById('results').innerHTML=(rs.groups||[]).map(function(g){
-        var res=g.result?('<b>'+esc(g.result.artifact||'(no artifact)')+'</b><div class=\'dim\'>by '+esc(g.result.by||'?')+' @ '+esc(g.result.at||'?')+'</div>'):'<span class=\'dim\'>no verified result</span>';
-        var run=(g.running||[]).map(function(m){return esc(m);}).join(', ')||'<span class=\'dim\'>none</span>';
-        var btns=(g.losers||[]).map(function(m){return '<button class=\'danger\' data-kill=\''+esc(m)+'\'>kill '+esc(m)+'</button>';}).join(' ');
+        var res=g.result?('<b>'+esc(g.result.artifact||'(no artifact)')+'</b><div class="dim">by '+esc(g.result.by||'?')+' @ '+esc(g.result.at||'?')+'</div>'):'<span class="dim">no verified result</span>';
+        var run=(g.running||[]).map(function(m){return esc(m);}).join(', ')||'<span class="dim">none</span>';
+        var btns=(g.losers||[]).map(function(m){return '<button class="danger" data-kill="'+esc(m)+'">kill '+esc(m)+'</button>';}).join(' ');
         var tele=g.messages+' msgs · '+g.replies+' replies · ~'+g.tokensEst+' tok · '+g.verifiedCount+' verified';
         return '<tr><td><b>'+esc(g.group)+'</b> ('+g.members+')</td><td>'+esc(tele)+'</td><td>'+res+'</td><td>'+run+'</td><td>'+btns+'</td></tr>';
-      }).join('')||'<tr><td colspan=\'5\' class=\'dim\'>no groups yet</td></tr>';
+      }).join('')||'<tr><td colspan="5" class="dim">no groups yet</td></tr>';
     }catch(e){}
     try{
       var c=creds();
@@ -508,15 +508,15 @@ async function refresh(){
         var tr=await fetch('/api/inbox?agent='+encodeURIComponent(c.from)+'&unacked=1&limit=50',{cache:'no-store'});
         var tj=await tr.json();
         document.getElementById('triage').innerHTML=(tj.items||[]).map(function(m){
-          return '<tr><td>'+esc(m.id)+'</td><td>'+esc(m.from)+'</td><td>'+(m.subject?'<b>'+esc(m.subject)+'</b><br>':'')+esc(m.head)+'</td><td><button data-ack=\''+esc(m.id)+'\'>ack</button></td></tr>';
-        }).join('')||'<tr><td colspan=\'4\' class=\'dim\'>inbox zero for '+esc(c.from)+'</td></tr>';
+          return '<tr><td>'+esc(m.id)+'</td><td>'+esc(m.from)+'</td><td>'+(m.subject?'<b>'+esc(m.subject)+'</b><br>':'')+esc(m.head)+'</td><td><button data-ack="'+esc(m.id)+'">ack</button></td></tr>';
+        }).join('')||'<tr><td colspan="4" class="dim">inbox zero for '+esc(c.from)+'</td></tr>';
         var ap=(tj.items||[]).filter(function(m){return m.subject&&m.subject.indexOf('approval: ')===0;});
         document.getElementById('approvals').innerHTML=ap.map(function(m){
-          return '<tr><td>'+esc(m.id)+'</td><td>'+esc(m.from)+'</td><td>'+(m.subject?'<b>'+esc(m.subject)+'</b><br>':'')+esc(m.head)+'</td><td><input data-reason=\''+esc(m.id)+'\' maxlength=\'500\' size=\'18\' placeholder=\'optional reason\'></td><td><button data-approve=\''+esc(m.id)+'\'>approve</button> <button class=\'danger\' data-deny=\''+esc(m.id)+'\'>deny</button></td></tr>';
-        }).join('')||'<tr><td colspan=\'5\' class=\'dim\'>no approval requests for '+esc(c.from)+'</td></tr>';
+          return '<tr><td>'+esc(m.id)+'</td><td>'+esc(m.from)+'</td><td>'+(m.subject?'<b>'+esc(m.subject)+'</b><br>':'')+esc(m.head)+'</td><td><input data-reason="'+esc(m.id)+'" maxlength="500" size="18" placeholder="optional reason"></td><td><button data-approve="'+esc(m.id)+'">approve</button> <button class="danger" data-deny="'+esc(m.id)+'">deny</button></td></tr>';
+        }).join('')||'<tr><td colspan="5" class="dim">no approval requests for '+esc(c.from)+'</td></tr>';
       }else{
-        document.getElementById('triage').innerHTML='<tr><td colspan=\'4\' class=\'dim\'>set identity above to triage</td></tr>';
-        document.getElementById('approvals').innerHTML='<tr><td colspan=\'5\' class=\'dim\'>set identity above to review approvals</td></tr>';
+        document.getElementById('triage').innerHTML='<tr><td colspan="4" class="dim">set identity above to triage</td></tr>';
+        document.getElementById('approvals').innerHTML='<tr><td colspan="5" class="dim">set identity above to review approvals</td></tr>';
       }
     }catch(e){}
     try{
@@ -527,7 +527,7 @@ async function refresh(){
       var rows=(au.audit||[]).concat(au.chain||[]).sort(function(a,b){return (a.seq||0)-(b.seq||0);}).slice(-15);
       document.getElementById('audit').innerHTML=rows.map(function(r){
         return '<tr><td>'+esc(String(r.seq===undefined||r.seq===null?'':r.seq))+'</td><td>'+esc(r.at||'')+'</td><td>'+esc(r.actor||'')+'</td><td>'+esc(r.type||'')+'</td><td>'+esc(short(r.target||'',40))+'</td><td>'+esc(r.result||'')+'</td></tr>';
-      }).join('')||'<tr><td colspan=\'6\' class=\'dim\'>no audit records yet</td></tr>';
+      }).join('')||'<tr><td colspan="6" class="dim">no audit records yet</td></tr>';
     }catch(e){}
     try{
       var hr=await fetch('/api/holds',{cache:'no-store'});
@@ -540,9 +540,9 @@ async function refresh(){
         var hy=h.reason?(': '+h.reason):'';
         var hbd=(hj&&hj.board)||'';
         hb='<b>ACTIVE</b> — placed by '+esc(hw)+' at '+esc(hn)+(h.reason?': '+esc(h.reason):'');
-        hb+='<div class=\'dim\'>'+esc('prune REFUSED — legal hold ACTIVE (placed by '+hw+' at '+hn+hy+') [board '+hbd+'] — lift with: hold lift --from <admin>')+'</div>';
+        hb+='<div class="dim">'+esc('prune REFUSED — legal hold ACTIVE (placed by '+hw+' at '+hn+hy+') [board '+hbd+'] — lift with: hold lift --from <admin>')+'</div>';
       }else{
-        hb='<span class=\'dim\'>no active legal hold</span>';
+        hb='<span class="dim">no active legal hold</span>';
       }
       document.getElementById('holds-body').innerHTML=hb;
     }catch(e){}
@@ -555,9 +555,9 @@ async function refresh(){
       try{if(ch&&ch.channels)chN=ch.channels.length;}catch(_){}
       var qb='<div>maxBytes: '+esc(q.maxBytes===undefined||q.maxBytes===null?'unlimited':humanBytes(q.maxBytes))+'</div>';
       var agOver=(q.maxAgents!==undefined&&q.maxAgents!==null&&agN>q.maxAgents)?' <b>OVER QUOTA</b>':'';
-      qb+='<div>maxAgents: '+esc(fmtLimit(q.maxAgents))+' <span class=\'dim\'>('+agN+' agents)</span>'+agOver+'</div>';
+      qb+='<div>maxAgents: '+esc(fmtLimit(q.maxAgents))+' <span class="dim">('+agN+' agents)</span>'+agOver+'</div>';
       var chOver=(q.maxChannels!==undefined&&q.maxChannels!==null&&chN!==null&&chN>q.maxChannels)?' <b>OVER QUOTA</b>':'';
-      qb+='<div>maxChannels: '+esc(fmtLimit(q.maxChannels))+(chN===null?'':' <span class=\'dim\'>('+chN+' channels)</span>')+chOver+'</div>';
+      qb+='<div>maxChannels: '+esc(fmtLimit(q.maxChannels))+(chN===null?'':' <span class="dim">('+chN+' channels)</span>')+chOver+'</div>';
       if(q.tenant){qb+='<div>tenant: '+esc(q.tenant)+'</div>';}
       document.getElementById('quotas-body').innerHTML=qb;
     }catch(e){}
@@ -831,7 +831,7 @@ function showInspector(name){
   var w=null;
   for(var i=0;i<rows.length;i++){if(rows[i].name===name){w=rows[i];break;}}
   if(!w){body.innerHTML='<span class="dim">unknown worker '+esc(name)+'</span>';return;}
-  var tail=((w.tail||[]).slice(-10).map(function(l){return esc(l);}).join('\n'))||'no log';
+  var tail=((w.tail||[]).slice(-10).map(function(l){return esc(l);}).join('\\n'))||'no log';
   var rep=w.reply?(esc(w.reply.id)+' — '+esc(w.reply.head||'')):'—';
   var html='<div><b>'+esc(w.name)+'</b> <span class="dim">'+esc(stateOf(w))+'</span></div>'
     +'<div class="dim">state: '+esc(stateOf(w))+' · pid: '+esc(w.pid===null||w.pid===undefined?'—':String(w.pid))+' · spawner: '+esc(w.spawnedBy||'?')+'</div>'

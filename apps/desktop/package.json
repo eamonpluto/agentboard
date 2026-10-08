@@ -1,6 +1,6 @@
 {
   "name": "@eamonpluto/crewbus-desktop",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "private": true,
   "description": "CrewBus M4 desktop shell (Tauri): owns a loopback sidecar (node bin/crewbus.js serve --port 0) and embeds the local dashboard. Static spike scaffold — deps listed but NOT installed on this machine (no node_modules, no lockfile).",
   "type": "module",
