@@ -52,7 +52,7 @@ import { ackedIds, checkSendRateLimit, deliverDMs, enforceMaxChars, filterDigest
 import { batchReplyIds, collectBatch, contributingGroups, expandGroups, expandGroupsOrFail, gatherTelemetry, groupTelemetryData, heuristicSenderType, readGroup, ensureGroupCreatedAt, readResultRecord, writeResultRecord, findFirstVerifiedReply } from "./lib/groups.js";
 import { appendChannelPost, channelLogPath, groupChannelName, lockAlive, lockPath, mergeChannelText, mirrorToGroupChannels, printChannelPost, readChannelPosts, readLock, summarizePosts, writeChannelCursor, SUMMARY_STOP, channelCursorPath, readChannelCursor, lockHash, acquireLockDoc, releaseLockDoc, tailChannelPosts, listLocks, parseChannelText } from "./lib/channels.js";
 import { boardSnapshot, cmdWeb, escapeHtml, fleetSnapshot, channelsSnapshot, resultsSnapshot, auditSnapshot, handleApiAck, renderBoardHtml, handleApiKill, handleWebDashboardRoute } from "./lib/web.js";
-import { LAUNCH_DRIVER_FALLBACK, PAIR_SCOPES, advertiseEnv, buildPairUrl, detectHarnessBinaries, formatHarnessMenu, isBodyFileRef, launchDrivers, parseCountChoice, parseHarnessChoice, parsePermissionChoice, parseYesNo, probeBinary, validateLaunchPlan } from "./lib/launch.js";
+import { LAUNCH_DRIVER_FALLBACK, PAIR_SCOPES, advertiseEnv, buildPairUrl, detectHarnessBinaries, formatHarnessMenu, isBodyFileRef, launchDrivers, parseCountChoice, parseHarnessChoice, parsePermissionChoice, parseYesNo, probeBinary, validateLaunchPlan, HARNESS_MODELS } from "./lib/launch.js";
 import readline from "node:readline";
 
 // spawn boots live OS processes (heavyweight: a whole harness per worker),
@@ -2809,18 +2809,27 @@ function cmdSpawn(args) {
       fail(`name "${name}" has a live worker (pid ${rec.spawnedPid}) — pick a fresh name via --prefix, or kill it first (spawn-kill --from ${from} --to ${name})`);
     }
   }
-  let harness = String(getFlag(args, "--harness") || "opencode").toLowerCase();
-  if (harness === "agy") harness = "antigravity"; // binary name alias
-  if (!["opencode", "claude", "codex", "grok", "antigravity", "cursor", "generic"].includes(harness)) fail(`unknown --harness "${harness}" (want opencode|claude|codex|grok|antigravity|cursor|generic)`);
+  const rawHarness = getFlag(args, "--harness") || "opencode";
+  const harnesses = String(rawHarness).split(",").map((h) => {
+    let s = h.trim().toLowerCase();
+    if (s === "agy") s = "antigravity";
+    return s;
+  }).filter(Boolean);
+  if (harnesses.length === 0) harnesses.push("opencode");
+  const validDrivers = ["opencode", "claude", "codex", "grok", "antigravity", "cursor", "generic"];
+  for (const h of harnesses) {
+    if (!validDrivers.includes(h)) fail(`unknown --harness "${h}" (want ${validDrivers.join("|")})`);
+  }
+  const harness = harnesses.join(",");
   const cmd = getFlag(args, "--cmd");
-  if (harness === "generic" && !cmd) fail('generic harness needs --cmd "..." (runs with CREWBUS_DIR + CREWBUS_AGENT set)');
+  if (harnesses.includes("generic") && !cmd) fail('generic harness needs --cmd "..." (runs with CREWBUS_DIR + CREWBUS_AGENT set)');
   const maxTurns = getFlag(args, "--max-turns");
   if (maxTurns !== undefined && !(Number(maxTurns) > 0)) fail("--max-turns must be a positive number");
-  if (maxTurns !== undefined && harness !== "claude" && harness !== "grok") fail(`--max-turns only applies to claude/grok (got --harness ${harness})`);
+  if (maxTurns !== undefined && !harnesses.some((h) => h === "claude" || h === "grok")) fail(`--max-turns only applies to claude/grok (got --harness ${harness})`);
   // Default budget so unattended workers terminate: 50 turns for claude/grok.
-  const maxTurnsNum = maxTurns === undefined ? ((harness === "claude" || harness === "grok") ? 50 : undefined) : Number(maxTurns);
+  const maxTurnsNum = maxTurns === undefined ? undefined : Number(maxTurns);
   const allowTools = getFlag(args, "--allow-tools");
-  if (allowTools !== undefined && harness !== "claude") fail(`--allow-tools only applies to claude (got --harness ${harness})`);
+  if (allowTools !== undefined && !harnesses.includes("claude")) fail(`--allow-tools only applies to claude (got --harness ${harness})`);
   const body = getFlag(args, "--body") || restArgs(args).join(" ");
   if (!body || !body.trim()) fail('missing message body (--body "...")');
   if (body.length > MAX_BODY_CHARS) fail(`message body too large (max ${MAX_BODY_CHARS} chars)`);
@@ -2882,12 +2891,15 @@ function cmdSpawn(args) {
   if (dry) {
     // Preview only: nothing touches the board (ids below are illustrative).
     const previewBatch = recipients.length > 1 ? newId("batch") : undefined;
-    for (const to of recipients) {
+    recipients.forEach((to, i) => {
+      const driver = harnesses[i % harnesses.length];
+      const itemMaxTurns = maxTurnsNum !== undefined ? maxTurnsNum : ((driver === "claude" || driver === "grok") ? 50 : undefined);
+      const itemSpawnOpts = { ...spawnOpts, harness: driver, maxTurns: itemMaxTurns, allowTools: driver === "claude" ? allowTools : undefined };
       const previewPrompt = buildSpawnPrompt({ name: to, from, subject, body: body.trim(), replyId: previewBatch || "msg-<id>", rev, cwd, root });
-      const t = buildSpawnTarget({ ...spawnOpts, name: to, promptPath: `<logs>/${to}-<stamp>.prompt.md`, prompt: previewPrompt });
+      const t = buildSpawnTarget({ ...itemSpawnOpts, name: to, promptPath: `<logs>/${to}-<stamp>.prompt.md`, prompt: previewPrompt });
       const wtNote = worktreePrefix !== undefined ? ` worktree ../${to}-<stamp> (branch ${worktreePrefix}/${to}-<stamp>)` : branchPrefix !== undefined ? ` branch ${branchPrefix}/${to}-<stamp>` : "";
-      console.log(`would spawn ${to} [${harness}] (${lifetime}) cwd ${cwd}${wtNote} cmd: ${formatSpawnCmd(t)} [board ${d.root}]`);
-    }
+      console.log(`would spawn ${to} [${driver}] (${lifetime}) cwd ${cwd}${wtNote} cmd: ${formatSpawnCmd(t)} [board ${d.root}]`);
+    });
     console.log(`--- prompt (first worker) ---\n${buildSpawnPrompt({ name: recipients[0], from, subject, body: body.trim(), replyId: previewBatch || "msg-<id>", rev, cwd, root })}`);
     return;
   }
@@ -2895,11 +2907,15 @@ function cmdSpawn(args) {
   // id to thread the reply against) — --broadcast is not accepted by spawn.
   const res = deliverDMs(d, { from, recipients, body: body.trim(), subject, replyTo, priority, senderType, fwd, rev, at, forceBroadcast: false, forceDirect: true });
   if (res.mode !== "direct") fail("spawn: internal error — expected direct delivery");
-  appendChainRecord(d, from, "spawn", { to: recipients.slice(), harness, auto, cwd, isolate: isolateInfo.isolated || false, budgetTokens, budgetMinutes, deadlineAt });
+  appendChainRecord(d, from, "spawn", { to: recipients.slice(), harness, harnesses, auto, cwd, isolate: isolateInfo.isolated || false, budgetTokens, budgetMinutes, deadlineAt });
   if (alsoChannel) {
     mirrorToGroupChannels(d, { groups: groupNames, from, body: body.trim(), subject, replyTo, batch: res.batch || (res.items[0] && res.items[0].id), priority, rev, at });
   }
-  for (const { to, id } of res.items) {
+  for (let i = 0; i < res.items.length; i++) {
+    const { to, id } = res.items[i];
+    const driver = harnesses[i % harnesses.length];
+    const itemMaxTurns = maxTurnsNum !== undefined ? maxTurnsNum : ((driver === "claude" || driver === "grok") ? 50 : undefined);
+    const itemSpawnOpts = { ...spawnOpts, harness: driver, maxTurns: itemMaxTurns, allowTools: driver === "claude" ? allowTools : undefined };
     try {
       // Per-worker isolation: provisioned after the brief lands, so a git
       // failure reads like a boot failure (brief still waits on the board).
@@ -2918,9 +2934,9 @@ function cmdSpawn(args) {
       } else if (branchPrefix !== undefined) {
         workerBranch = provisionBranch(cwd, branchPrefix, to).branch;
       }
-      const r = bootWorker(d, { ...spawnOpts, cwd: workerCwd }, { to, id, from, subject, body: body.trim(), rev, logDir, budgetTokens, budgetMinutes, deadlineAt, spawnedWorktree: workerWorktree, spawnedBranch: workerBranch, spawnedLifetime: lifetime });
+      const r = bootWorker(d, { ...itemSpawnOpts, cwd: workerCwd }, { to, id, from, subject, body: body.trim(), rev, logDir, budgetTokens, budgetMinutes, deadlineAt, spawnedWorktree: workerWorktree, spawnedBranch: workerBranch, spawnedLifetime: lifetime });
       const where = workerWorktree ? ` worktree ${workerWorktree}` : workerBranch ? ` branch ${workerBranch}` : "";
-      console.log(`spawned ${to} pid ${r.pid} (${lifetime}) log ${r.logPath} reply ${id}${where} [board ${d.root}]`);
+      console.log(`spawned ${to} pid ${r.pid} [${driver}] (${lifetime}) log ${r.logPath} reply ${id}${where} [board ${d.root}]`);
     } catch (e) {
       console.log(`spawn FAILED ${to}: ${e.message} (brief ${id} still waits on the board) [board ${d.root}]`);
     }
@@ -2937,24 +2953,26 @@ function printLaunchDryRun(v, args, from, root, asJson, cmdOpt) {
   const p = v.plan;
   const names = p.to ? String(p.to).split(",").map((s) => s.trim()).filter(Boolean)
     : Array.from({ length: p.count }, (_, i) => `${p.prefix || "w"}-${i + 1}`);
-  if (p.harness === "generic" && !cmdOpt) {
+  const harnesses = Array.isArray(p.harnesses) && p.harnesses.length > 0 ? p.harnesses : [p.harness || "opencode"];
+  if (harnesses.includes("generic") && !cmdOpt) {
     fail("launch --harness generic needs --cmd \"...\" (no command to preview)");
   }
   const rev = gitRevForBoard(root);
-  const rows = names.map((to) => {
+  const rows = names.map((to, i) => {
+    const driver = harnesses[i % harnesses.length];
     const previewPrompt = buildSpawnPrompt({ name: to, from, subject: p.subject, body: p.body.trim(), replyId: "msg-<id>", rev, cwd: getFlag(args, "--cwd") || process.cwd(), root });
     const t = buildSpawnTarget({
-      harness: p.harness, cmd: cmdOpt, model: p.model,
+      harness: driver, cmd: cmdOpt, model: p.model,
       auto: p.permission === "auto" || p.permission === "full" ? true : undefined,
       maxTurns: p.maxTurns, allowTools: p.allowTools, cwd: getFlag(args, "--cwd") || process.cwd(),
       name: to, promptPath: path.join("<board>", "logs", `${to}-<stamp>.prompt.md`), prompt: previewPrompt,
     });
-    return { to, command: formatSpawnCmd(t), resume: launchDrivers().find((x) => x.driver === p.harness)?.resume !== false };
+    return { to, harness: driver, command: formatSpawnCmd(t), resume: launchDrivers().find((x) => x.driver === driver)?.resume !== false };
   });
   if (asJson) console.log(JSON.stringify({ ok: true, dryRun: true, plan: p, warnings: v.warnings, commands: rows }, null, 2));
   else {
-    console.log(`launch dry-run: ${p.harness} x${rows.length} [board ${root}]`);
-    for (const r of rows) console.log(`  ${r.to}: ${r.command}`);
+    console.log(`launch dry-run: ${harnesses.join(",")} x${rows.length} [board ${root}]`);
+    for (const r of rows) console.log(`  ${r.to} [${r.harness}]: ${r.command}`);
     if (p.permission === "full") console.log("  (permission full: unattended + isolate recommended)");
   }
   return rows;
@@ -5411,7 +5429,11 @@ async function cmdServe(args) {
               if (a && typeof a === "object") a._authMethod = req.oidc ? "oidc" : "secret";
               // Permission ladder → remoteSpawn shape (auto/full need --auto
               // semantics + danger confirm; full additionally wants isolation).
-              const mapped = { ...(a || {}), harness: v.plan.harness, body: v.plan.body };
+              const mapped = { ...(a || {}), harness: v.plan.harness, harnesses: v.plan.harnesses, model: v.plan.model, body: v.plan.body };
+              if (v.plan.to) {
+                mapped.to = v.plan.to;
+                delete mapped.count;
+              }
               if (v.plan.permission === "auto" || v.plan.permission === "full") mapped.auto = true;
               if (v.plan.permission === "full") mapped.iUnderstandDanger = true;
               const out = await remoteSpawn(d, mapped, { allowCmd, workdirRoot });
@@ -5948,6 +5970,12 @@ async function cmdServe(args) {
           // Control-plane M1: driver table with live binary presence (no auth —
           // missing binary = "not installed", never FAIL).
           const body = JSON.stringify(detectHarnessBinaries());
+          res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+          res.end(body);
+          return;
+        }
+        if (req.method === "GET" && url.pathname === "/api/models") {
+          const body = JSON.stringify(HARNESS_MODELS);
           res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
           res.end(body);
           return;

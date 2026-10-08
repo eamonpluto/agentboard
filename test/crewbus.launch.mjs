@@ -53,6 +53,9 @@ check("plan: full ok with --yes headless", validateLaunchPlan({ harness: "claude
 check("plan: count>20 warns not fails", (() => { const v = validateLaunchPlan({ harness: "claude", body: "x", count: 25 }); return v.ok === true && v.warnings.length > 0; })());
 check("plan: worktree+branch refused", validateLaunchPlan({ harness: "claude", body: "x", worktree: "a", branch: "b" }).ok === false);
 check("plan: cursor+full warns no-resume", validateLaunchPlan({ harness: "cursor", body: "x", permission: "full", iUnderstandDanger: true }).warnings.join().includes("cannot resume"));
+check("plan: multi-harness array", (() => { const v = validateLaunchPlan({ harnesses: ["claude", "antigravity"], body: "x" }); return v.ok === true && v.plan.harnesses.length === 2 && v.plan.count === 2; })());
+check("plan: multi-harness comma string", (() => { const v = validateLaunchPlan({ harness: "claude,grok", body: "x" }); return v.ok === true && v.plan.harnesses.length === 2 && v.plan.harness === "claude,grok"; })());
+check("plan: model selection", validateLaunchPlan({ harness: "claude", model: "claude-3-7-sonnet", body: "x" }).plan.model === "claude-3-7-sonnet");
 
 // ---- lib: pair URL fragment rule ----
 const url = buildPairUrl({ envId: "env-1", routes: ["http://pc:8471"], caps: ["hlc", "launch"], pairToken: "abp-secret123" });
@@ -66,6 +69,8 @@ check("wizard: menu lists 7 drivers", formatHarnessMenu(menuRows).split("\n").le
 check("wizard: harness by number", parseHarnessChoice(menuRows, "2") === menuRows[1].driver);
 check("wizard: harness by name (case-insensitive)", parseHarnessChoice(menuRows, "CLAUDE") === "claude");
 check("wizard: harness by display name", parseHarnessChoice(menuRows, menuRows[0].displayName) === menuRows[0].driver);
+check("wizard: multi-harness by numbers", parseHarnessChoice(menuRows, "1,2") === `${menuRows[0].driver},${menuRows[1].driver}`);
+check("wizard: multi-harness by names", parseHarnessChoice(menuRows, "claude, grok") === "claude,grok");
 check("wizard: harness garbage null", parseHarnessChoice(menuRows, "nope") === null && parseHarnessChoice(menuRows, "0") === null && parseHarnessChoice(menuRows, "") === null);
 check("wizard: count blank->def", parseCountChoice("", 1) === 1);
 check("wizard: count int", parseCountChoice("3", 1) === 3);
@@ -87,6 +92,9 @@ check("cli: dry-run names harness+count", dry.includes("grok x1"));
 check("cli: dry-run shows command", dry.includes("grok --prompt-file"));
 const dryJson = JSON.parse(run(["launch", "--from", "lead", "--harness", "claude", "--body", "x", "--count", "2", "--dry-run", "--json"]));
 check("cli: dry-run --json shape", dryJson.ok === true && dryJson.dryRun === true && dryJson.commands.length === 2);
+const multiDry = JSON.parse(run(["launch", "--from", "lead", "--harness", "claude,antigravity", "--model", "claude-3-7-sonnet", "--body", "x", "--count", "2", "--dry-run", "--json"]));
+check("cli: multi-harness dry-run distributes drivers", multiDry.ok === true && multiDry.commands[0].harness === "claude" && multiDry.commands[1].harness === "antigravity");
+check("cli: multi-harness dry-run formats model", multiDry.commands[0].command.includes("claude-3-7-sonnet"));
 let genericNeedsCmd = false;
 try {
   run(["launch", "--from", "lead", "--harness", "generic", "--body", "x", "--dry-run"]);

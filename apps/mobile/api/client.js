@@ -303,23 +303,41 @@ export function createRelayClient({
     const errors = [];
     const warnings = [];
     const p = isPlainObject(plan) ? plan : {};
-    const harness = p.harness === undefined || p.harness === null ? "" : String(p.harness).trim().toLowerCase();
-    if (!harness) errors.push("missing harness (pick one: " + KNOWN_HARNESSES.join("|") + ")");
-    else if (!KNOWN_HARNESSES.includes(harness)) errors.push(`unknown harness "${p.harness}" (want ${KNOWN_HARNESSES.join("|")})`);
+    let rawList = [];
+    if (Array.isArray(p.harnesses)) rawList = p.harnesses;
+    else if (typeof p.harnesses === "string" && p.harnesses.trim()) rawList = p.harnesses.split(",");
+    else if (p.harness !== undefined && p.harness !== null) rawList = String(p.harness).split(",");
+    const harnesses = rawList.map((h) => String(h).trim().toLowerCase()).filter(Boolean);
+    if (harnesses.length === 0) {
+      errors.push("missing harness (pick one: " + KNOWN_HARNESSES.join("|") + ")");
+    } else {
+      for (const h of harnesses) {
+        if (!KNOWN_HARNESSES.includes(h)) errors.push(`unknown harness "${h}" (want ${KNOWN_HARNESSES.join("|")})`);
+      }
+    }
+    const harness = harnesses.join(",");
     const body = p.body === undefined || p.body === null ? "" : String(p.body);
     if (!body.trim()) errors.push("missing body (the task brief)");
     else if (body.length > MAX_BODY_CHARS) errors.push(`body too long (${body.length} > ${MAX_BODY_CHARS} chars; split the brief)`);
-    const count = p.count === undefined ? 1 : Number(p.count);
-    if (!Number.isInteger(count) || count < 1) errors.push("count must be a positive integer");
-    else if (count > 20) warnings.push(`count ${count} exceeds MAX_SPAWN 20 — confirm compute budget`);
+    const countRaw = p.count;
+    let count;
+    if (countRaw === undefined || countRaw === null || countRaw === "") {
+      count = harnesses.length > 0 ? harnesses.length : 1;
+    } else {
+      count = Number(countRaw);
+      if (!Number.isInteger(count) || count < 1) errors.push("count must be a positive integer");
+      else if (count > 20) warnings.push(`count ${count} exceeds MAX_SPAWN 20 — confirm compute budget`);
+    }
     if (p.to !== undefined && p.count !== undefined) warnings.push("both to and count given; to names win");
     const permission = p.permission === undefined || p.permission === null || String(p.permission) === "" ? "supervised" : String(p.permission);
     if (!LAUNCH_PERMISSIONS.includes(permission)) errors.push(`bad permission "${p.permission}"`);
     if ((permission === "auto" || permission === "full")) warnings.push(`permission ${permission} runs unattended — prefer an isolated runner`);
     const confirmed = !!(p.iUnderstandDanger || p.yes || p.confirmFull);
     if (permission === "full" && !confirmed) errors.push("permission full needs explicit confirmation (confirmFull / iUnderstandDanger)");
+    const model = p.model === undefined || p.model === null || String(p.model).trim() === "" ? undefined : String(p.model).trim();
+    if (model && model.length > 100) errors.push("model name too long (max 100 chars)");
     if (errors.length > 0) return { ok: false, error: errors[0], errors, warnings };
-    return { ok: true, errors, warnings, normalized: { harness, body, count, permission } };
+    return { ok: true, errors, warnings, normalized: { harness, harnesses, model, body, count, permission } };
   }
 
   async function launch(plan = {}) {
@@ -327,6 +345,8 @@ export function createRelayClient({
     if (!checked.ok) return { ok: false, error: checked.error, errors: checked.errors, warnings: checked.warnings };
     const cred = credentialsFor({ from: plan.from, token: plan.token });
     const body = { ...plan, ...cred };
+    if (plan.harnesses) body.harnesses = checked.normalized.harnesses;
+    if (plan.model) body.model = checked.normalized.model;
     if (body.dryRun === undefined) body.dryRun = true;
     if (body.confirmFull && !body.iUnderstandDanger && !body.yes) body.iUnderstandDanger = true;
     return post("/api/launch", body);

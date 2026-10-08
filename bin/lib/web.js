@@ -22,7 +22,7 @@ import { workerStatus, pidAlive, killWorkers, bootWorker, buildSpawnPrompt, buil
 import { groupTelemetryData } from "./groups.js";
 import { httpJson } from "./sync.js";
 import { readChainRecords, verifyChainRecords, appendChainRecord, readHold, readBoardQuotas } from "./export.js";
-import { launchDrivers, detectHarnessBinaries, validateLaunchPlan, advertiseEnv } from "./launch.js";
+import { launchDrivers, detectHarnessBinaries, validateLaunchPlan, advertiseEnv, HARNESS_MODELS } from "./launch.js";
 
 export function escapeHtml(s) {
   return String(s === undefined || s === null ? "" : s).replace(/[&<>"']/g, (c) => ({
@@ -693,6 +693,33 @@ details.tech-details summary{cursor:pointer;font-weight:500;user-select:none}
               <input id="launch-count" size="2" value="1">
               <button id="launch-count-plus" type="button" title="more workers">+</button>
             </div>
+            <span class="dim" style="margin-left:8px">Model:</span>
+            <select id="launch-model" style="background:var(--bg-input);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:3px 8px;font-size:12px">
+              <option value="">Default (harness configured)</option>
+              <optgroup label="Claude (Anthropic)">
+                <option value="claude-3-7-sonnet">Claude 3.7 Sonnet (Hybrid Reasoning)</option>
+                <option value="claude-3-5-sonnet">Claude 3.5 Sonnet</option>
+                <option value="claude-3-5-haiku">Claude 3.5 Haiku</option>
+              </optgroup>
+              <optgroup label="Gemini (Google)">
+                <option value="gemini-2.5-pro">Gemini 2.5 Pro (Deep Reasoning)</option>
+                <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+                <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
+              </optgroup>
+              <optgroup label="OpenAI">
+                <option value="o3-mini">o3-mini (Reasoning)</option>
+                <option value="o1">o1 (Full Reasoning)</option>
+                <option value="gpt-4o">GPT-4o (Omni)</option>
+              </optgroup>
+              <optgroup label="xAI">
+                <option value="grok-3">Grok 3 (Deep Reasoning)</option>
+                <option value="grok-3-mini">Grok 3 Mini</option>
+                <option value="grok-2">Grok 2</option>
+              </optgroup>
+              <optgroup label="DeepSeek">
+                <option value="deepseek-r1">DeepSeek R1 (Reasoning)</option>
+              </optgroup>
+            </select>
             <span class="dim" style="margin-left:8px">Permission:</span>
             <select id="launch-permission" style="display:none"><option>supervised</option><option>autoEdits</option><option>auto</option><option>full</option></select>
             <span id="launch-permission-seg">
@@ -1103,7 +1130,19 @@ async function doLaunch(dry){
   if(!lf||!lt){out.textContent='set launch from+token (or the identity above) first';return;}
   var to=document.getElementById('launch-to').value.trim();
   var count=Number(document.getElementById('launch-count').value)||1;
-  var payload={from:lf,token:lt,harness:document.getElementById('launch-harness').value,body:document.getElementById('launch-brief').value,permission:document.getElementById('launch-permission').value,dryRun:dry};
+  var selectedHarnesses = window.__selectedHarnesses && window.__selectedHarnesses.size ? Array.from(window.__selectedHarnesses) : (document.getElementById('launch-harness').value || 'claude').split(',').map(function(s){return s.trim();}).filter(Boolean);
+  if(!selectedHarnesses.length)selectedHarnesses=['claude'];
+  var modelEl=document.getElementById('launch-model');
+  var modelVal=modelEl?modelEl.value.trim():'';
+  var payload={
+    from:lf, token:lt,
+    harness:selectedHarnesses.join(','),
+    harnesses:selectedHarnesses,
+    body:document.getElementById('launch-brief').value,
+    permission:document.getElementById('launch-permission').value,
+    dryRun:dry
+  };
+  if(modelVal)payload.model=modelVal;
   if(to)payload.to=to;else payload.count=count;
   out.textContent=(dry?'previewing …':'launching …');
   try{
@@ -1111,10 +1150,10 @@ async function doLaunch(dry){
     var j=await r.json();
     if(!r.ok){out.textContent='HTTP '+r.status+' '+(j.error||JSON.stringify(j));return;}
     if(j.dryRun){
-      var warn=(j.warnings||[]).length?('warnings: '+j.warnings.join('; ')+'\\n'):'';
-      try{renderLaunchDiff(j);}catch(_){}out.textContent=warn+(j.commands||[]).map(function(c){return c.to+': '+c.command;}).join('\\n')+'\\n(dry-run — booted nothing)';
+      var warn=(j.warnings||[]).length?('warnings: '+j.warnings.join('; ')+'\n'):'';
+      try{renderLaunchDiff(j);}catch(_){}out.textContent=warn+(j.commands||[]).map(function(c){return c.to+' ['+(c.harness||'')+']: '+c.command;}).join('\n')+'\n(dry-run — booted nothing)';
     }else{
-      try{showUndoToast((j.workers||[]).map(function(w){return w.name;}));}catch(_){}out.textContent='launched: '+(j.workers||[]).map(function(w){return w.name+(w.pid?(' (pid '+w.pid+')'):'')+(w.error?(' ERROR '+w.error):'');}).join(', ');
+      try{showUndoToast((j.workers||[]).map(function(w){return w.name;}));}catch(_){}out.textContent='launched: '+(j.workers||[]).map(function(w){return w.name+' ['+(w.driver||'')+']'+(w.pid?(' (pid '+w.pid+')'):'')+(w.error?(' ERROR '+w.error):'');}).join(', ');
     }
   }catch(e){out.textContent='launch failed: '+e.message;}
   refresh();
@@ -1267,7 +1306,10 @@ function renderHarnessCards(){
   return (async function(){
     var hj=await fetchLaunchMetaCached('harnesses','/api/harnesses');
     window.__harnesses=hj;
-    var sel=document.getElementById('launch-harness').value;
+    if(!window.__selectedHarnesses || window.__selectedHarnesses.size===0){
+      var rawH=(document.getElementById('launch-harness').value||'claude').split(',').map(function(s){return s.trim();}).filter(Boolean);
+      window.__selectedHarnesses=new Set(rawH.length?rawH:['claude']);
+    }
     var counts={};
     try{
       var __ws=window.__workers||[];
@@ -1278,14 +1320,26 @@ function renderHarnessCards(){
     }catch(_){}
     document.getElementById('harness-cards').innerHTML=(hj||[]).map(function(h){
       var ver=h.found?(h.version||'installed'):('missing ('+(h.detail||'not installed')+')');
-      var cls='harness-card'+(h.driver===sel?' sel':'')+(h.found?'':' missing');
+      var isSel=window.__selectedHarnesses.has(h.driver);
+      var cls='harness-card'+(isSel?' sel':'')+(h.found?'':' missing');
       var badge=counts[h.driver]?'<div class="dim">'+counts[h.driver]+' running</div>':'';
       return '<div class="'+cls+'" data-driver="'+esc(h.driver)+'"><b>'+esc(h.driver)+'</b><div class="dim">'+esc(ver)+'</div>'+badge+'</div>';
     }).join('')||'<div class="dim">no harness drivers</div>';
     var cards=document.querySelectorAll('#harness-cards [data-driver]');
     for(var i=0;i<cards.length;i++){
       cards[i].onclick=(function(d){return function(){
-        document.getElementById('launch-harness').value=d;
+        if(window.__selectedHarnesses.has(d)){
+          if(window.__selectedHarnesses.size>1){
+            window.__selectedHarnesses.delete(d);
+          }
+        }else{
+          window.__selectedHarnesses.add(d);
+        }
+        document.getElementById('launch-harness').value=Array.from(window.__selectedHarnesses).join(',');
+        var countEl=document.getElementById('launch-count');
+        if(countEl && (!countEl.value || Number(countEl.value)<=window.__selectedHarnesses.size)){
+          countEl.value=String(window.__selectedHarnesses.size);
+        }
         syncTopbarHarness();
         try{renderHarnessCards();}catch(_){}
       };})(cards[i].getAttribute('data-driver'));
@@ -1307,7 +1361,10 @@ function renderLaunchDiff(j){
   var cmds=j.commands||[];
   if(cmds.length){
     html+='<ul>';
-    for(var k=0;k<cmds.length;k++){html+='<li><b>'+esc(cmds[k].to)+'</b>: <span class="log">'+esc(cmds[k].command)+'</span></li>';}
+    for(var k=0;k<cmds.length;k++){
+      var hTag=cmds[k].harness?(' <span style="font-size:11px;padding:1px 5px;border-radius:3px;background:var(--bg-input);border:1px solid var(--border)">'+esc(cmds[k].harness)+'</span>'):'';
+      html+='<li><b>'+esc(cmds[k].to)+'</b>'+hTag+': <span class="log">'+esc(cmds[k].command)+'</span></li>';
+    }
     html+='</ul>';
   }
   box.innerHTML=html;
@@ -1689,6 +1746,12 @@ export async function cmdWeb(args) {
           res.end(JSON.stringify(detectHarnessBinaries()));
           return;
         }
+        if (req.method === "GET" && url.pathname === "/api/models") {
+          // Canonical model catalog per harness driver.
+          res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+          res.end(JSON.stringify(HARNESS_MODELS));
+          return;
+        }
         if (req.method === "GET" && url.pathname === "/api/routes") {
           // Control-plane M1: reachability hints. The local dashboard is not
           // a relay, so routes are empty — pair via `relay pair qr` on the
@@ -1800,6 +1863,7 @@ export async function handleApiLaunch(d, body) {
   const v = validateLaunchPlan(body || {});
   if (!v.ok) return { status: 400, payload: { error: "launch plan invalid", errors: v.errors, warnings: v.warnings } };
   const p = v.plan;
+  const harnesses = Array.isArray(p.harnesses) && p.harnesses.length > 0 ? p.harnesses : [p.harness || "opencode"];
   const names = p.to ? String(p.to).split(",").map((s) => cleanWebName(s)).filter(Boolean)
     : Array.from({ length: p.count }, (_, i) => `${cleanWebName(p.prefix || "w") || "w"}-${i + 1}`);
   if (names.length === 0) return { status: 400, payload: { error: "no worker names (pass to or count)" } };
@@ -1808,19 +1872,20 @@ export async function handleApiLaunch(d, body) {
   let cwdOk = false;
   try { cwdOk = fs.statSync(cwd).isDirectory(); } catch {}
   if (!cwdOk) return { status: 400, payload: { error: `cwd is not a directory: ${cwd}` } };
-  if (p.harness === "generic" && !(body && body.cmd && String(body.cmd).trim())) {
+  if (harnesses.includes("generic") && !(body && body.cmd && String(body.cmd).trim())) {
     return { status: 400, payload: { error: 'generic harness needs cmd "..."' } };
   }
   if (v.plan.dryRun) {
-    const rows = names.map((to) => {
+    const rows = names.map((to, i) => {
+      const driver = harnesses[i % harnesses.length];
       const previewPrompt = buildSpawnPrompt({ name: to, from, subject: p.subject, body: p.body.trim(), replyId: "msg-<id>", rev, cwd, root: d.root });
       const t = buildSpawnTarget({
-        harness: p.harness, cmd: body && body.cmd ? String(body.cmd) : undefined, model: p.model,
+        harness: driver, cmd: body && body.cmd ? String(body.cmd) : undefined, model: p.model,
         auto: p.permission === "auto" || p.permission === "full" ? true : undefined,
         maxTurns: p.maxTurns, allowTools: p.allowTools, cwd,
         name: to, promptPath: path.join("<board>", "logs", `${to}-<stamp>.prompt.md`), prompt: previewPrompt,
       });
-      return { to, command: formatSpawnCmd(t) };
+      return { to, harness: driver, command: formatSpawnCmd(t) };
     });
     return { status: 200, payload: { ok: true, dryRun: true, plan: p, warnings: v.warnings, commands: rows } };
   }
@@ -1828,7 +1893,6 @@ export async function handleApiLaunch(d, body) {
   const at = new Date().toISOString();
   const logDir = path.join(d.root, "logs");
   fs.mkdirSync(logDir, { recursive: true });
-  const spawnOpts = { harness: p.harness, cmd: body && body.cmd ? String(body.cmd) : undefined, model: p.model, auto, maxTurns: p.maxTurns, allowTools: p.allowTools, cwd, root: d.root, prompt: null };
   let res;
   try {
     res = deliverDMs(d, { from, recipients: names, body: p.body.trim(), subject: p.subject, priority: p.priority, rev, at, forceBroadcast: false, forceDirect: true });
@@ -1837,12 +1901,15 @@ export async function handleApiLaunch(d, body) {
   }
   if (!res || res.mode !== "direct") return { status: 500, payload: { error: "launch: internal error — expected direct delivery" } };
   const workers = [];
-  for (const { to, id } of res.items) {
+  for (let i = 0; i < res.items.length; i++) {
+    const { to, id } = res.items[i];
+    const driver = harnesses[i % harnesses.length];
+    const spawnOpts = { harness: driver, cmd: body && body.cmd ? String(body.cmd) : undefined, model: p.model, auto, maxTurns: p.maxTurns, allowTools: p.allowTools, cwd, root: d.root, prompt: null };
     try {
       const r = bootWorker(d, spawnOpts, { to, id, from, subject: p.subject, body: p.body.trim(), rev, logDir });
-      workers.push({ name: to, pid: r.pid, replyId: id, log: r.logPath, driver: p.harness });
+      workers.push({ name: to, pid: r.pid, replyId: id, log: r.logPath, driver });
     } catch (e) {
-      workers.push({ name: to, replyId: id, error: String((e && e.message) || e) });
+      workers.push({ name: to, replyId: id, driver, error: String((e && e.message) || e) });
     }
   }
   return { status: 200, payload: { ok: true, workers, warnings: v.warnings } };

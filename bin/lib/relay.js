@@ -180,13 +180,31 @@ export async function remoteSpawn(d, a, serveOpts) { // line 6770
       throw webErr(400, `name "${name}" has a live worker (pid ${rec.spawnedPid})`);
     }
   }
-  let harness = String(a.harness || "opencode").toLowerCase();
-  if (harness === "agy") harness = "antigravity";
-  if (!["opencode", "claude", "codex", "grok", "antigravity", "cursor", "generic"].includes(harness)) {
-    throw webErr(400, `unknown harness "${harness}" (want opencode|claude|codex|grok|antigravity|cursor|generic)`);
+  let rawHarnessList = [];
+  if (Array.isArray(a.harnesses)) {
+    rawHarnessList = a.harnesses;
+  } else if (typeof a.harnesses === "string" && a.harnesses.trim()) {
+    rawHarnessList = a.harnesses.split(",");
+  } else if (a.harness !== undefined && a.harness !== null) {
+    rawHarnessList = String(a.harness).split(",");
+  } else {
+    rawHarnessList = ["opencode"];
   }
+  const harnesses = rawHarnessList.map((h) => {
+    let s = String(h).trim().toLowerCase();
+    if (s === "agy") s = "antigravity";
+    return s;
+  }).filter(Boolean);
+  if (harnesses.length === 0) harnesses.push("opencode");
+  const validHarnesses = ["opencode", "claude", "codex", "grok", "antigravity", "cursor", "generic"];
+  for (const h of harnesses) {
+    if (!validHarnesses.includes(h)) {
+      throw webErr(400, `unknown harness "${h}" (want ${validHarnesses.join("|")})`);
+    }
+  }
+  let harness = harnesses.join(",");
   const cmd = cleanOpt(a.cmd);
-  if (harness === "generic" && !cmd) throw webErr(400, 'generic harness needs cmd "..."');
+  if (harnesses.includes("generic") && !cmd) throw webErr(400, 'generic harness needs cmd "..."');
   const maxTurns = a.maxTurns === undefined || a.maxTurns === null || String(a.maxTurns).trim() === "" ? ((harness === "claude" || harness === "grok") ? 50 : undefined) : Number(a.maxTurns);
   if (maxTurns !== undefined && !(maxTurns > 0)) throw webErr(400, "maxTurns must be a positive number");
   if (maxTurns !== undefined && harness !== "claude" && harness !== "grok") throw webErr(400, `maxTurns only applies to claude/grok (got ${harness})`);
@@ -291,14 +309,23 @@ export async function remoteSpawn(d, a, serveOpts) { // line 6770
   })();
   const res = deliverDMs(d, { from, recipients, body: body.trim(), subject: cleanSub, replyTo: cleanRep, priority, senderType, fwd, rev, at, forceBroadcast: false, forceDirect: true });
   if (res.mode !== "direct") throw webErr(500, "spawn: internal error — expected direct delivery");
-  appendChainRecord(d, from, "remote-spawn", { to: recipients.slice(), harness, auto }, "audit", { authMethod: (a && a._authMethod) || "secret" });
+  appendChainRecord(d, from, "remote-spawn", { to: recipients.slice(), harness, harnesses, auto }, "audit", { authMethod: (a && a._authMethod) || "secret" });
   const results = [];
-  for (const { to, id } of res.items) {
+  for (let i = 0; i < res.items.length; i++) {
+    const { to, id } = res.items[i];
+    const driver = harnesses[i % harnesses.length];
+    const itemMaxTurns = maxTurns === undefined ? ((driver === "claude" || driver === "grok") ? 50 : undefined) : Number(maxTurns);
+    const itemSpawnOpts = {
+      ...spawnOpts,
+      harness: driver,
+      maxTurns: itemMaxTurns,
+      allowTools: driver === "claude" ? allowTools : undefined,
+    };
     try {
-      const r = bootWorker(d, spawnOpts, { to, id, from, subject: cleanSub, body: body.trim(), rev, logDir, spawnedLifetime: lifetime });
-      results.push({ to, id, pid: r.pid, log: r.logPath, lifetime, driver: harness });
+      const r = bootWorker(d, itemSpawnOpts, { to, id, from, subject: cleanSub, body: body.trim(), rev, logDir, spawnedLifetime: lifetime });
+      results.push({ to, id, pid: r.pid, log: r.logPath, lifetime, driver });
     } catch (e) {
-      results.push({ to, id, error: (e && e.message) || String(e) });
+      results.push({ to, id, driver, error: (e && e.message) || String(e) });
     }
   }
   const out = { results };
