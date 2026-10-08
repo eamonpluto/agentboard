@@ -4,6 +4,7 @@ import { View, Text, TextInput, FlatList, TouchableOpacity, StyleSheet } from 'r
 import { THEME, STYLES } from '../theme.js';
 import { HeaderBar } from '../components/HeaderBar.jsx';
 import { BottomNav } from '../components/BottomNav.jsx';
+import { IconCheck } from '../components/Icons.jsx';
 import { ROUTES } from '../navigation/routes.js';
 
 export function TriageScreen({ ctx, navigation }) {
@@ -65,8 +66,9 @@ export function TriageScreen({ ctx, navigation }) {
               <Text style={STYLES.cardTitle}>{item.subject || '(no subject)'}</Text>
               <Text style={STYLES.cardSub} numberOfLines={3}>{item.body || item.digest || item.head || ''}</Text>
               <View style={styles.actionRow}>
-                <TouchableOpacity style={STYLES.btnSuccess} onPress={() => ack(item.id || item.replyId)}>
-                  <Text style={[STYLES.btnText, { color: THEME.emerald }]}>✓ Ack Message</Text>
+                <TouchableOpacity style={[STYLES.btnSuccess, styles.ackBtn]} onPress={() => ack(item.id || item.replyId)}>
+                  <IconCheck size={14} color={THEME.emerald} />
+                  <Text style={[STYLES.btnText, { color: THEME.emerald }]}>Ack Message</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -83,5 +85,6 @@ const styles = StyleSheet.create({
   msgHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   senderPill: { backgroundColor: 'rgba(99, 102, 241, 0.15)', color: THEME.primaryLight, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6, fontSize: 11, fontWeight: '700' },
   actionRow: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 4 },
+  ackBtn: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   empty: { color: THEME.textSubtle, textAlign: 'center', marginTop: 40, fontSize: 13 },
 });

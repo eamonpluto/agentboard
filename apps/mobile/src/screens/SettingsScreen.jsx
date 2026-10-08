@@ -4,6 +4,7 @@ import { View, Text, TextInput, FlatList, TouchableOpacity, StyleSheet } from 'r
 import { THEME, STYLES } from '../theme.js';
 import { HeaderBar } from '../components/HeaderBar.jsx';
 import { BottomNav } from '../components/BottomNav.jsx';
+import { IconDevice, IconPackage } from '../components/Icons.jsx';
 import { ROUTES } from '../navigation/routes.js';
 
 export function SettingsScreen({ ctx, navigation }) {
@@ -36,12 +37,18 @@ export function SettingsScreen({ ctx, navigation }) {
       <HeaderBar title="Device & Hub" statusText={status} navigation={navigation} rightTitle="Queue" onRightPress={() => navigation.navigate(ROUTES.Queue)} />
       <View style={STYLES.body}>
         <View style={STYLES.card}>
-          <Text style={STYLES.cardTitle}>📱 Device Identity</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+            <IconDevice size={16} color={THEME.primaryLight} />
+            <Text style={STYLES.cardTitle}>Device Identity</Text>
+          </View>
           <Text style={STYLES.textMuted}>{device ? `${device.deviceId} (env: ${device.envId || 'none'})` : 'No device paired'}</Text>
           {device && device.scopes ? <Text style={styles.scopeTag}>Scopes: {device.scopes.join(', ')}</Text> : null}
         </View>
         <View style={STYLES.card}>
-          <Text style={STYLES.cardTitle}>📦 Offline Cache</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+            <IconPackage size={16} color={THEME.primaryLight} />
+            <Text style={STYLES.cardTitle}>Offline Cache</Text>
+          </View>
           <Text style={STYLES.textMuted}>{stats.inboxes} inboxes · {stats.drafts} drafts · {stats.queued} queued mutations</Text>
         </View>
         <Text style={styles.head}>Learned Relay Routes</Text>

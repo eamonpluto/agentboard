@@ -4,6 +4,7 @@ import { View, Text, TextInput, FlatList, TouchableOpacity, StyleSheet } from 'r
 import { THEME, STYLES } from '../theme.js';
 import { HeaderBar } from '../components/HeaderBar.jsx';
 import { BottomNav } from '../components/BottomNav.jsx';
+import { IconStar, IconZap } from '../components/Icons.jsx';
 import { ROUTES } from '../navigation/routes.js';
 
 export function BoardsScreen({ ctx, navigation }) {
@@ -58,7 +59,12 @@ export function BoardsScreen({ ctx, navigation }) {
             <View style={[STYLES.card, styles.routeCard]}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.routeText} numberOfLines={1}>{item}</Text>
-                {item === preferred ? <Text style={styles.prefTag}>★ Preferred Learned Route</Text> : null}
+                {item === preferred ? (
+                  <View style={styles.prefWrap}>
+                    <IconStar size={11} color={THEME.amber} />
+                    <Text style={styles.prefTag}>Preferred Learned Route</Text>
+                  </View>
+                ) : null}
               </View>
               <TouchableOpacity style={STYLES.btnSecondary} onPress={() => useRoute(item)}>
                 <Text style={STYLES.btnText}>Connect</Text>
@@ -72,8 +78,9 @@ export function BoardsScreen({ ctx, navigation }) {
             <Text style={STYLES.cardSub}>{board.workers ? `${Object.keys(board.workers).length} workers active` : 'Online'}</Text>
           </View>
         ) : null}
-        <TouchableOpacity style={STYLES.btnSecondary} onPress={() => { ctx.connection.retryNow(); refreshConn(); }}>
-          <Text style={STYLES.btnText}>⚡ Re-probe Connection</Text>
+        <TouchableOpacity style={[STYLES.btnSecondary, styles.btnRow]} onPress={() => { ctx.connection.retryNow(); refreshConn(); }}>
+          <IconZap size={14} color={THEME.text} />
+          <Text style={STYLES.btnText}>Re-probe Connection</Text>
         </TouchableOpacity>
       </View>
       <BottomNav currentRoute={ROUTES.Boards} navigation={navigation} badgeQueue={ctx.cache.pending().length} />
@@ -84,6 +91,8 @@ export function BoardsScreen({ ctx, navigation }) {
 const styles = StyleSheet.create({
   routeCard: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 10 },
   routeText: { color: THEME.text, fontSize: 13, fontWeight: '600' },
-  prefTag: { color: THEME.amber, fontSize: 11, marginTop: 2 },
+  prefWrap: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
+  prefTag: { color: THEME.amber, fontSize: 11 },
+  btnRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
   empty: { color: THEME.textSubtle, textAlign: 'center', marginTop: 30, fontSize: 13 },
 });

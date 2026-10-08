@@ -4,6 +4,7 @@ import { View, Text, TextInput, FlatList, TouchableOpacity, ScrollView, StyleShe
 import { THEME, STYLES } from '../theme.js';
 import { HeaderBar } from '../components/HeaderBar.jsx';
 import { BottomNav } from '../components/BottomNav.jsx';
+import { IconZap, IconLaunch } from '../components/Icons.jsx';
 import { ROUTES } from '../navigation/routes.js';
 
 const PERMS = ['supervised', 'autoEdits', 'auto', 'full'];
@@ -14,8 +15,6 @@ export function LaunchScreen({ ctx, navigation }) {
   const [count, setCount] = React.useState(1);
   const [brief, setBrief] = React.useState('');
   const [permission, setPermission] = React.useState('supervised');
-  const [from, setFrom] = React.useState('mobile');
-  const [agentToken, setAgentToken] = React.useState('');
   const [preview, setPreview] = React.useState(null);
   const [status, setStatus] = React.useState('Configure launch and preview dry-run.');
 
@@ -36,7 +35,7 @@ export function LaunchScreen({ ctx, navigation }) {
   };
 
   React.useEffect(() => { loadHarnesses().catch(() => null); }, []);
-  const payload = () => ({ from: from.trim() || 'mobile', token: agentToken, harness, count, body: brief, permission });
+  const payload = () => ({ from: 'mobile', token: '', harness, count, body: brief, permission });
 
   const doPreview = async () => {
     try {
@@ -89,9 +88,11 @@ export function LaunchScreen({ ctx, navigation }) {
         <TouchableOpacity style={STYLES.btnSecondary} disabled={!brief.trim()} onPress={doPreview}><Text style={STYLES.btnText}>Preview Dry-Run</Text></TouchableOpacity>
         {preview ? (
           <View style={[STYLES.card, { borderColor: THEME.primary, gap: 8 }]}>
-            <Text style={{ color: THEME.primaryLight, fontSize: 13, fontWeight: '700' }}>⚡ Dry-Run Summary</Text>
+            <View style={styles.previewHead}><IconZap size={14} color={THEME.primaryLight} /><Text style={styles.previewTitle}>Dry-Run Summary</Text></View>
             <Text style={STYLES.cardSub}>{preview.summary || `${count} worker(s) ready under ${permission}`}</Text>
-            <TouchableOpacity style={STYLES.btnPrimary} onPress={doLive}><Text style={STYLES.btnText}>🚀 Confirm LIVE Launch</Text></TouchableOpacity>
+            <TouchableOpacity style={[STYLES.btnPrimary, styles.liveBtn]} onPress={doLive}>
+              <IconLaunch size={15} color="#08130f" /><Text style={STYLES.btnText}>Confirm LIVE Launch</Text>
+            </TouchableOpacity>
           </View>
         ) : null}
       </ScrollView>
@@ -111,4 +112,7 @@ const styles = StyleSheet.create({
   permText: { color: THEME.textSubtle, fontSize: 10, fontWeight: '600' },
   permTextSel: { color: THEME.emerald, fontWeight: '700' },
   briefInput: { backgroundColor: THEME.cardElevated, borderWidth: 1, borderColor: THEME.border, borderRadius: 8, padding: 10, color: THEME.text, minHeight: 90, textAlignVertical: 'top', fontSize: 13 },
+  previewHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  previewTitle: { color: THEME.primaryLight, fontSize: 13, fontWeight: '700' },
+  liveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
 });

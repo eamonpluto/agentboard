@@ -3,13 +3,14 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { ROUTES } from '../navigation/routes.js';
 import { THEME } from '../theme.js';
+import { IconFeed, IconLaunch, IconApprovals, IconFleet, IconSettings } from './Icons.jsx';
 
 const TABS = [
-  { route: ROUTES.Triage, label: 'Feed', icon: '⚡' },
-  { route: ROUTES.Launch, label: 'Launch', icon: '🚀' },
-  { route: ROUTES.Approvals, label: 'Approvals', icon: '🛡️' },
-  { route: ROUTES.Fleet, label: 'Fleet', icon: '👥' },
-  { route: ROUTES.Boards, label: 'Hub', icon: '⚙️' },
+  { route: ROUTES.Triage, label: 'Feed', Icon: IconFeed },
+  { route: ROUTES.Launch, label: 'Launch', Icon: IconLaunch },
+  { route: ROUTES.Approvals, label: 'Approvals', Icon: IconApprovals },
+  { route: ROUTES.Fleet, label: 'Fleet', Icon: IconFleet },
+  { route: ROUTES.Boards, label: 'Hub', Icon: IconSettings },
 ];
 
 export function BottomNav({ currentRoute, navigation, badgeApprovals = 0, badgeQueue = 0 }) {
@@ -19,6 +20,8 @@ export function BottomNav({ currentRoute, navigation, badgeApprovals = 0, badgeQ
       {TABS.map((tab) => {
         const active = currentRoute === tab.route;
         const badge = tab.route === ROUTES.Approvals ? badgeApprovals : (tab.route === ROUTES.Boards ? badgeQueue : 0);
+        const TabIcon = tab.Icon;
+        const iconColor = active ? THEME.primaryLight : THEME.textSubtle;
         return (
           <TouchableOpacity
             key={tab.route}
@@ -27,7 +30,7 @@ export function BottomNav({ currentRoute, navigation, badgeApprovals = 0, badgeQ
             activeOpacity={0.7}
           >
             <View style={styles.iconWrap}>
-              <Text style={styles.icon}>{tab.icon}</Text>
+              <TabIcon size={19} color={iconColor} />
               {badge > 0 ? (
                 <View style={styles.badge}>
                   <Text style={styles.badgeText}>{badge > 9 ? '9+' : badge}</Text>
@@ -48,7 +51,7 @@ const styles = StyleSheet.create({
     backgroundColor: THEME.cardElevated,
     borderTopWidth: 1,
     borderTopColor: THEME.border,
-    paddingTop: 6,
+    paddingTop: 8,
     paddingBottom: 16,
     paddingHorizontal: 6,
     justifyContent: 'space-around',
@@ -65,7 +68,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(99, 102, 241, 0.12)',
   },
   iconWrap: { position: 'relative' },
-  icon: { fontSize: 16 },
   badge: {
     position: 'absolute',
     top: -4,
@@ -82,7 +84,7 @@ const styles = StyleSheet.create({
     color: THEME.textSubtle,
     fontSize: 11,
     fontWeight: '500',
-    marginTop: 2,
+    marginTop: 4,
   },
   activeLabel: {
     color: THEME.primaryLight,

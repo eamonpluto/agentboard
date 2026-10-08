@@ -4,6 +4,7 @@ import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native
 import { THEME, STYLES } from '../theme.js';
 import { HeaderBar } from '../components/HeaderBar.jsx';
 import { BottomNav } from '../components/BottomNav.jsx';
+import { IconZap, IconAlert } from '../components/Icons.jsx';
 import { describeOp } from '../lib/queue.js';
 import { ROUTES } from '../navigation/routes.js';
 
@@ -34,8 +35,9 @@ export function QueueScreen({ ctx, navigation }) {
         <View style={[STYLES.card, styles.topCard]}>
           <Text style={STYLES.cardTitle}>{pending.length} Queued Action{pending.length === 1 ? '' : 's'}</Text>
           <Text style={STYLES.cardSub}>Mutations never auto-replay. Tap below to flush to the relay.</Text>
-          <TouchableOpacity style={[STYLES.btnPrimary, { opacity: pending.length ? 1 : 0.5 }]} disabled={!pending.length} onPress={retryAll}>
-            <Text style={STYLES.btnText}>⚡ Retry All Queued ({pending.length})</Text>
+          <TouchableOpacity style={[STYLES.btnPrimary, styles.btnRow, { opacity: pending.length ? 1 : 0.5 }]} disabled={!pending.length} onPress={retryAll}>
+            <IconZap size={14} color="#08130f" />
+            <Text style={STYLES.btnText}>Retry All Queued ({pending.length})</Text>
           </TouchableOpacity>
         </View>
         <FlatList
@@ -46,7 +48,16 @@ export function QueueScreen({ ctx, navigation }) {
             <View style={[STYLES.card, styles.qCard]}>
               <View style={{ flex: 1, gap: 4 }}>
                 <Text style={STYLES.cardTitle}>{describeOp(item.op)}</Text>
-                <Text style={STYLES.textMuted}>Attempts: {item.attempts}{item.lastError ? ` · ⚠️ ${item.lastError}` : ''}</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                  <Text style={STYLES.textMuted}>Attempts: {item.attempts}</Text>
+                  {item.lastError ? (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                      <Text style={STYLES.textMuted}>·</Text>
+                      <IconAlert size={12} color={THEME.amber} />
+                      <Text style={[STYLES.textMuted, { color: THEME.amber }]}>{item.lastError}</Text>
+                    </View>
+                  ) : null}
+                </View>
               </View>
               <View style={STYLES.row}>
                 <TouchableOpacity style={STYLES.btnSecondary} onPress={() => retryOne(item.id)}><Text style={STYLES.btnText}>Retry</Text></TouchableOpacity>
@@ -63,6 +74,7 @@ export function QueueScreen({ ctx, navigation }) {
 
 const styles = StyleSheet.create({
   topCard: { padding: 14, gap: 8 },
+  btnRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
   qCard: { padding: 12, gap: 8, marginVertical: 4 },
   empty: { color: THEME.textSubtle, textAlign: 'center', marginTop: 40, fontSize: 13 },
 });

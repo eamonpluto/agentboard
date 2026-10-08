@@ -382,6 +382,32 @@ export function renderBoardHtml(boardPath) {
   --radius-lg:12px;
 }
 *{box-sizing:border-box}
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.16) transparent;
+}
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.16);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.32);
+}
+::-webkit-scrollbar-thumb:active {
+  background: var(--accent);
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+.btn-ic { flex-shrink: 0; vertical-align: middle; }
+.pal-ic { flex-shrink: 0; }
 body{margin:0;padding:0;background:var(--bg-base);color:var(--text-primary);font:13px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;overflow:hidden;height:100vh}
 #app-shell{display:flex;height:100vh;width:100vw;overflow:hidden}
 
@@ -390,7 +416,7 @@ body{margin:0;padding:0;background:var(--bg-base);color:var(--text-primary);font
 .sidebar-project{padding:12px;border-bottom:1px solid var(--border);position:relative}
 .project-card{display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-md);cursor:pointer;transition:all .15s ease}
 .project-card:hover{border-color:var(--border-hover);background:var(--bg-card-hover)}
-.project-icon{font-size:15px;flex-shrink:0}
+.project-icon{display:flex;align-items:center;justify-content:center;color:var(--text-secondary);flex-shrink:0}
 .project-info{min-width:0;flex:1}
 .project-title{font-weight:600;font-size:13px;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .project-path{font-size:11px;color:var(--text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:ui-monospace,SFMono-Regular,monospace}
@@ -401,7 +427,7 @@ body{margin:0;padding:0;background:var(--bg-base);color:var(--text-primary);font
 #project-popover.open{display:block}
 .pop-label{font-size:11px;font-weight:600;color:var(--text-dim);text-transform:uppercase;margin-bottom:6px}
 .pop-path{font-family:monospace;font-size:11px;background:var(--bg-input);padding:6px 8px;border-radius:var(--radius-sm);border:1px solid var(--border);word-break:break-all;margin-bottom:8px;color:var(--text-secondary)}
-.pop-btn{width:100%;margin-top:4px}
+.pop-btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;margin-top:4px}
 
 /* New Task Button */
 .sidebar-action-wrap{padding:12px 12px 6px}
@@ -548,7 +574,7 @@ details.tech-details summary{cursor:pointer;font-weight:500;user-select:none}
   <aside id="app-sidebar">
     <div class="sidebar-project">
       <div class="project-card" id="project-trigger" title="${e(boardPath)}">
-        <span class="project-icon">📁</span>
+        <span class="project-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></span>
         <div class="project-info">
           <div class="project-title" id="project-display-name">${e(path.basename(boardPath) || "Local Board")}</div>
           <div class="project-path" id="topbar-board" title="${e(boardPath)}">${e(boardPath)}</div>
@@ -558,12 +584,12 @@ details.tech-details summary{cursor:pointer;font-weight:500;user-select:none}
       <div id="project-popover">
         <div class="pop-label">Workspace Board</div>
         <div class="pop-path" id="pop-board-path">${e(boardPath)}</div>
-        <button type="button" id="copy-board-btn" class="pop-btn">📋 Copy Board Path</button>
+        <button type="button" id="copy-board-btn" class="pop-btn"><svg class="btn-ic" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy Board Path</button>
         <label style="display:block;margin-top:8px">
-          <button type="button" class="pop-btn" id="open-folder-btn">📂 Open Project Folder…</button>
+          <button type="button" class="pop-btn" id="open-folder-btn"><svg class="btn-ic" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg> Open Project Folder…</button>
           <input type="file" id="folder-picker" webkitdirectory directory style="display:none">
         </label>
-        <button type="button" class="pop-btn" id="pop-pair-btn" style="margin-top:8px">📱 Pair Mobile Client (QR)…</button>
+        <button type="button" class="pop-btn" id="pop-pair-btn" style="margin-top:8px"><svg class="btn-ic" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg> Pair Mobile Client (QR)…</button>
       </div>
     </div>
 
@@ -599,7 +625,7 @@ details.tech-details summary{cursor:pointer;font-weight:500;user-select:none}
 
     <div class="sidebar-footer">
       <div class="identity-badge" id="sidebar-user" title="Active identity">
-        <span>👤</span>
+        <svg class="btn-ic" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
         <span id="ident" class="dim">anonymous</span>
       </div>
       <div class="conn-indicator" title="Sidecar health">
@@ -617,7 +643,7 @@ details.tech-details summary{cursor:pointer;font-weight:500;user-select:none}
         <span id="view-title" class="view-title">Launch Console</span>
       </div>
       <button id="palette-open" class="palette-btn" title="Command Palette (Ctrl+K)">
-        <span>🔍</span>
+        <svg class="btn-ic" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
         <span>Search commands, workers, sections…</span>
         <kbd>Ctrl+K</kbd>
       </button>
@@ -794,7 +820,7 @@ details.tech-details summary{cursor:pointer;font-weight:500;user-select:none}
   <aside id="app-inspector">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
       <b style="font-size:14px">Inspector</b>
-      <button type="button" id="close-inspector-btn" style="border:none;background:transparent;color:var(--text-dim);cursor:pointer">✕</button>
+      <button type="button" id="close-inspector-btn" title="Close Inspector" style="border:none;background:transparent;color:var(--text-dim);cursor:pointer;display:flex;align-items:center;padding:4px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
     <div id="inspector">
       <span class="dim">click a worker row to inspect</span>
@@ -1130,15 +1156,27 @@ function approotNavTo(id){
   }
   try{el.scrollIntoView({behavior:'smooth',block:'start'});}catch(_){try{el.scrollIntoView();}catch(_2){}}
 }
+function getActionIcon(act){
+  switch(act){
+    case 'launch':return '<svg class="pal-ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>';
+    case 'killall':return '<svg class="pal-ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><rect x="9" y="9" width="6" height="6"/></svg>';
+    case 'ackall':return '<svg class="pal-ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>';
+    case 'copyboard':return '<svg class="pal-ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+    case 'openfolder':return '<svg class="pal-ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>';
+    case 'pairmobile':return '<svg class="pal-ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>';
+    case 'refresh':return '<svg class="pal-ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>';
+    default:return '';
+  }
+}
 function paletteSections(){
   return [
-    {kind:'action',label:'⚡ Launch new agent…',action:'launch'},
-    {kind:'action',label:'🛑 Kill all workers',action:'killall'},
-    {kind:'action',label:'✓ Ack all triage mail',action:'ackall'},
-    {kind:'action',label:'📋 Copy board path',action:'copyboard'},
-    {kind:'action',label:'📂 Open project folder…',action:'openfolder'},
-    {kind:'action',label:'📱 Pair mobile client (QR)…',action:'pairmobile'},
-    {kind:'action',label:'🔄 Refresh board state',action:'refresh'},
+    {kind:'action',label:'Launch new agent…',action:'launch'},
+    {kind:'action',label:'Kill all workers',action:'killall'},
+    {kind:'action',label:'Ack all triage mail',action:'ackall'},
+    {kind:'action',label:'Copy board path',action:'copyboard'},
+    {kind:'action',label:'Open project folder…',action:'openfolder'},
+    {kind:'action',label:'Pair mobile client (QR)…',action:'pairmobile'},
+    {kind:'action',label:'Refresh board state',action:'refresh'},
     {kind:'section',label:'Launch',id:'sec-launch'},
     {kind:'section',label:'Boards',id:'sec-boards'},
     {kind:'section',label:'Crews',id:'sec-crews'},
@@ -1176,7 +1214,8 @@ function renderPaletteList(filter){
   var html='';
   for(i=0;i<window.__paletteMatches.length;i++){
     var m=window.__paletteMatches[i];
-    html+='<div data-idx="'+i+'" class="'+(i===0?'sel':'')+'"><span>'+esc(m.label)+'</span><span class="dim">'+esc(m.kind)+'</span></div>';
+    var ic=m.kind==='action'?getActionIcon(m.action):(m.kind==='worker'?'<svg class="pal-ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>':'<svg class="pal-ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/></svg>');
+    html+='<div data-idx="'+i+'" class="'+(i===0?'sel':'')+'"><span style="display:flex;align-items:center;gap:8px">'+ic+'<span>'+esc(m.label)+'</span></span><span class="dim">'+esc(m.kind)+'</span></div>';
   }
   var list=document.getElementById('palette-list');
   list.innerHTML=html||'<div class="dim">no matches</div>';

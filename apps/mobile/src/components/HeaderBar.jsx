@@ -3,6 +3,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { THEME } from '../theme.js';
 import { ROUTES } from '../navigation/routes.js';
+import { IconSettings } from './Icons.jsx';
 
 export function HeaderBar({ title, statusText, connState = 'connected', navigation, rightTitle, onRightPress }) {
   const dotColor = connState === 'connected' ? THEME.emerald : (connState === 'probing' ? THEME.amber : THEME.rose);
@@ -26,7 +27,7 @@ export function HeaderBar({ title, statusText, connState = 'connected', navigati
             onPress={() => navigation.navigate(ROUTES.Settings)}
             activeOpacity={0.7}
           >
-            <Text style={styles.rightBtnText}>⚙️</Text>
+            <IconSettings size={15} color={THEME.textMuted} />
           </TouchableOpacity>
         ) : null}
       </View>
@@ -59,6 +60,8 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     paddingHorizontal: 9,
     paddingVertical: 5,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   rightBtnText: { color: THEME.textMuted, fontSize: 12, fontWeight: '600' },
 });
