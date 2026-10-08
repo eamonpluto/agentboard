@@ -1076,6 +1076,17 @@ export async function cmdWeb(args) {
     (async () => {
       try {
         const url = new URL(req.url || "/", "http://x");
+        // CORS & Private Network Access: allow cross-origin requests from
+        // desktop webviews (tauri://localhost, https://tauri.localhost) and local browsers.
+        res.setHeader("access-control-allow-origin", req.headers.origin || "*");
+        res.setHeader("access-control-allow-methods", "GET, POST, OPTIONS, PUT, DELETE");
+        res.setHeader("access-control-allow-headers", "*");
+        res.setHeader("access-control-allow-private-network", "true");
+        if (req.method === "OPTIONS") {
+          res.writeHead(204);
+          res.end();
+          return;
+        }
         if (await handleWebDashboardRoute(req, res, url, d)) return;
         if (req.method === "POST" && url.pathname === "/api/kill") {
           // JSON-only (browsers preflight this; simple CSRF forms can't reach

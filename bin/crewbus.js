@@ -5022,6 +5022,17 @@ async function cmdServe(args) {
     (async () => {
       try {
         const url = new URL(req.url || "/", "http://x");
+        // CORS & Private Network Access: allow cross-origin requests from
+        // desktop webviews (tauri://localhost, https://tauri.localhost) and local browsers.
+        res.setHeader("access-control-allow-origin", req.headers.origin || "*");
+        res.setHeader("access-control-allow-methods", "GET, POST, OPTIONS, PUT, DELETE");
+        res.setHeader("access-control-allow-headers", "*");
+        res.setHeader("access-control-allow-private-network", "true");
+        if (req.method === "OPTIONS") {
+          res.writeHead(204);
+          res.end();
+          return;
+        }
         if (!requireRelayClientCert(req, res, url, tlsClientCaPem)) return;
         if (req.method === "GET" && (url.pathname === "/" || url.pathname === "/index.html")) {
           // Control-plane M4: the relay serves the same dashboard as `web`
