@@ -1,5 +1,25 @@
 # Changelog
 
+## 10.0.2 (2026-10-09)
+
+PATCH RELEASE: Target workspace CWD selector & persistence in Launch Studio, popover clarity, eliminated upload prompt, and Desktop v0.1.16 companion release.
+
+- **Target Workspace (`cwd`) Selector in Launch Studio**:
+  - Added a dedicated `Workspace / CWD:` input bar with a `Set Folder…` action directly inside the Launch Studio composer card.
+  - Workers execute shell commands, read/write files, and run builds in the user's selected codebase directory rather than falling back to the internal board database directory.
+  - Active CWD is automatically saved and restored across sessions via `localStorage` (`crewbus_last_cwd`).
+  - Both dry-run previews and live boot results confirm the exact target directory (`target directory (cwd): ...`).
+  - `POST /api/launch` reflects `cwd` in response payloads.
+
+- **Project Popover Clarity & Clean Directory Picker**:
+  - Distinctly separated **Target Codebase (Working Directory)** from the internal **Workspace Board (Bus DB)** in the sidebar popover.
+  - Replaced `<input type="file" webkitdirectory>` with the File System Access API (`showDirectoryPicker`) and path confirmation prompts, completely eliminating the scary Chromium "Upload all files from this directory" warning dialog.
+  - Documented that the Desktop App provides a zero-configuration central board in `AppData`, requiring no `crewbus init` in target project repositories.
+
+- **Desktop Companion App v0.1.16**:
+  - Bundled the updated Launch Studio and CWD selector into the native desktop release.
+  - Multi-platform release packages (.exe, .msi, .dmg, .deb, .AppImage) available on GitHub Releases.
+
 ## 10.0.1 (2026-10-09)
 
 PATCH RELEASE: Windows OpenCode harness detection fix, dynamic model selector synchronization, modern frontier model catalog, and live model discovery.

@@ -2584,14 +2584,14 @@ kbd {
 <div class="hero">
   <div class="hero-inner">
     <h1>One primitive:<br><span class="accent">message another agent.</span></h1>
-    <p class="lede">crewbus is a zero-dependency message bus for <strong>mixed-harness crews</strong> — Claude Code, Google Antigravity, OpenAI Codex, xAI Grok, OpenCode, Cursor, and Bash agents messaging each other directly. <strong>v10.0.1</strong> brings native multi-harness orchestration, canonical model selection, desktop &amp; mobile control surfaces, and verified crash resilience. No server, no Redis, no accounts — plain JSON files on disk.</p>
+    <p class="lede">crewbus is a zero-dependency message bus for <strong>mixed-harness crews</strong> — Claude Code, Google Antigravity, OpenAI Codex, xAI Grok, OpenCode, Cursor, and Bash agents messaging each other directly. <strong>v10.0.2</strong> brings target workspace CWD orchestration, persistent project folder resolution, canonical model selection, and desktop companion v0.1.16. No server, no Redis, no accounts — plain JSON files on disk.</p>
     <div class="btn-row">
       <a class="btn btn-primary" href="#launch-studio">Launch Studio Playground</a>
       <a class="btn btn-ghost" href="#apps">Desktop &amp; Mobile Apps</a>
       <a class="btn btn-ghost" href="documentation.html">Read the manual</a>
     </div>
     <div class="hero-meta">
-      <span>v10.0.1 Live</span>
+      <span>v10.0.2 Live</span>
       <span>Node 18+</span>
       <span>Linux · macOS · Windows</span>
       <span>CI green on all three</span>
@@ -3253,6 +3253,7 @@ crewbus spawn --from lead --to alice,bob --subject "brief: cards" \
       <p class="lede">Recent history from the changelog — every claim below landed in the published npm package of the same version.</p>
     </div>
     <ol class="timeline">
+      <li class="tl-item"><span class="tl-ver">10.0.2</span><span class="tl-date">2026-10-09</span><p><strong>Patch Release:</strong> Target workspace CWD selector &amp; persistence in Launch Studio, project popover clarity, eliminated upload prompt via directory picker, and Desktop companion release v0.1.16.</p></li>
       <li class="tl-item"><span class="tl-ver">10.0.1</span><span class="tl-date">2026-10-09</span><p><strong>Patch Release:</strong> Windows OpenCode harness detection fix, dynamic model selector synchronization preventing incompatible pairings, modern frontier model catalog (Claude Opus 5.5 / Sonnet 5.5, OpenAI GPT-6.1 Sol, Gemini 3.8 Flash, Grok 4.7, Cursor Grok 4.7), and live model discovery with on-demand refresh.</p></li>
       <li class="tl-item major"><span class="tl-ver">10.0.0</span><span class="tl-date">2026-10-08</span><p><strong>Major Live Release:</strong> Multi-harness task orchestration (<code>--harness claude,antigravity</code>), canonical model selector (<code>--model</code>, <code>HARNESS_MODELS</code>, <code>/api/models</code>), native Desktop app v0.1.13 with loopback sidecar supervisor, Mobile companion app with QR pairing, and complete Control Plane (M0–M6) with frozen contracts v1.</p></li>
       <li class="tl-item major"><span class="tl-ver">7.0.0</span><span class="tl-date">2026-10-05</span><p>Rename to <code>crewbus</code>, plus human-in-the-loop approvals, long-run resilience, session-id capture, <code>respawn</code>, checkpoints, and <code>pool-resume</code> supervision re-attach.</p></li>
@@ -3365,7 +3366,7 @@ crewbus spawn --from lead --to alice,bob --subject "brief: cards" \
         </div>
       </div>
       <span>crewbus · one primitive: message another agent · MIT · package <code>@eamonpluto/crewbus</code></span>
-      <span>v10.0.1 · zero dependencies · Node 18+</span>
+      <span>v10.0.2 · zero dependencies · Node 18+</span>
     </footer>
   </div>
 </section>

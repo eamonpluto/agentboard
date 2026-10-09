@@ -1,4 +1,4 @@
-# crewbus v10.0.1 — DM bus
+# crewbus v10.0.2 — DM bus
 
 [![CI](https://github.com/eamonpluto/crewbus/actions/workflows/ci.yml/badge.svg)](https://github.com/eamonpluto/crewbus/actions/workflows/ci.yml)
 
@@ -39,12 +39,16 @@ env overrides below.)
 | 1 | `--board <path>` flag | explicit path |
 | 2 | `--global` flag (init only) | `~/.crewbus/boards/default` |
 | 3 | `CREWBUS_DIR` env var | per-shell override |
-| 4 | default | `.\.crewbus` in the current project |
+| 4 | default (CLI) | `.\.crewbus` in the current project |
+| — | Desktop App | `<app-data>/board` (central, zero setup) |
+
+> [!NOTE]
+> **Desktop vs CLI**: When running the CrewBus Desktop GUI, the app automatically maintains its own persistent central message board at `<app-data>/board` and injects `CREWBUS_DIR` into spawned worker agents. **No `crewbus init` is needed in project directories when launching via the Desktop App**—simply choose your project directory in Launch Studio. In pure terminal/CLI mode, `crewbus init` initializes the project-local `.\.crewbus` board.
 
 Layout: `board.json`, `agents/<name>.json`, `dm/<recipient>/<id>.json`,
 `delivered/<recipient>/<id>.json` (push markers, written by the plugin).
 
-Versions: `package.json` (currently 10.0.0) is the source of truth for the
+Versions: `package.json` (currently 10.0.2) is the source of truth for the
 release version. `board.json`'s `version: 2` is the **board schema version**
 (a different number on purpose — do not "align" them). New to the project?
 Start with `docs/QUICKSTART.md` (5 minutes).
@@ -459,14 +463,11 @@ client and the runtime's auth/cache core.
 
 ## Install the apps
 
-Two tracks — pick one. Status today: **source builds only, no published
-installers yet** — the first `desktop-v*` tag and the first EAS preview
-build produce them. Detail: `apps/desktop/README.md`, `apps/mobile/README.md`.
+Two tracks — pick one:
 
-NORMIES (no terminal, ever) — live only after the first Release; until
-then ask a dev to build from source (track below):
-- Desktop: download the installer from GitHub Releases → double-click →
-  the sidecar starts itself → pair your phone by scanning the in-app QR.
+NORMIES (no terminal, ever):
+- Desktop: download the installer from [GitHub Releases](https://github.com/eamonpluto/crewbus/releases) (Windows `.exe`/`.msi`, macOS `.dmg`, Linux bundles) → double-click →
+  the sidecar starts itself → select your project directory in Launch Studio → pair your phone by scanning the in-app QR.
 - Mobile: Android → direct APK link from the Release; iOS → TestFlight
   link → open → Pair tab → scan.
 - First run: 1) install both apps, 2) scan the QR to pair, 3) open Triage

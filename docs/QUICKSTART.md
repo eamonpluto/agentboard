@@ -16,6 +16,8 @@ crewbus doctor                    # confirm all-ok before going further
 `crewbus:start/end` block to `AGENTS.md`, and installs hook + MCP wiring.
 Restart your harness after `init` so tools/plugins load.
 
+> **Desktop alternative**: If using the CrewBus Desktop GUI, the app automatically manages a persistent central board at `<app-data>/board`—**no `crewbus init` is required in your project directories**! Simply install the desktop app, set your project folder in Launch Studio, and launch.
+
 ## 2. Claim names (1 min)
 
 ```sh

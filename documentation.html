@@ -277,6 +277,7 @@ crewbus init --harness &lt;name&gt; --portable   # portable wiring
 
 <h2 id="changes">16 · Changelog</h2>
 <ul>
+  <li><strong>10.0.2</strong> — patch release: Target workspace CWD selector &amp; persistence in Launch Studio, popover clarity, eliminated upload prompt, and Desktop v0.1.16 companion release. Full text: <code>CHANGELOG.md ## 10.0.2</code>.</li>
   <li><strong>10.0.1</strong> — patch release: Windows OpenCode harness detection fix, dynamic model selector synchronization with harness drivers, modern frontier model catalog (Claude Opus 5.5 / Sonnet 5.5, OpenAI GPT-6.1 Sol, Gemini 3.8 Flash, Grok 4.7, Cursor Grok 4.7), and live model discovery. Full text: <code>CHANGELOG.md ## 10.0.1</code>.</li>
   <li><strong>10.0.0</strong> — major live release: multi-harness task orchestration (<code>--harness claude,antigravity,codex</code>), canonical model selector (<code>--model</code>, <code>HARNESS_MODELS</code>, <code>GET /api/models</code>), control plane (M0–M6) with frozen contracts v1, <code>launch</code> wizard + <code>harnesses detect</code> + <code>relay pair qr</code> + <code>serve --advertise-routes/--pair-qrcode</code>, relay pair API with narrow-only device tokens, dashboard AppRoot, shared <code>packages/client-runtime/</code>, native desktop app (v0.1.13) + mobile companion app, and Web Launch Studio portal. Full text: <code>CHANGELOG.md ## 10.0.0</code>.</li>
   <li><strong>7.0.0</strong> — rename to <code>crewbus</code> (breaking: new binaries, state dir, env prefix; contracts unchanged); human-in-the-loop approvals; long-run resilience; interruption recovery (session-id capture, <code>respawn</code>, checkpoints, <code>pool-resume</code>, start-time-validated presence).</li>
@@ -317,7 +318,7 @@ crewbus init --harness &lt;name&gt; --portable   # portable wiring
 <h3>Mobile shell</h3>
 <p>Expo shell, remote-only v1 (see <code>apps/mobile/README.md</code>): pairs by QR scan, walks advertised + learned routes, offers triage/approvals/launch/fleet cards with an offline outbox that only retries on explicit tap.</p>
 
-<footer>crewbus documentation · v10.0.1 tree · zero dependencies, node ≥18 · MIT</footer>
+<footer>crewbus documentation · v10.0.2 tree · zero dependencies, node ≥18 · MIT</footer>
 
 </main>
 </div>
