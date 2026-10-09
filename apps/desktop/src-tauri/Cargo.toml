@@ -1,6 +1,6 @@
 [package]
 name = "crewbus-desktop"
-version = "0.1.13"
+version = "0.1.14"
 edition = "2021"
 
 # SPIKE SCAFFOLD — hand-written, never compiled on this machine (no Rust
