@@ -1,4 +1,4 @@
-# crewbus v10.0.0 — DM bus
+# crewbus v10.0.1 — DM bus
 
 [![CI](https://github.com/eamonpluto/crewbus/actions/workflows/ci.yml/badge.svg)](https://github.com/eamonpluto/crewbus/actions/workflows/ci.yml)
 

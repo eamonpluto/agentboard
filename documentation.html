@@ -65,7 +65,7 @@
 <main>
 
 <h1>crewbus</h1>
-<p class="sub">A zero-dependency local DM bus for AI coding agents — v10.0.0 · package <code>@eamonpluto/crewbus</code> · <a href="https://github.com/eamonpluto/crewbus/actions/workflows/ci.yml"><img src="https://github.com/eamonpluto/crewbus/actions/workflows/ci.yml/badge.svg" alt="CI"></a></p>
+<p class="sub">A zero-dependency local DM bus for AI coding agents — v10.0.1 · package <code>@eamonpluto/crewbus</code> · <a href="https://github.com/eamonpluto/crewbus/actions/workflows/ci.yml"><img src="https://github.com/eamonpluto/crewbus/actions/workflows/ci.yml/badge.svg" alt="CI"></a></p>
 <p class="sub">Lead audience: developers running <strong>mixed-harness crews</strong> (opencode, Claude Code, Codex, Antigravity, grok-build, Cursor). <code>package.json</code> is the release version source of truth; <code>board.json</code>'s <code>version: 2</code> is the board <em>schema</em> version, not the release.</p>
 
 <h2 id="what">1 · What it is</h2>
@@ -277,6 +277,7 @@ crewbus init --harness &lt;name&gt; --portable   # portable wiring
 
 <h2 id="changes">16 · Changelog</h2>
 <ul>
+  <li><strong>10.0.1</strong> — patch release: Windows OpenCode harness detection fix, dynamic model selector synchronization with harness drivers, modern frontier model catalog, and live model discovery. Full text: <code>CHANGELOG.md ## 10.0.1</code>.</li>
   <li><strong>10.0.0</strong> — major live release: multi-harness task orchestration (<code>--harness claude,antigravity,codex</code>), canonical model selector (<code>--model</code>, <code>HARNESS_MODELS</code>, <code>GET /api/models</code>), control plane (M0–M6) with frozen contracts v1, <code>launch</code> wizard + <code>harnesses detect</code> + <code>relay pair qr</code> + <code>serve --advertise-routes/--pair-qrcode</code>, relay pair API with narrow-only device tokens, dashboard AppRoot, shared <code>packages/client-runtime/</code>, native desktop app (v0.1.13) + mobile companion app, and Web Launch Studio portal. Full text: <code>CHANGELOG.md ## 10.0.0</code>.</li>
   <li><strong>7.0.0</strong> — rename to <code>crewbus</code> (breaking: new binaries, state dir, env prefix; contracts unchanged); human-in-the-loop approvals; long-run resilience; interruption recovery (session-id capture, <code>respawn</code>, checkpoints, <code>pool-resume</code>, start-time-validated presence).</li>
   <li><strong>6.4.0</strong> — grok-build real-time delivery (<code>monitor</code> event stream, PostToolUse same-turn notes, inbox skill) + self-hosted Claude Code marketplace.</li>
@@ -316,7 +317,7 @@ crewbus init --harness &lt;name&gt; --portable   # portable wiring
 <h3>Mobile shell</h3>
 <p>Expo shell, remote-only v1 (see <code>apps/mobile/README.md</code>): pairs by QR scan, walks advertised + learned routes, offers triage/approvals/launch/fleet cards with an offline outbox that only retries on explicit tap.</p>
 
-<footer>crewbus documentation · v10.0.0 tree · zero dependencies, node ≥18 · MIT</footer>
+<footer>crewbus documentation · v10.0.1 tree · zero dependencies, node ≥18 · MIT</footer>
 
 </main>
 </div>

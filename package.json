@@ -1,6 +1,6 @@
 {
   "name": "@eamonpluto/crewbus",
-  "version": "10.0.0",
+  "version": "10.0.1",
   "description": "Zero-dependency message bus for AI coding-agent crews: message another agent, inserted into context, just a tool call.",
   "type": "module",
   "bin": {

@@ -1,5 +1,22 @@
 # Changelog
 
+## 10.0.1 (2026-10-09)
+
+PATCH RELEASE: Windows OpenCode harness detection fix, dynamic model selector synchronization, modern frontier model catalog, and live model discovery.
+
+- **Windows OpenCode Harness Detection**:
+  - Fixed binary detection for global npm batch script wrappers (`.cmd`) on Windows (`probeBinary` with `shell: true` and 15s timeout).
+  - OpenCode and other global npm tools correctly report presence and version instead of "not installed" / `ENOENT`.
+
+- **Dynamic Model Selector Synchronization**:
+  - The model selector now dynamically synchronizes with the active harness selection, strictly preventing incompatible model/harness combinations (e.g. Grok models on Codex CLI).
+  - Multi-harness selections group available models by harness while defaulting to `Default (harness configured)`.
+  - Added "Custom / specify model ID…" option with an inline write-in field for arbitrary provider/model slugs.
+
+- **Refreshed Model Catalog & Live Discovery**:
+  - Refreshed built-in `HARNESS_MODELS` with modern frontier, standard, and fast models across Anthropic (Claude 3.7 Sonnet / Opus 4), OpenAI (o3-mini, o1, gpt-4.5, gpt-4o), Google (Gemini 2.5 Pro / Flash, Gemini 2.0 Flash Thinking), xAI (Grok 3 / 3 Mini), and OpenCode.
+  - Added live model discovery via `GET /api/models?refresh=1` and a `↻` refresh button in the Web Launch Studio to discover installed models (e.g. via `opencode models`) on demand.
+
 ## 10.0.0 (2026-10-08)
 
 MAJOR LIVE RELEASE: Multi-Harness task orchestration, canonical model selection, native desktop and mobile companion applications, and the complete Control Plane (M0–M6).
