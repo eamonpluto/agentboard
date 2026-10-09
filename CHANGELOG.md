@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Package is now published as unscoped `crewbus` (v10.0.2): `npm i -g crewbus`.
+
 ## 10.0.2 (2026-10-09)
 
 PATCH RELEASE: Target workspace CWD selector & persistence in Launch Studio, popover clarity, eliminated upload prompt, and Desktop v0.1.16 companion release.

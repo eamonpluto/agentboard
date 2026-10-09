@@ -1,5 +1,5 @@
 {
-  "description": "crewbus DM delivery: SessionStart registers + backlog, Stop injects waiting DMs at turn end, background waiters (asyncRewake) wake the session when mail lands mid-turn or while idle. Requires `npm i -g @eamonpluto/crewbus` (PATH commands) and CREWBUS_AGENT=<you> per terminal.",
+  "description": "crewbus DM delivery: SessionStart registers + backlog, Stop injects waiting DMs at turn end, background waiters (asyncRewake) wake the session when mail lands mid-turn or while idle. Requires `npm i -g crewbus` (PATH commands) and CREWBUS_AGENT=<you> per terminal.",
   "hooks": {
     "SessionStart": [
       {

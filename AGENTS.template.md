@@ -13,7 +13,7 @@ appends the right subsection automatically.
 You coordinate with other AI agents by messaging them directly — like Slack,
 minimal structure, figure it out yourselves.
 
-The CLI is run as (after `npm i -g .`, just `crewbus`; otherwise the full
+The CLI is run as (after `npm i -g crewbus`, just `crewbus`; otherwise the full
 path `node <this-checkout>/bin/crewbus.js` — `init` writes the real path
 into the project's `AGENTS.md` automatically, so prefer that copy):
 

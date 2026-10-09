@@ -65,7 +65,7 @@
 <main>
 
 <h1>crewbus</h1>
-<p class="sub">A zero-dependency local DM bus for AI coding agents — v10.0.1 · package <code>@eamonpluto/crewbus</code> · <a href="https://github.com/eamonpluto/crewbus/actions/workflows/ci.yml"><img src="https://github.com/eamonpluto/crewbus/actions/workflows/ci.yml/badge.svg" alt="CI"></a></p>
+<p class="sub">A zero-dependency local DM bus for AI coding agents — v10.0.2 · package <code>crewbus</code> · <a href="https://github.com/eamonpluto/crewbus/actions/workflows/ci.yml"><img src="https://github.com/eamonpluto/crewbus/actions/workflows/ci.yml/badge.svg" alt="CI"></a></p>
 <p class="sub">Lead audience: developers running <strong>mixed-harness crews</strong> (opencode, Claude Code, Codex, Antigravity, grok-build, Cursor). <code>package.json</code> is the release version source of truth; <code>board.json</code>'s <code>version: 2</code> is the board <em>schema</em> version, not the release.</p>
 
 <h2 id="what">1 · What it is</h2>
@@ -271,7 +271,7 @@ crewbus doctor                              # confirm all-ok</code></pre>
 <p><code>npm test</code> runs 20 suites — smoke + harness + compact + tokenfile + digest + control-plane + launch + web-launch + pair-api + web-panel + web-approot + client-runtime + runtime-wiring + desktop-sidecar + mobile-client + approvals (×3) + fault-injection + integration — all green. <code>npm run bench</code> asserts scale budgets and <code>npm run bench:load</code> the synthetic 10–10k load test separately. <code>sync-embeds.mjs</code> (repo root, dev-only) re-embeds the opencode tool + plugin into <code>bin/crewbus.js</code> for global installs — run it after editing either file (CI enforces <code>--check</code>).</p>
 
 <h2 id="publish">15 · Install &amp; publish</h2>
-<pre><code>npm i -g @eamonpluto/crewbus     # global install
+<pre><code>npm i -g crewbus     # global install
 crewbus init --harness &lt;name&gt; --portable   # portable wiring
 # maintainer: npm test && npm publish   (needs npm login + 2FA approval)</code></pre>
 
@@ -292,7 +292,7 @@ crewbus init --harness &lt;name&gt; --portable   # portable wiring
   <li><strong>3.0.0</strong> — token-bound identity (first claim mints, <code>--token</code>/<code>CREWBUS_TOKEN</code>; breaking); presence (<code>agents --active</code>); <code>prune</code> retention; <code>spawn</code> + <code>spawn-status</code>/<code>spawn-kill</code>; <code>ack</code>/<code>thread</code>/<code>inbox --unacked</code>; <code>web</code> dashboard; <code>stop --all</code>.</li>
   <li><strong>2.4.0</strong> — broadcast send (<code>--to a,b,c</code>, shared batch id); <code>--subject</code>/<code>--reply</code> threading + git-rev staleness stamps; read commands never plant boards; <code>[board]</code> echo everywhere; parallel-send hardening; fan-out docs.</li>
   <li><strong>2.3.0</strong> — walk-up board resolution everywhere; <code>[board]</code> echo on sends; <code>board</code> param on dm-send + MCP tools; drive-root creation guard; troubleshooting docs.</li>
-  <li><strong>2.2.0</strong> — batched hook delivery (5/poll); unified hook↔plugin tracking; <code>doctor</code>; <code>--idle-after</code>; <code>--portable</code>; npm <code>files</code> allowlist. Published as <code>@eamonpluto/crewbus</code>.</li>
+  <li><strong>2.2.0</strong> — batched hook delivery (5/poll); unified hook↔plugin tracking; <code>doctor</code>; <code>--idle-after</code>; <code>--portable</code>; npm <code>files</code> allowlist. Published as <code>crewbus</code>.</li>
   <li><strong>2.1.0</strong> — MCP server, hook helper, harness adapters, <code>init --harness</code> with auto-detect.</li>
   <li><strong>2.0.0</strong> — destructive DM-only rewrite (send/inbox/listen), opencode push layer.</li>
   <li><strong>1.1.0</strong> — legacy task-board model.</li>

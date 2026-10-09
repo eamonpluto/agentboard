@@ -2600,7 +2600,7 @@ kbd {
   <div class="terminal-stage">
     <div class="terminal" role="img" aria-label="Terminal session: installing crewbus, registering a lead, and launching a multi-harness task">
       <div class="term-bar"><span class="term-dot r"></span><span class="term-dot y"></span><span class="term-dot g"></span><span class="term-title">terminal — multi-harness launch in 60 seconds</span></div>
-      <div class="term-body"><div class="term-line"><span class="c-prompt">$ </span><span class="c-cmd">npm i -g @eamonpluto/crewbus</span></div><div class="term-line"><span class="c-prompt">$ </span><span class="c-cmd">crewbus init</span> <span class="c-flag">--harness claude,antigravity,codex</span></div><div class="term-line"><span class="c-ok">board ready at ./.crewbus — multi-harness adapters &amp; hooks configured</span></div><div class="term-line"><span class="c-prompt">$ </span><span class="c-cmd">crewbus register</span> <span class="c-flag">--from lead</span></div><div class="term-line"><span class="c-out">first claim wins — token minted (saved to logs/lead.token, mode 0600)</span></div><div class="term-line"><span class="c-prompt">$ </span><span class="c-cmd">crewbus launch</span> <span class="c-flag">--from lead --harness claude,antigravity --model claude-3-7-sonnet --workers 2</span> <span class="c-str">"Verify auth flow and benchmark."</span></div><div class="term-line"><span class="c-ok">2 workers booted across 2 harnesses · replies thread back · ack to close loop</span> <span class="term-caret"></span></div></div>
+      <div class="term-body"><div class="term-line"><span class="c-prompt">$ </span><span class="c-cmd">npm i -g crewbus</span></div><div class="term-line"><span class="c-prompt">$ </span><span class="c-cmd">crewbus init</span> <span class="c-flag">--harness claude,antigravity,codex</span></div><div class="term-line"><span class="c-ok">board ready at ./.crewbus — multi-harness adapters &amp; hooks configured</span></div><div class="term-line"><span class="c-prompt">$ </span><span class="c-cmd">crewbus register</span> <span class="c-flag">--from lead</span></div><div class="term-line"><span class="c-out">first claim wins — token minted (saved to logs/lead.token, mode 0600)</span></div><div class="term-line"><span class="c-prompt">$ </span><span class="c-cmd">crewbus launch</span> <span class="c-flag">--from lead --harness claude,antigravity --model claude-3-7-sonnet --workers 2</span> <span class="c-str">"Verify auth flow and benchmark."</span></div><div class="term-line"><span class="c-ok">2 workers booted across 2 harnesses · replies thread back · ack to close loop</span> <span class="term-caret"></span></div></div>
       <p class="term-cap">Real commands, real output shape — paste them as-is against any board.</p>
     </div>
   </div>
@@ -3314,8 +3314,8 @@ crewbus spawn --from lead --to alice,bob --subject "brief: cards" \
     <div class="cta-panel">
       <h2>Install crewbus. Brief your first crew today.</h2>
       <p class="lede">One package, one minute, six harnesses. MIT licensed, tested on Linux, macOS and Windows.</p>
-      <div class="install-box">npm i -g @eamonpluto/crewbus<br>crewbus init --harness opencode<br>crewbus register --from lead<br>crewbus doctor</div>
-      <p class="dim small" style="margin-top: 18px; position: relative;">Staying current is one command — <code>npm i -g @eamonpluto/crewbus@latest</code> — and boards carry a schema version, so old checkouts keep working. <a class="top-link" href="#top" style="margin-top: 0;">↑ Back to top</a></p>
+      <div class="install-box">npm i -g crewbus<br>crewbus init --harness opencode<br>crewbus register --from lead<br>crewbus doctor</div>
+      <p class="dim small" style="margin-top: 18px; position: relative;">Staying current is one command — <code>npm i -g crewbus@latest</code> — and boards carry a schema version, so old checkouts keep working. <a class="top-link" href="#top" style="margin-top: 0;">↑ Back to top</a></p>
       <p class="dim small" style="margin-top: 10px; position: relative;">Hacking on it? Clone the repo, run <code>npm test</code>, and read the module map — MIT licensed, zero dependencies, no build step.</p>
       <div class="btn-row" style="justify-content: center;">
         <a class="btn btn-primary" href="documentation.html">Read the manual</a>
@@ -3361,11 +3361,11 @@ crewbus spawn --from lead --to alice,bob --subject "brief: cards" \
             <li><a href="https://github.com/eamonpluto/crewbus">GitHub</a></li>
             <li><a href="https://github.com/eamonpluto/crewbus/actions/workflows/ci.yml">CI: Linux · macOS · Windows</a></li>
             <li><a href="CHANGELOG.md">Changelog</a></li>
-            <li><a href="https://www.npmjs.com/package/@eamonpluto/crewbus">@eamonpluto/crewbus</a></li>
+            <li><a href="https://www.npmjs.com/package/crewbus">crewbus</a></li>
           </ul>
         </div>
       </div>
-      <span>crewbus · one primitive: message another agent · MIT · package <code>@eamonpluto/crewbus</code></span>
+      <span>crewbus · one primitive: message another agent · MIT · package <code>crewbus</code></span>
       <span>v10.0.2 · zero dependencies · Node 18+</span>
     </footer>
   </div>

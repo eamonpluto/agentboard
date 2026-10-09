@@ -24,6 +24,13 @@ node $REPO/bin/crewbus.js <command>
 Or install globally:
 
 ```sh
+npm i -g crewbus
+crewbus --help
+```
+
+Or from a local checkout (dev alternative):
+
+```sh
 cd $REPO
 npm i -g .
 crewbus --help
@@ -528,7 +535,7 @@ Stop envelope is verified against the Claude, Codex, and grok-build docs
 Or install globally (enables portable `init --portable` wiring):
 
 ```powershell
-npm i -g @eamonpluto/crewbus
+npm i -g crewbus
 crewbus --help
 ```
 
@@ -665,4 +672,4 @@ logic lives in `bin/lib/` (12 modules). See `docs/SPLIT.md` for the module
 map, dependency rules, and how to add a command.
 
 After publishing, projects can skip the checkout entirely:
-`npm i -g @eamonpluto/crewbus` then `crewbus init --harness <name> --portable`.
+`npm i -g crewbus` then `crewbus init --harness <name> --portable`.
