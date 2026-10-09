@@ -872,9 +872,38 @@ function markIdent(){
   var lt=document.getElementById('launch-token');
   if(lt&&!lt.value&&c.token)lt.value=c.token;
 }
+async function autoLoadOperatorCreds(){
+  var lf=document.getElementById('launch-from');
+  var lt=document.getElementById('launch-token');
+  var who=document.getElementById('who');
+  var tok=document.getElementById('tok');
+  var curFrom=(lf&&lf.value.trim())||(who&&who.value.trim());
+  var curTok=(lt&&lt.value.trim())||(tok&&tok.value.trim());
+  if(!curFrom||!curTok){
+    try{
+      var r=await fetch('/api/operator-creds');
+      if(r.ok){
+        var j=await r.json();
+        if(j.ok&&j.from&&j.token){
+          if(lf&&!lf.value)lf.value=j.from;
+          if(lt&&!lt.value)lt.value=j.token;
+          if(who&&!who.value)who.value=j.from;
+          if(tok&&!tok.value)tok.value=j.token;
+          try{localStorage.setItem('ab-who',j.from);localStorage.setItem('ab-tok',j.token);}catch(_){}
+          markIdent();
+        }
+      }
+    }catch(_){}
+  }
+}
 function say(t){document.getElementById('result').textContent=t;}
 document.getElementById('save').onclick=function(){var c=creds();try{localStorage.setItem('ab-who',c.from);localStorage.setItem('ab-tok',c.token);}catch(e){}markIdent();say('identity saved in this tab');};
 try{document.getElementById('who').value=localStorage.getItem('ab-who')||'';document.getElementById('tok').value=localStorage.getItem('ab-tok')||'';}catch(e){}markIdent();
+var _lf=document.getElementById('launch-from');
+if(_lf){_lf.oninput=function(){try{localStorage.setItem('ab-who',this.value.trim());}catch(_){}var w=document.getElementById('who');if(w)w.value=this.value.trim();markIdent();};}
+var _lt=document.getElementById('launch-token');
+if(_lt){_lt.oninput=function(){try{localStorage.setItem('ab-tok',this.value.trim());}catch(_){}var t=document.getElementById('tok');if(t)t.value=this.value.trim();markIdent();};}
+autoLoadOperatorCreds();
 function stateOf(w){if(!w.known)return 'unknown';if(w.reply)return w.acked?'done · acked':'done · reply waiting';if(w.alive===true)return 'running';if(w.alive===false)return 'exited · no reply';return 'no pid';}
 async function kill(names){
   var c=creds();
@@ -1209,7 +1238,12 @@ async function doLaunch(dry){
   var out=document.getElementById('launch-out');
   var lf=document.getElementById('launch-from').value.trim()||creds().from;
   var lt=document.getElementById('launch-token').value||creds().token;
-  if(!lf||!lt){out.textContent='set launch from+token (or the identity above) first';return;}
+  if(!lf||!lt){
+    await autoLoadOperatorCreds();
+    lf=document.getElementById('launch-from').value.trim()||creds().from;
+    lt=document.getElementById('launch-token').value||creds().token;
+  }
+  if(!lf||!lt){out.textContent='set launch from+token (or register via CLI: crewbus register --from lead) first';return;}
   var to=document.getElementById('launch-to').value.trim();
   var count=Number(document.getElementById('launch-count').value)||1;
   var selectedHarnesses = window.__selectedHarnesses && window.__selectedHarnesses.size ? Array.from(window.__selectedHarnesses) : (document.getElementById('launch-harness').value || 'claude').split(',').map(function(s){return s.trim();}).filter(Boolean);
@@ -1833,6 +1867,26 @@ export async function handleWebDashboardRoute(req, res, url, d) {
     const out = await handleApiApprove(d, body);
     res.writeHead(out.status, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
     res.end(JSON.stringify(out.payload));
+    return true;
+  }
+  if (req.method === "GET" && url.pathname === "/api/operator-creds") {
+    const ip = req.socket.remoteAddress || "";
+    const isLoop = ip === "127.0.0.1" || ip === "::1" || ip === "::ffff:127.0.0.1";
+    if (!isLoop) {
+      res.writeHead(403, { "content-type": "application/json; charset=utf-8" });
+      res.end(JSON.stringify({ error: "loopback only" }));
+      return true;
+    }
+    const tokenFile = path.join(d.root, "logs", "lead.token");
+    let tok = "";
+    try { tok = fs.readFileSync(tokenFile, "utf8").trim(); } catch {}
+    if (tok) {
+      res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+      res.end(JSON.stringify({ ok: true, from: "lead", token: tok }));
+      return true;
+    }
+    res.writeHead(404, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+    res.end(JSON.stringify({ ok: false, error: "no lead.token found" }));
     return true;
   }
   return false;
