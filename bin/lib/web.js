@@ -585,10 +585,10 @@ details.tech-details summary{cursor:pointer;font-weight:500;user-select:none}
         <div class="pop-label">Workspace Board</div>
         <div class="pop-path" id="pop-board-path">${e(boardPath)}</div>
         <button type="button" id="copy-board-btn" class="pop-btn"><svg class="btn-ic" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy Board Path</button>
-        <label style="display:block;margin-top:8px">
+        <div style="margin-top:8px">
           <button type="button" class="pop-btn" id="open-folder-btn"><svg class="btn-ic" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg> Open Project Folder…</button>
           <input type="file" id="folder-picker" webkitdirectory directory style="display:none">
-        </label>
+        </div>
         <button type="button" class="pop-btn" id="pop-pair-btn" style="margin-top:8px"><svg class="btn-ic" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg> Pair Mobile Client (QR)…</button>
       </div>
     </div>
@@ -1360,7 +1360,7 @@ function paletteActivate(m){
     else if(m.action==='killall'){document.getElementById('killall').click();}
     else if(m.action==='ackall'){document.getElementById('ackall').click();}
     else if(m.action==='copyboard'){copyBoardPath();}
-    else if(m.action==='openfolder'){document.getElementById('folder-picker').click();}
+    else if(m.action==='openfolder'){document.getElementById('open-folder-btn').click();}
     else if(m.action==='pairmobile'){
       try{window.parent.postMessage({type:'crewbus:open-pair'},'*');}catch(_){}
       try{window.open('./pair.html','_blank','width=420,height=560');}catch(_){}
@@ -1613,9 +1613,23 @@ document.getElementById('inspector-toggle-btn').onclick=function(){
 document.getElementById('close-inspector-btn').onclick=function(){
   document.getElementById('app-inspector').classList.add('hidden');
 };
-document.getElementById('open-folder-btn').onclick=function(){
-  document.getElementById('folder-picker').click();
-};
+async function openProjectFolder(){
+  if(typeof window.showDirectoryPicker==='function'){
+    try{
+      var dirHandle=await window.showDirectoryPicker();
+      if(dirHandle&&dirHandle.name){
+        say('Selected folder: '+dirHandle.name);
+        document.getElementById('project-display-name').textContent=dirHandle.name;
+      }
+      return;
+    }catch(err){
+      if(err&&(err.name==='AbortError'||err.code===20))return;
+    }
+  }
+  var fp=document.getElementById('folder-picker');
+  if(fp)fp.click();
+}
+document.getElementById('open-folder-btn').onclick=openProjectFolder;
 document.getElementById('folder-picker').onchange=function(e){
   var files=e.target.files;
   if(files&&files.length>0){
