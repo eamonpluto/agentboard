@@ -80,6 +80,9 @@ check("web: harnesses carry brief+resume", Array.isArray(harn.json) && harn.json
 const routes = await httpCall(webBase, "GET", "/api/routes");
 check("web: GET /api/routes shape", routes.status === 200 && !!routes.json && Array.isArray(routes.json.advertisedRoutes) && typeof routes.json.envId === "string");
 
+const models = await httpCall(webBase, "GET", "/api/models");
+check("web: GET /api/models 200 catalog", models.status === 200 && !!models.json && Array.isArray(models.json.claude) && Array.isArray(models.json.opencode));
+
 const dry = await httpCall(webBase, "POST", "/api/launch", { from: "lead", token: leadTok, harness: "grok", body: "audit scope", dryRun: true });
 check("web: POST /api/launch dry-run previews", dry.status === 200 && dry.json && dry.json.dryRun === true && Array.isArray(dry.json.commands) && dry.json.commands.length === 1);
 

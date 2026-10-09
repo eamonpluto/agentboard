@@ -42,11 +42,13 @@ export function launchDrivers() {
 
 // Probe one binary for presence + version. Never throws: missing binaries
 // report { found: false } ("not installed", not failure).
+// On Windows, global npm CLIs are batch scripts (.cmd) which require shell: true.
 export function probeBinary(binary, probeArgs) {
   if (!binary) return { found: false, version: null, detail: "operator-supplied --cmd" };
   try {
+    const isWin = process.platform === "win32";
     const out = execFileSync(binary, probeArgs && probeArgs.length > 0 ? probeArgs : ["--version"], {
-      stdio: ["ignore", "pipe", "pipe"], timeout: 8000,
+      stdio: ["ignore", "pipe", "pipe"], timeout: 8000, shell: isWin,
     });
     const first = String(out || "").split("\n")[0].trim().slice(0, 80);
     return { found: true, version: first || "installed", detail: null };
@@ -79,16 +81,20 @@ export const HARNESS_MODELS = {
     { id: "claude-3-7-sonnet", label: "Claude 3.7 Sonnet (Hybrid Reasoning)", tier: "frontier" },
     { id: "claude-3-5-sonnet", label: "Claude 3.5 Sonnet (Standard)", tier: "standard" },
     { id: "claude-3-5-haiku", label: "Claude 3.5 Haiku (Fast)", tier: "fast" },
+    { id: "claude-opus-4", label: "Claude Opus 4 (Frontier)", tier: "frontier" },
   ],
   antigravity: [
     { id: "gemini-2.5-pro", label: "Gemini 2.5 Pro (Deep Reasoning)", tier: "frontier" },
     { id: "gemini-2.5-flash", label: "Gemini 2.5 Flash (Ultra-fast)", tier: "fast" },
     { id: "gemini-2.0-flash", label: "Gemini 2.0 Flash (General)", tier: "standard" },
+    { id: "gemini-2.0-flash-thinking", label: "Gemini 2.0 Flash Thinking", tier: "frontier" },
   ],
   codex: [
     { id: "o3-mini", label: "OpenAI o3-mini (Reasoning)", tier: "frontier" },
     { id: "o1", label: "OpenAI o1 (Full Reasoning)", tier: "frontier" },
+    { id: "gpt-4.5", label: "GPT-4.5 (Research Preview)", tier: "frontier" },
     { id: "gpt-4o", label: "GPT-4o (Omni)", tier: "standard" },
+    { id: "gpt-4o-mini", label: "GPT-4o Mini (Fast)", tier: "fast" },
   ],
   grok: [
     { id: "grok-3", label: "Grok 3 (Deep Reasoning)", tier: "frontier" },
@@ -96,16 +102,85 @@ export const HARNESS_MODELS = {
     { id: "grok-2", label: "Grok 2", tier: "standard" },
   ],
   opencode: [
-    { id: "claude-3-5-sonnet", label: "Claude 3.5 Sonnet", tier: "standard" },
-    { id: "deepseek-r1", label: "DeepSeek R1 (Reasoning)", tier: "frontier" },
-    { id: "gpt-4o", label: "GPT-4o", tier: "standard" },
+    { id: "opencode/claude-sonnet-4-6", label: "Claude Sonnet 4.6 (OpenCode)", tier: "frontier" },
+    { id: "opencode/gemini-3.1-pro", label: "Gemini 3.1 Pro (OpenCode)", tier: "frontier" },
+    { id: "opencode/gpt-5-codex", label: "GPT-5 Codex (OpenCode)", tier: "frontier" },
+    { id: "opencode/deepseek-v4-pro", label: "DeepSeek v4 Pro (OpenCode)", tier: "frontier" },
+    { id: "opencode/grok-4.7", label: "Grok 4.7 (OpenCode)", tier: "frontier" },
+    { id: "opencode-go/claude-haiku-5-5", label: "Claude Haiku 5.5 (OpenCode Go)", tier: "fast" },
+    { id: "opencode/claude-3-7-sonnet", label: "Claude 3.7 Sonnet (OpenCode)", tier: "frontier" },
+    { id: "deepseek/deepseek-r1", label: "DeepSeek R1 (Direct)", tier: "frontier" },
+    { id: "anthropic/claude-3-7-sonnet", label: "Claude 3.7 Sonnet (Direct)", tier: "frontier" },
+    { id: "openai/o3-mini", label: "o3-mini (Direct)", tier: "frontier" },
+    { id: "openai/gpt-4o", label: "GPT-4o (Direct)", tier: "standard" },
   ],
   cursor: [
+    { id: "claude-3.7-sonnet", label: "Claude 3.7 Sonnet", tier: "frontier" },
     { id: "claude-3.5-sonnet", label: "Claude 3.5 Sonnet", tier: "standard" },
     { id: "gpt-4o", label: "GPT-4o", tier: "standard" },
   ],
   generic: [],
 };
+
+// Dynamic discovered model cache for harnesses capable of live discovery (e.g., opencode).
+let _cachedDiscoveredModels = null;
+let _refreshPromise = null;
+
+export function getDiscoveredModels() {
+  const merged = {};
+  for (const k of Object.keys(HARNESS_MODELS)) {
+    merged[k] = [...HARNESS_MODELS[k]];
+  }
+  if (_cachedDiscoveredModels) {
+    for (const [k, list] of Object.entries(_cachedDiscoveredModels)) {
+      if (Array.isArray(list) && list.length > 0) {
+        const existingIds = new Set((merged[k] || []).map((m) => m.id));
+        const toAdd = list.filter((m) => !existingIds.has(m.id));
+        merged[k] = [...toAdd, ...(merged[k] || [])];
+      }
+    }
+  }
+  return merged;
+}
+
+export function refreshDiscoveredModels(timeoutMs = 15000) {
+  if (_refreshPromise) return _refreshPromise;
+  _refreshPromise = (async () => {
+    try {
+      const isWin = process.platform === "win32";
+      const { execFile } = await import("node:child_process");
+      const { promisify } = await import("node:util");
+      const execFileAsync = promisify(execFile);
+      const { stdout } = await execFileAsync("opencode", ["models"], {
+        timeout: timeoutMs,
+        shell: isWin,
+      });
+      const rawLines = String(stdout || "").split("\n")
+        .map((l) => l.trim())
+        .filter((l) => l && !l.startsWith("⠀") && !l.startsWith("█") && !l.includes(" "));
+      if (rawLines.length > 0) {
+        const opencodeModels = rawLines.map((m) => {
+          const parts = m.split("/");
+          const name = parts[1] || parts[0];
+          const tier = /pro|r1|opus|3\.7|o3|o1|gpt-5|grok-4|max/i.test(m)
+            ? "frontier"
+            : /haiku|flash|mini|nano|free/i.test(m)
+              ? "fast"
+              : "standard";
+          return { id: m, label: `${name} (${parts[0]})`, tier };
+        });
+        if (!_cachedDiscoveredModels) _cachedDiscoveredModels = {};
+        _cachedDiscoveredModels.opencode = opencodeModels;
+      }
+    } catch {
+      // Ignore discovery errors — static catalog remains available
+    } finally {
+      _refreshPromise = null;
+    }
+    return getDiscoveredModels();
+  })();
+  return _refreshPromise;
+}
 
 // Validate a launch plan against launch.json constraints. Returns
 // { ok, errors[], warnings[], plan } — never throws, never boots.

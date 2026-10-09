@@ -52,7 +52,7 @@ import { ackedIds, checkSendRateLimit, deliverDMs, enforceMaxChars, filterDigest
 import { batchReplyIds, collectBatch, contributingGroups, expandGroups, expandGroupsOrFail, gatherTelemetry, groupTelemetryData, heuristicSenderType, readGroup, ensureGroupCreatedAt, readResultRecord, writeResultRecord, findFirstVerifiedReply } from "./lib/groups.js";
 import { appendChannelPost, channelLogPath, groupChannelName, lockAlive, lockPath, mergeChannelText, mirrorToGroupChannels, printChannelPost, readChannelPosts, readLock, summarizePosts, writeChannelCursor, SUMMARY_STOP, channelCursorPath, readChannelCursor, lockHash, acquireLockDoc, releaseLockDoc, tailChannelPosts, listLocks, parseChannelText } from "./lib/channels.js";
 import { boardSnapshot, cmdWeb, escapeHtml, fleetSnapshot, channelsSnapshot, resultsSnapshot, auditSnapshot, handleApiAck, renderBoardHtml, handleApiKill, handleWebDashboardRoute } from "./lib/web.js";
-import { LAUNCH_DRIVER_FALLBACK, PAIR_SCOPES, advertiseEnv, buildPairUrl, detectHarnessBinaries, formatHarnessMenu, isBodyFileRef, launchDrivers, parseCountChoice, parseHarnessChoice, parsePermissionChoice, parseYesNo, probeBinary, validateLaunchPlan, HARNESS_MODELS } from "./lib/launch.js";
+import { LAUNCH_DRIVER_FALLBACK, PAIR_SCOPES, advertiseEnv, buildPairUrl, detectHarnessBinaries, formatHarnessMenu, isBodyFileRef, launchDrivers, parseCountChoice, parseHarnessChoice, parsePermissionChoice, parseYesNo, probeBinary, validateLaunchPlan, HARNESS_MODELS, getDiscoveredModels, refreshDiscoveredModels } from "./lib/launch.js";
 import readline from "node:readline";
 
 // spawn boots live OS processes (heavyweight: a whole harness per worker),
@@ -5975,9 +5975,19 @@ async function cmdServe(args) {
           return;
         }
         if (req.method === "GET" && url.pathname === "/api/models") {
-          const body = JSON.stringify(HARNESS_MODELS);
+          const doRefresh = url.searchParams.get("refresh") === "1" || url.searchParams.get("refresh") === "true";
+          if (doRefresh) {
+            refreshDiscoveredModels(15000).then((catalog) => {
+              res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+              res.end(JSON.stringify(catalog));
+            }).catch(() => {
+              res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+              res.end(JSON.stringify(getDiscoveredModels()));
+            });
+            return;
+          }
           res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
-          res.end(body);
+          res.end(JSON.stringify(getDiscoveredModels()));
           return;
         }
         if (req.method === "GET" && url.pathname === "/healthz") {

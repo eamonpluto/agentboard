@@ -22,7 +22,7 @@ import { workerStatus, pidAlive, killWorkers, bootWorker, buildSpawnPrompt, buil
 import { groupTelemetryData } from "./groups.js";
 import { httpJson } from "./sync.js";
 import { readChainRecords, verifyChainRecords, appendChainRecord, readHold, readBoardQuotas } from "./export.js";
-import { launchDrivers, detectHarnessBinaries, validateLaunchPlan, advertiseEnv, HARNESS_MODELS } from "./launch.js";
+import { launchDrivers, detectHarnessBinaries, validateLaunchPlan, advertiseEnv, HARNESS_MODELS, getDiscoveredModels, refreshDiscoveredModels } from "./launch.js";
 
 export function escapeHtml(s) {
   return String(s === undefined || s === null ? "" : s).replace(/[&<>"']/g, (c) => ({
@@ -696,30 +696,9 @@ details.tech-details summary{cursor:pointer;font-weight:500;user-select:none}
             <span class="dim" style="margin-left:8px">Model:</span>
             <select id="launch-model" style="background:var(--bg-input);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:3px 8px;font-size:12px">
               <option value="">Default (harness configured)</option>
-              <optgroup label="Claude (Anthropic)">
-                <option value="claude-3-7-sonnet">Claude 3.7 Sonnet (Hybrid Reasoning)</option>
-                <option value="claude-3-5-sonnet">Claude 3.5 Sonnet</option>
-                <option value="claude-3-5-haiku">Claude 3.5 Haiku</option>
-              </optgroup>
-              <optgroup label="Gemini (Google)">
-                <option value="gemini-2.5-pro">Gemini 2.5 Pro (Deep Reasoning)</option>
-                <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
-                <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
-              </optgroup>
-              <optgroup label="OpenAI">
-                <option value="o3-mini">o3-mini (Reasoning)</option>
-                <option value="o1">o1 (Full Reasoning)</option>
-                <option value="gpt-4o">GPT-4o (Omni)</option>
-              </optgroup>
-              <optgroup label="xAI">
-                <option value="grok-3">Grok 3 (Deep Reasoning)</option>
-                <option value="grok-3-mini">Grok 3 Mini</option>
-                <option value="grok-2">Grok 2</option>
-              </optgroup>
-              <optgroup label="DeepSeek">
-                <option value="deepseek-r1">DeepSeek R1 (Reasoning)</option>
-              </optgroup>
             </select>
+            <input id="launch-model-custom" type="text" placeholder="provider/model-id" style="display:none;background:var(--bg-input);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:3px 8px;font-size:12px;width:150px;margin-left:4px" title="Enter custom model identifier">
+            <button id="launch-models-refresh" type="button" class="btn-subtle" title="Fetch latest available models from installed harnesses" style="margin-left:4px;padding:2px 6px;font-size:11px">↻</button>
             <span class="dim" style="margin-left:8px">Permission:</span>
             <select id="launch-permission" style="display:none"><option>supervised</option><option>autoEdits</option><option>auto</option><option>full</option></select>
             <span id="launch-permission-seg">
@@ -1092,7 +1071,7 @@ async function loadLaunchMeta(){
   }catch(e){}
   refreshLaunchMeta();
 }
-var __launchMetaCache={harnesses:{at:0,data:null},routes:{at:0,data:null}};
+var __launchMetaCache={harnesses:{at:0,data:null},routes:{at:0,data:null},models:{at:0,data:null}};
 var __launchMetaTtlMs=5000;
 function __launchMetaFresh(entry){return !!(entry&&entry.data&&(Date.now()-entry.at)<__launchMetaTtlMs);}
 async function fetchLaunchMetaCached(kind,url){
@@ -1102,6 +1081,74 @@ async function fetchLaunchMetaCached(kind,url){
   var j=await r.json();
   __launchMetaCache[kind]={at:Date.now(),data:j};
   return j;
+}
+function syncModelOptions(selectedHarnesses){
+  var modelEl=document.getElementById('launch-model');
+  var customEl=document.getElementById('launch-model-custom');
+  if(!modelEl)return;
+  var sel=Array.isArray(selectedHarnesses)?selectedHarnesses:(selectedHarnesses instanceof Set?Array.from(selectedHarnesses):[]);
+  if(!sel.length)sel=['claude'];
+  var prevVal=modelEl.value;
+  var catalog=window.__modelCatalog||{};
+  var html='<option value="">Default (harness configured)</option>';
+  if(sel.length===1){
+    var driver=sel[0];
+    var list=catalog[driver]||[];
+    if(list.length>0){
+      html+='<optgroup label="'+esc(driver)+' models">';
+      for(var i=0;i<list.length;i++){
+        var m=list[i];
+        var badge=m.tier?(' ['+m.tier+']'):'';
+        html+='<option value="'+esc(m.id)+'">'+esc(m.label||m.id)+badge+'</option>';
+      }
+      html+='</optgroup>';
+    }
+  }else{
+    for(var h=0;h<sel.length;h++){
+      var d=sel[h];
+      var dlist=catalog[d]||[];
+      if(dlist.length>0){
+        html+='<optgroup label="'+esc(d)+' models">';
+        for(var j=0;j<dlist.length;j++){
+          var mod=dlist[j];
+          var b=mod.tier?(' ['+mod.tier+']'):'';
+          html+='<option value="'+esc(mod.id)+'">'+esc(mod.label||mod.id)+b+'</option>';
+        }
+        html+='</optgroup>';
+      }
+    }
+  }
+  html+='<option value="__custom__">Custom / specify model ID…</option>';
+  modelEl.innerHTML=html;
+  var stillValid=false;
+  if(prevVal){
+    var opts=modelEl.options;
+    for(var k=0;k<opts.length;k++){
+      if(opts[k].value===prevVal){stillValid=true;break;}
+    }
+  }
+  if(stillValid){
+    modelEl.value=prevVal;
+  }else{
+    modelEl.value='';
+  }
+  if(customEl){
+    customEl.style.display=modelEl.value==='__custom__'?'inline-block':'none';
+  }
+}
+async function loadModelCatalog(refresh){
+  try{
+    if(refresh){
+      var r=await fetch('/api/models?refresh=1',{cache:'no-store'});
+      var j=await r.json();
+      __launchMetaCache.models={at:Date.now(),data:j};
+      window.__modelCatalog=j;
+    }else{
+      var mj=await fetchLaunchMetaCached('models','/api/models');
+      window.__modelCatalog=mj;
+    }
+  }catch(_){}
+  syncModelOptions(window.__selectedHarnesses);
 }
 function refreshLaunchMeta(){
   // never the <select>
@@ -1118,11 +1165,38 @@ function refreshLaunchMeta(){
       var routes=(rj&&rj.advertisedRoutes)||[];
       document.getElementById('routes-line').textContent='routes: '+(routes.length?routes.join(', '):'(local board — no relay routes; pair via relay pair qr)')+' · caps: '+((rj&&rj.capabilities)||[]).join(', ');
     }catch(e){}
+    try{
+      await loadModelCatalog(false);
+    }catch(e){}
   })();
 }
 document.getElementById('launch-brief').oninput=function(){
   document.getElementById('launch-brief-count').textContent=document.getElementById('launch-brief').value.length+'/8000';
 };
+var _modelEl=document.getElementById('launch-model');
+var _customModelEl=document.getElementById('launch-model-custom');
+if(_modelEl){
+  _modelEl.onchange=function(){
+    var isCust=_modelEl.value==='__custom__';
+    if(_customModelEl){
+      _customModelEl.style.display=isCust?'inline-block':'none';
+      if(isCust)_customModelEl.focus();
+    }
+  };
+}
+var _refBtn=document.getElementById('launch-models-refresh');
+if(_refBtn){
+  _refBtn.onclick=async function(){
+    _refBtn.disabled=true;
+    _refBtn.textContent='…';
+    try{
+      await loadModelCatalog(true);
+    }finally{
+      _refBtn.disabled=false;
+      _refBtn.textContent='↻';
+    }
+  };
+}
 async function doLaunch(dry){
   var out=document.getElementById('launch-out');
   var lf=document.getElementById('launch-from').value.trim()||creds().from;
@@ -1133,7 +1207,15 @@ async function doLaunch(dry){
   var selectedHarnesses = window.__selectedHarnesses && window.__selectedHarnesses.size ? Array.from(window.__selectedHarnesses) : (document.getElementById('launch-harness').value || 'claude').split(',').map(function(s){return s.trim();}).filter(Boolean);
   if(!selectedHarnesses.length)selectedHarnesses=['claude'];
   var modelEl=document.getElementById('launch-model');
-  var modelVal=modelEl?modelEl.value.trim():'';
+  var customModelEl=document.getElementById('launch-model-custom');
+  var modelVal='';
+  if(modelEl){
+    if(modelEl.value==='__custom__'){
+      modelVal=customModelEl?customModelEl.value.trim():'';
+    }else{
+      modelVal=modelEl.value.trim();
+    }
+  }
   var payload={
     from:lf, token:lt,
     harness:selectedHarnesses.join(','),
@@ -1341,10 +1423,12 @@ function renderHarnessCards(){
           countEl.value=String(window.__selectedHarnesses.size);
         }
         syncTopbarHarness();
+        syncModelOptions(window.__selectedHarnesses);
         try{renderHarnessCards();}catch(_){}
       };})(cards[i].getAttribute('data-driver'));
     }
     syncTopbarHarness();
+    syncModelOptions(window.__selectedHarnesses);
   })();
 }
 function renderLaunchDiff(j){
@@ -1747,9 +1831,20 @@ export async function cmdWeb(args) {
           return;
         }
         if (req.method === "GET" && url.pathname === "/api/models") {
-          // Canonical model catalog per harness driver.
+          // Canonical model catalog per harness driver + dynamic discovery.
+          const doRefresh = url.searchParams.get("refresh") === "1" || url.searchParams.get("refresh") === "true";
+          if (doRefresh) {
+            refreshDiscoveredModels(15000).then((catalog) => {
+              res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+              res.end(JSON.stringify(catalog));
+            }).catch(() => {
+              res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+              res.end(JSON.stringify(getDiscoveredModels()));
+            });
+            return;
+          }
           res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
-          res.end(JSON.stringify(HARNESS_MODELS));
+          res.end(JSON.stringify(getDiscoveredModels()));
           return;
         }
         if (req.method === "GET" && url.pathname === "/api/routes") {

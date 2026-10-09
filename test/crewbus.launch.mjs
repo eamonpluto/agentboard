@@ -16,6 +16,8 @@ import {
   parseYesNo,
   probeBinary,
   validateLaunchPlan,
+  HARNESS_MODELS,
+  getDiscoveredModels,
 } from "../bin/lib/launch.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -56,6 +58,14 @@ check("plan: cursor+full warns no-resume", validateLaunchPlan({ harness: "cursor
 check("plan: multi-harness array", (() => { const v = validateLaunchPlan({ harnesses: ["claude", "antigravity"], body: "x" }); return v.ok === true && v.plan.harnesses.length === 2 && v.plan.count === 2; })());
 check("plan: multi-harness comma string", (() => { const v = validateLaunchPlan({ harness: "claude,grok", body: "x" }); return v.ok === true && v.plan.harnesses.length === 2 && v.plan.harness === "claude,grok"; })());
 check("plan: model selection", validateLaunchPlan({ harness: "claude", model: "claude-3-7-sonnet", body: "x" }).plan.model === "claude-3-7-sonnet");
+
+// ---- lib: model catalog ----
+const cat = getDiscoveredModels();
+check("catalog: claude has 3.7", cat.claude.some((m) => m.id === "claude-3-7-sonnet"));
+check("catalog: codex has o3-mini", cat.codex.some((m) => m.id === "o3-mini"));
+check("catalog: antigravity has 2.5-pro", cat.antigravity.some((m) => m.id === "gemini-2.5-pro"));
+check("catalog: grok has grok-3", cat.grok.some((m) => m.id === "grok-3"));
+check("catalog: opencode has models", Array.isArray(cat.opencode) && cat.opencode.length > 0);
 
 // ---- lib: pair URL fragment rule ----
 const url = buildPairUrl({ envId: "env-1", routes: ["http://pc:8471"], caps: ["hlc", "launch"], pairToken: "abp-secret123" });
