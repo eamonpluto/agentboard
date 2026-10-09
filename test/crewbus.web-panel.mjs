@@ -66,6 +66,7 @@ check("panel: client posts /api/launch", page.text.includes("/api/launch"));
 check("panel: launch form ids present",
   ["launch-harness", "launch-to", "launch-count", "launch-brief", "launch-brief-count",
    "launch-permission", "launch-dry", "launch-from", "launch-token",
+   "launch-cwd", "launch-cwd-browse",
    "launch-preview", "launch-go", "launch-out"].every((id) => page.text.includes(`id="${id}"`)));
 check("panel: dry-run toggle default ON", /id="launch-dry"[^>]*checked/.test(page.text));
 check("panel: brief 8000-char guard (maxlength + counter)", page.text.includes('maxlength="8000"') && page.text.includes("/8000"));

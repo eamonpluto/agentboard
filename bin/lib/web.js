@@ -582,13 +582,12 @@ details.tech-details summary{cursor:pointer;font-weight:500;user-select:none}
         <span class="project-arrow">▾</span>
       </div>
       <div id="project-popover">
-        <div class="pop-label">Workspace Board</div>
+        <div class="pop-label">Target Codebase (Working Directory)</div>
+        <div class="pop-path" id="pop-cwd-path" title="Where workers execute commands and edit code">(default: board parent)</div>
+        <button type="button" class="pop-btn" id="open-folder-btn"><svg class="btn-ic" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg> Set Codebase Folder…</button>
+        <div class="pop-label" style="margin-top:10px">Workspace Board (Bus DB)</div>
         <div class="pop-path" id="pop-board-path">${e(boardPath)}</div>
         <button type="button" id="copy-board-btn" class="pop-btn"><svg class="btn-ic" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy Board Path</button>
-        <div style="margin-top:8px">
-          <button type="button" class="pop-btn" id="open-folder-btn"><svg class="btn-ic" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg> Open Project Folder…</button>
-          <input type="file" id="folder-picker" webkitdirectory directory style="display:none">
-        </div>
         <button type="button" class="pop-btn" id="pop-pair-btn" style="margin-top:8px"><svg class="btn-ic" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg> Pair Mobile Client (QR)…</button>
       </div>
     </div>
@@ -708,6 +707,15 @@ details.tech-details summary{cursor:pointer;font-weight:500;user-select:none}
               <button type="button" data-perm="full">full</button>
             </span>
             <label class="dim" style="cursor:pointer"><input id="launch-dry" type="checkbox" checked> Dry-run</label>
+          </div>
+
+          <div class="composer-cwd-row" style="display:flex;align-items:center;gap:6px;margin-bottom:8px;font-size:12px">
+            <span class="dim" style="white-space:nowrap;display:flex;align-items:center;gap:4px">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+              Workspace / CWD:
+            </span>
+            <input id="launch-cwd" type="text" placeholder="Target codebase path (e.g. C:\Users\... or blank for default)" style="flex:1;background:var(--bg-input);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:3px 8px;font-size:12px;font-family:monospace" title="Target working directory where workers execute commands and edit code">
+            <button id="launch-cwd-browse" type="button" class="btn-subtle" title="Set project folder path" style="padding:2px 8px;font-size:11px">Set Folder…</button>
           </div>
 
           <div class="composer-textarea-wrap">
@@ -1216,6 +1224,8 @@ async function doLaunch(dry){
       modelVal=modelEl.value.trim();
     }
   }
+  var cwdEl=document.getElementById('launch-cwd');
+  var cwdVal=cwdEl?cwdEl.value.trim():'';
   var payload={
     from:lf, token:lt,
     harness:selectedHarnesses.join(','),
@@ -1224,6 +1234,10 @@ async function doLaunch(dry){
     permission:document.getElementById('launch-permission').value,
     dryRun:dry
   };
+  if(cwdVal){
+    payload.cwd=cwdVal;
+    try{localStorage.setItem('crewbus_last_cwd',cwdVal);}catch(_){}
+  }
   if(modelVal)payload.model=modelVal;
   if(to)payload.to=to;else payload.count=count;
   out.textContent=(dry?'previewing …':'launching …');
@@ -1233,9 +1247,12 @@ async function doLaunch(dry){
     if(!r.ok){out.textContent='HTTP '+r.status+' '+(j.error||JSON.stringify(j));return;}
     if(j.dryRun){
       var warn=(j.warnings||[]).length?('warnings: '+j.warnings.join('; ')+'\\n'):'';
-      try{renderLaunchDiff(j);}catch(_){}out.textContent=warn+(j.commands||[]).map(function(c){return c.to+' ['+(c.harness||'')+']: '+c.command;}).join('\\n')+'\\n(dry-run — booted nothing)';
+      var cwdNotice=j.cwd?('target directory (cwd): '+j.cwd+'\\n'):'';
+      try{renderLaunchDiff(j);}catch(_){}out.textContent=warn+cwdNotice+(j.commands||[]).map(function(c){return c.to+' ['+(c.harness||'')+']: '+c.command;}).join('\\n')+'\\n(dry-run — booted nothing)';
     }else{
-      try{showUndoToast((j.workers||[]).map(function(w){return w.name;}));}catch(_){}out.textContent='launched: '+(j.workers||[]).map(function(w){return w.name+' ['+(w.driver||'')+']'+(w.pid?(' (pid '+w.pid+')'):'')+(w.error?(' ERROR '+w.error):'');}).join(', ');
+      try{showUndoToast((j.workers||[]).map(function(w){return w.name;}));}catch(_){}
+      var cwdNotice=j.cwd?(' [cwd: '+j.cwd+']'):'';
+      out.textContent='launched: '+(j.workers||[]).map(function(w){return w.name+' ['+(w.driver||'')+']'+(w.pid?(' (pid '+w.pid+')'):'')+(w.error?(' ERROR '+w.error):'');}).join(', ')+cwdNotice;
     }
   }catch(e){out.textContent='launch failed: '+e.message;}
   refresh();
@@ -1436,6 +1453,9 @@ function renderLaunchDiff(j){
   if(!box)return;
   if(!j||(!j.commands&&!j.warnings)){box.innerHTML='';return;}
   var html='';
+  if(j.cwd){
+    html+='<div style="margin-bottom:6px;font-size:12px" class="dim">Target directory (cwd): <code style="color:var(--text);background:var(--bg-input);padding:1px 5px;border-radius:3px">'+esc(j.cwd)+'</code></div>';
+  }
   var warns=j.warnings||[];
   if(warns.length){
     html+='<div class="warn"><b>'+warns.length+' warning(s) — review before live boot:</b><ul>';
@@ -1613,34 +1633,59 @@ document.getElementById('inspector-toggle-btn').onclick=function(){
 document.getElementById('close-inspector-btn').onclick=function(){
   document.getElementById('app-inspector').classList.add('hidden');
 };
-async function openProjectFolder(){
+function applyTargetCwd(pathStr, notify){
+  pathStr=String(pathStr||'').trim();
+  var cwdEl=document.getElementById('launch-cwd');
+  if(cwdEl&&cwdEl.value!==pathStr)cwdEl.value=pathStr;
+  var popCwd=document.getElementById('pop-cwd-path');
+  if(popCwd)popCwd.textContent=pathStr||'(default: board parent)';
+  var dispName=document.getElementById('project-display-name');
+  if(dispName&&pathStr){
+    var baseName=pathStr.replace(/[\\/]+$/,'').split(/[\\/]/).pop();
+    if(baseName)dispName.textContent=baseName;
+  }
+  var topbarBoard=document.getElementById('topbar-board');
+  if(topbarBoard&&pathStr){
+    topbarBoard.title='Codebase: '+pathStr;
+  }
+  if(pathStr){
+    try{localStorage.setItem('crewbus_last_cwd',pathStr);}catch(_){}
+    if(notify)say('Target codebase set to: '+pathStr);
+  }
+}
+async function promptOrSelectProjectFolder(){
+  var cur=(document.getElementById('launch-cwd')?document.getElementById('launch-cwd').value.trim():'')||localStorage.getItem('crewbus_last_cwd')||'';
   if(typeof window.showDirectoryPicker==='function'){
     try{
       var dirHandle=await window.showDirectoryPicker();
       if(dirHandle&&dirHandle.name){
-        say('Selected folder: '+dirHandle.name);
-        document.getElementById('project-display-name').textContent=dirHandle.name;
+        var suggested=(cur&&cur.endsWith(dirHandle.name))?cur:dirHandle.name;
+        var p=prompt('Confirm absolute directory path for "'+dirHandle.name+'" (where workers execute commands and edit code):',suggested);
+        if(p&&p.trim()){
+          applyTargetCwd(p.trim(),true);
+        }else if(dirHandle.name){
+          applyTargetCwd(dirHandle.name,true);
+        }
+        return;
       }
-      return;
     }catch(err){
       if(err&&(err.name==='AbortError'||err.code===20))return;
     }
   }
-  var fp=document.getElementById('folder-picker');
-  if(fp)fp.click();
-}
-document.getElementById('open-folder-btn').onclick=openProjectFolder;
-document.getElementById('folder-picker').onchange=function(e){
-  var files=e.target.files;
-  if(files&&files.length>0){
-    var first=files[0];
-    var pathStr=(first.webkitRelativePath||first.name||'').split('/')[0];
-    if(pathStr){
-      say('Selected folder: '+pathStr);
-      document.getElementById('project-display-name').textContent=pathStr;
-    }
+  var manual=prompt('Enter target codebase directory path (where workers execute commands and edit code):',cur);
+  if(manual&&manual.trim()){
+    applyTargetCwd(manual.trim(),true);
   }
-};
+}
+document.getElementById('open-folder-btn').onclick=promptOrSelectProjectFolder;
+var lcBrowse=document.getElementById('launch-cwd-browse');
+if(lcBrowse)lcBrowse.onclick=promptOrSelectProjectFolder;
+var lcInp=document.getElementById('launch-cwd');
+if(lcInp)lcInp.oninput=function(){applyTargetCwd(this.value,false);};
+try{
+  var lastCwd=localStorage.getItem('crewbus_last_cwd');
+  if(lastCwd){applyTargetCwd(lastCwd,false);}
+}catch(_){}
 document.getElementById('launch-brief').addEventListener('keydown',function(e){
   if((e.ctrlKey||e.metaKey)&&(e.key==='Enter')){
     e.preventDefault();
@@ -1996,7 +2041,7 @@ export async function handleApiLaunch(d, body) {
       });
       return { to, harness: driver, command: formatSpawnCmd(t) };
     });
-    return { status: 200, payload: { ok: true, dryRun: true, plan: p, warnings: v.warnings, commands: rows } };
+    return { status: 200, payload: { ok: true, dryRun: true, plan: p, cwd, warnings: v.warnings, commands: rows } };
   }
   const auto = p.permission === "auto" || p.permission === "full" ? true : undefined;
   const at = new Date().toISOString();
@@ -2021,5 +2066,5 @@ export async function handleApiLaunch(d, body) {
       workers.push({ name: to, replyId: id, driver, error: String((e && e.message) || e) });
     }
   }
-  return { status: 200, payload: { ok: true, workers, warnings: v.warnings } };
+  return { status: 200, payload: { ok: true, cwd, workers, warnings: v.warnings } };
 }

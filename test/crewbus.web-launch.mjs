@@ -86,6 +86,11 @@ check("web: GET /api/models 200 catalog", models.status === 200 && !!models.json
 const dry = await httpCall(webBase, "POST", "/api/launch", { from: "lead", token: leadTok, harness: "grok", body: "audit scope", dryRun: true });
 check("web: POST /api/launch dry-run previews", dry.status === 200 && dry.json && dry.json.dryRun === true && Array.isArray(dry.json.commands) && dry.json.commands.length === 1);
 
+const customCwd = fs.mkdtempSync(path.join(os.tmpdir(), "cb-custom-cwd-"));
+const dryWithCwd = await httpCall(webBase, "POST", "/api/launch", { from: "lead", token: leadTok, harness: "grok", body: "audit scope", dryRun: true, cwd: customCwd });
+check("web: POST /api/launch honors explicit cwd", dryWithCwd.status === 200 && dryWithCwd.json && dryWithCwd.json.cwd === path.resolve(customCwd));
+fs.rmSync(customCwd, { recursive: true, force: true });
+
 const badPlan = await httpCall(webBase, "POST", "/api/launch", { from: "lead", token: leadTok, harness: "nope", body: "x" });
 check("web: POST /api/launch bad harness 400", badPlan.status === 400 && (badPlan.json.error || "").includes("launch plan invalid"));
 
