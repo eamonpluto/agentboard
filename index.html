@@ -21,17 +21,17 @@
   --ink-strong: #f2f6fa;
   --dim: #8b98a5;
   --faint: #5f6d7a;
-  --acc: #4cc38a;
-  --acc-deep: #2f9e68;
-  --acc-ghost: rgba(76, 195, 138, 0.12);
-  --acc-line: rgba(76, 195, 138, 0.35);
+  --acc: #3b82f6;
+  --acc-deep: #2563eb;
+  --acc-ghost: rgba(59, 130, 246, 0.12);
+  --acc-line: rgba(59, 130, 246, 0.35);
   --warn: #ffb454;
   --warn-ghost: rgba(255, 180, 84, 0.10);
   --danger: #e5534b;
   --line: #2a343e;
   --line-soft: #222d36;
   --code-bg: #0b0f14;
-  --code-green: #7ee2a8;
+  --code-green: #60a5fa;
   --code-blue: #8ab8ff;
   --code-dim: #748391;
   --radius: 14px;
@@ -44,7 +44,7 @@
   --measure: 1120px;
   --measure-wide: 1240px;
   --shadow-card: 0 18px 50px rgba(0, 0, 0, 0.35);
-  --shadow-pop: 0 8px 28px rgba(76, 195, 138, 0.16);
+  --shadow-pop: 0 8px 28px rgba(59, 130, 246, 0.16);
 }
 /* ============================================================
    2. RESET + BASE
@@ -120,7 +120,7 @@ svg {
   max-width: 100%;
 }
 ::selection {
-  background: rgba(76, 195, 138, 0.32);
+  background: rgba(59, 130, 246, 0.32);
   color: var(--ink-strong);
 }
 /* ============================================================
@@ -342,9 +342,9 @@ svg {
   height: 640px;
   pointer-events: none;
   background:
-    radial-gradient(620px 300px at 50% 0%, rgba(76, 195, 138, 0.16), transparent 70%),
+    radial-gradient(620px 300px at 50% 0%, rgba(59, 130, 246, 0.16), transparent 70%),
     radial-gradient(480px 260px at 12% 30%, rgba(138, 184, 255, 0.10), transparent 70%),
-    radial-gradient(480px 260px at 88% 30%, rgba(76, 195, 138, 0.08), transparent 70%);
+    radial-gradient(480px 260px at 88% 30%, rgba(59, 130, 246, 0.08), transparent 70%);
 }
 .hero::after {
   content: "";
@@ -354,8 +354,8 @@ svg {
   pointer-events: none;
   opacity: 0.55;
   background-image:
-    linear-gradient(rgba(76, 195, 138, 0.06) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(76, 195, 138, 0.06) 1px, transparent 1px);
+    linear-gradient(rgba(59, 130, 246, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(59, 130, 246, 0.06) 1px, transparent 1px);
   background-size: 30px 30px;
   mask-image: radial-gradient(760px 380px at 50% 0%, black 25%, transparent 78%);
   -webkit-mask-image: radial-gradient(760px 380px at 50% 0%, black 25%, transparent 78%);
@@ -869,7 +869,7 @@ tbody th.rowhead {
 }
 .tier.featured {
   border-color: var(--acc-line);
-  background: linear-gradient(180deg, rgba(76, 195, 138, 0.07), var(--panel) 55%);
+  background: linear-gradient(180deg, rgba(59, 130, 246, 0.07), var(--panel) 55%);
   box-shadow: var(--shadow-card);
 }
 .tier-flag {
@@ -1133,7 +1133,7 @@ tbody th.rowhead {
 }
 .tl-item.major::before {
   background: var(--acc);
-  box-shadow: 0 0 14px rgba(76, 195, 138, 0.6);
+  box-shadow: 0 0 14px rgba(59, 130, 246, 0.6);
 }
 .tl-ver {
   font-family: var(--font-mono);
@@ -1197,7 +1197,7 @@ tbody th.rowhead {
   position: relative;
   overflow: hidden;
   border: 1px solid var(--acc-line);
-  background: linear-gradient(180deg, rgba(76, 195, 138, 0.09), rgba(24, 32, 40, 0.9) 60%);
+  background: linear-gradient(180deg, rgba(59, 130, 246, 0.09), rgba(24, 32, 40, 0.9) 60%);
   border-radius: 20px;
   padding: 64px 48px;
   text-align: center;
@@ -1207,7 +1207,7 @@ tbody th.rowhead {
   content: "";
   position: absolute;
   inset: -60px;
-  background: radial-gradient(480px 220px at 50% 0%, rgba(76, 195, 138, 0.16), transparent 70%);
+  background: radial-gradient(480px 220px at 50% 0%, rgba(59, 130, 246, 0.16), transparent 70%);
   pointer-events: none;
 }
 .cta-panel h2 {
@@ -1672,7 +1672,7 @@ footer.site > div:first-child {
   color: var(--dim);
 }
 .cli-table tr:hover td {
-  background: rgba(76, 195, 138, 0.04);
+  background: rgba(59, 130, 246, 0.04);
 }
 .tl-item {
   transition: transform 0.16s ease;
@@ -1777,7 +1777,7 @@ section.block:first-of-type {
   transition: box-shadow 0.16s ease, background 0.16s ease;
 }
 .timeline .tl-item:hover::before {
-  box-shadow: 0 0 14px rgba(76, 195, 138, 0.6);
+  box-shadow: 0 0 14px rgba(59, 130, 246, 0.6);
 }
 .cli-table td:nth-child(3) {
   color: var(--dim);
@@ -1852,7 +1852,7 @@ pre::-webkit-scrollbar-track,
   transform: rotate(-8deg) scale(1.05);
 }
 .term-line:hover {
-  background: rgba(76, 195, 138, 0.05);
+  background: rgba(59, 130, 246, 0.05);
   border-radius: 4px;
 }
 .doc-card {
@@ -1919,7 +1919,7 @@ table caption {
   border-bottom: 1px solid var(--line-soft);
 }
 .cli-table tr:hover td {
-  background: rgba(76, 195, 138, 0.04);
+  background: rgba(59, 130, 246, 0.04);
 }
 .arch svg text {
   user-select: none;
@@ -2048,7 +2048,7 @@ kbd {
    23. LAUNCH BANNER, LAUNCH STUDIO & APPS SHOWCASE
    ============================================================ */
 .launch-banner {
-  background: linear-gradient(90deg, rgba(76, 195, 138, 0.14) 0%, rgba(138, 184, 255, 0.12) 50%, rgba(76, 195, 138, 0.14) 100%);
+  background: linear-gradient(90deg, rgba(59, 130, 246, 0.14) 0%, rgba(138, 184, 255, 0.12) 50%, rgba(59, 130, 246, 0.14) 100%);
   border-bottom: 1px solid var(--acc-line);
   padding: 10px var(--gutter);
   position: relative;
@@ -2771,9 +2771,10 @@ kbd {
           <li><svg viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg> Multi-harness launch card with dynamic model selection</li>
         </ul>
         <div class="dl-row">
-          <a class="btn-dl primary-dl" href="apps/mobile/README.md">Setup Mobile Companion</a>
-          <a class="btn-dl" href="docs/PAIRING.md">Pairing Specification</a>
+          <a class="btn-dl primary-dl" href="https://expo.dev/artifacts/eas/cWPAbLuxU04h0WYqs1ycsT9HUCIHbd_R9VuWHFeHamE.apk">Download Android APK</a>
+          <a class="btn-dl" href="docs/PAIRING.md">Pairing Guide</a>
         </div>
+        <p class="dim small" style="margin-top: 10px; font-size: 0.8rem;"><a href="https://expo.dev/accounts/eamonpluto/projects/crewbus-mobile/builds/885a36dc-1689-4345-9274-6e31318b760f" style="color:var(--dim);" target="_blank" rel="noopener">EAS Build #885a36dc (Android APK Preview) &rarr;</a></p>
       </div>
     </div>
   </div>
@@ -3041,7 +3042,7 @@ crewbus spawn --from lead --to alice,bob --subject "brief: cards" \
     <div class="arch" role="img" aria-label="Architecture diagram: six harnesses connect through adapters to one board of JSON files, which syncs peer to peer with other machines">
       <svg viewBox="0 0 900 340" font-family="ui-monospace, Menlo, Consolas, monospace" font-size="13" aria-hidden="true">
         <defs>
-          <marker id="ah" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8" fill="none" stroke="#4cc38a" stroke-width="1.6"/></marker>
+          <marker id="ah" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8" fill="none" stroke="#3b82f6" stroke-width="1.6"/></marker>
         </defs>
         <g fill="#182028" stroke="#2a343e" stroke-width="1.5">
           <rect x="20" y="30" width="150" height="44" rx="9"/>
@@ -3057,7 +3058,7 @@ crewbus spawn --from lead --to alice,bob --subject "brief: cards" \
           <text x="36" y="231">grok hook</text>
           <text x="36" y="289">cursor hook</text>
         </g>
-        <g stroke="#4cc38a" stroke-width="1.6" fill="none" marker-end="url(#ah)">
+        <g stroke="#3b82f6" stroke-width="1.6" fill="none" marker-end="url(#ah)">
           <path d="M170 52 C 230 52, 230 150, 300 150"/>
           <path d="M170 110 C 230 110, 230 160, 300 160"/>
           <path d="M170 168 C 230 168, 230 170, 300 170"/>
@@ -3065,14 +3066,14 @@ crewbus spawn --from lead --to alice,bob --subject "brief: cards" \
           <path d="M170 284 C 230 284, 230 190, 300 190"/>
         </g>
         <g>
-          <rect x="300" y="110" width="300" height="120" rx="12" fill="#131b22" stroke="#4cc38a" stroke-width="1.6"/>
+          <rect x="300" y="110" width="300" height="120" rx="12" fill="#131b22" stroke="#3b82f6" stroke-width="1.6"/>
           <text x="322" y="138" fill="#f2f6fa" font-weight="700" font-size="14">.crewbus/ — the board</text>
           <text x="322" y="160" fill="#8b98a5">agents/ · dm/ · broadcast/</text>
           <text x="322" y="180" fill="#8b98a5">channels/ · groups/ · results/</text>
           <text x="322" y="200" fill="#8b98a5">acked/ · cursors/ · logs/</text>
           <text x="322" y="220" fill="#5f6d7a">plain JSON files on disk</text>
         </g>
-        <g stroke="#4cc38a" stroke-width="1.6" fill="none" marker-end="url(#ah)">
+        <g stroke="#3b82f6" stroke-width="1.6" fill="none" marker-end="url(#ah)">
           <path d="M600 150 C 660 150, 660 120, 720 120"/>
           <path d="M720 160 C 660 160, 660 190, 600 190" stroke-dasharray="5 4"/>
         </g>

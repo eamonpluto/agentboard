@@ -368,9 +368,9 @@ export function renderBoardHtml(boardPath) {
   --bg-input:#080c10;
   --border:#202b37;
   --border-hover:#2e3e50;
-  --border-focus:#38d39f;
-  --accent:#38d39f;
-  --accent-glow:rgba(56,211,159,0.15);
+  --border-focus:#3b82f6;
+  --accent:#3b82f6;
+  --accent-glow:rgba(59,130,246,0.15);
   --text-primary:#f0f6fc;
   --text-secondary:#9aa8b6;
   --text-dim:#647382;
@@ -431,7 +431,7 @@ body{margin:0;padding:0;background:var(--bg-base);color:var(--text-primary);font
 
 /* New Task Button */
 .sidebar-action-wrap{padding:12px 12px 6px}
-.btn-new-task{width:100%;display:flex;align-items:center;justify-content:space-between;background:var(--accent);color:#08130f;font-weight:600;border:none;border-radius:var(--radius-md);padding:8px 12px;cursor:pointer;transition:filter .15s ease}
+.btn-new-task{width:100%;display:flex;align-items:center;justify-content:space-between;background:var(--accent);color:#ffffff;font-weight:600;border:none;border-radius:var(--radius-md);padding:8px 12px;cursor:pointer;transition:filter .15s ease}
 .btn-new-task:hover{filter:brightness(1.1)}
 .btn-new-task kbd{font-size:10px;background:rgba(0,0,0,0.2);padding:2px 5px;border-radius:4px;font-family:inherit}
 
@@ -440,7 +440,7 @@ body{margin:0;padding:0;background:var(--bg-base);color:var(--text-primary);font
 .sidebar-threads{padding:0 8px;display:flex;flex-direction:column;gap:2px}
 .thread-item{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:var(--radius-md);color:var(--text-secondary);cursor:pointer;transition:all .15s ease}
 .thread-item:hover{background:var(--bg-card-hover);color:var(--text-primary)}
-.thread-item.active{background:rgba(56,211,159,0.1);color:var(--accent);font-weight:500}
+.thread-item.active{background:rgba(59,130,246,0.12);color:var(--accent);font-weight:500}
 .thread-dot{font-size:8px;color:var(--accent)}
 
 /* Navigation links */
@@ -507,7 +507,7 @@ button:disabled{opacity:.4;cursor:default}
 .routes-badge{font-size:11px;font-family:monospace;color:var(--text-dim);background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);padding:4px 8px}
 .chat-stream{display:flex;flex-direction:column;gap:12px;margin-bottom:20px}
 .chat-msg{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px 16px}
-.chat-msg.system{border-left:3px solid var(--accent)}
+.chat-msg.system{border:1px solid var(--border)}
 .chat-header{display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:11px}
 .chat-author{font-weight:600;color:var(--text-primary)}
 .chat-time{color:var(--text-dim)}
@@ -518,7 +518,7 @@ button:disabled{opacity:.4;cursor:default}
 .harness-pills{display:flex;gap:8px;flex-wrap:wrap}
 .harness-card{display:flex;flex-direction:column;gap:2px;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius-md);cursor:pointer;transition:all .15s ease;min-width:110px}
 .harness-card:hover{border-color:var(--border-hover);background:var(--bg-card-hover)}
-.harness-card.sel{border-color:var(--accent);background:rgba(56,211,159,0.08);box-shadow:0 0 0 1px var(--accent)}
+.harness-card.sel{border-color:var(--accent);background:rgba(59,130,246,0.1);box-shadow:0 0 0 1px var(--accent)}
 .harness-card b{font-size:13px;color:var(--text-primary)}
 .harness-card.missing{opacity:.55}
 .harness-card .dim{font-size:11px}
@@ -529,7 +529,7 @@ button:disabled{opacity:.4;cursor:default}
 .stepper-wrap input{border:none;text-align:center;background:transparent;padding:4px 0}
 #launch-permission-seg{display:inline-flex;gap:2px;background:var(--bg-input);padding:2px;border-radius:var(--radius-sm);border:1px solid var(--border)}
 #launch-permission-seg button{border:none;background:transparent;padding:3px 8px;font-size:11px;border-radius:3px;color:var(--text-secondary)}
-#launch-permission-seg button.sel{background:var(--accent);color:#08130f;font-weight:600}
+#launch-permission-seg button.sel{background:var(--accent);color:#ffffff;font-weight:600}
 
 .composer-textarea-wrap{position:relative;margin-bottom:12px}
 #launch-brief{width:100%;box-sizing:border-box;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius-md);padding:12px;font-size:13px;line-height:1.5;resize:vertical;min-height:90px}
@@ -538,7 +538,7 @@ button:disabled{opacity:.4;cursor:default}
 .composer-bottom{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px}
 .launch-identity{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-dim)}
 .launch-actions{display:flex;gap:8px}
-.btn-launch{background:var(--accent) !important;color:#08130f !important;font-weight:600 !important;border:none !important;padding:6px 16px !important}
+.btn-launch{background:var(--accent) !important;color:#ffffff !important;font-weight:600 !important;border:none !important;padding:6px 16px !important}
 .btn-launch:hover{filter:brightness(1.1)}
 
 /* Launch diffs and warnings */
@@ -557,7 +557,7 @@ button:disabled{opacity:.4;cursor:default}
 #palette-input{width:100%;box-sizing:border-box;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius-md);font-size:14px;padding:10px 14px;color:var(--text-primary);margin-bottom:8px}
 #palette-list{max-height:45vh;overflow-y:auto;margin:4px 0 8px;display:flex;flex-direction:column;gap:2px}
 #palette-list div{padding:8px 12px;border-radius:var(--radius-sm);cursor:pointer;font-size:13px;color:var(--text-secondary);display:flex;align-items:center;justify-content:space-between}
-#palette-list div.sel{background:rgba(56,211,159,0.12);color:var(--accent);font-weight:500}
+#palette-list div.sel{background:rgba(59,130,246,0.12);color:var(--accent);font-weight:500}
 .palette-hint{font-size:11px;color:var(--text-dim);text-align:center;padding-top:4px;border-top:1px solid var(--border)}
 
 /* Undo Toast */
@@ -1086,7 +1086,7 @@ async function loadLaunchMeta(){
     var hj=await hr.json();
     var selH=document.getElementById('launch-harness');
     if(selH){
-      selH.innerHTML=(hj||[]).map(function(h){return '<option value="'+esc(h.driver)+'">'+esc(h.driver)+'</option>';}).join('');
+      selH.innerHTML=(Array.isArray(hj)?hj:[]).map(function(h){return '<option value="'+esc(h.driver)+'">'+esc(h.driver)+'</option>';}).join('');
     }
     syncTopbarHarness();
   }catch(e){}
@@ -1108,7 +1108,7 @@ function refreshLaunchMeta(){
   (async function(){
     try{
       var hj=await fetchLaunchMetaCached('harnesses','/api/harnesses');
-      document.getElementById('harnesses').innerHTML=(hj||[]).map(function(h){
+      document.getElementById('harnesses').innerHTML=(Array.isArray(hj)?hj:[]).map(function(h){
         var ver=h.found?(h.version||'installed'):('missing ('+(h.detail||'not installed')+')');
         return '<tr><td><b>'+esc(h.driver)+'</b></td><td>'+esc(h.binary||'(operator cmd)')+'</td><td>'+esc(ver)+'</td><td>'+esc(h.briefDelivery||'?')+'</td><td>'+esc(h.resume?'yes':'no')+'</td></tr>';
       }).join('')||'<tr><td colspan="5" class="dim">no harness drivers</td></tr>';
@@ -1150,8 +1150,8 @@ async function doLaunch(dry){
     var j=await r.json();
     if(!r.ok){out.textContent='HTTP '+r.status+' '+(j.error||JSON.stringify(j));return;}
     if(j.dryRun){
-      var warn=(j.warnings||[]).length?('warnings: '+j.warnings.join('; ')+'\n'):'';
-      try{renderLaunchDiff(j);}catch(_){}out.textContent=warn+(j.commands||[]).map(function(c){return c.to+' ['+(c.harness||'')+']: '+c.command;}).join('\n')+'\n(dry-run — booted nothing)';
+      var warn=(j.warnings||[]).length?('warnings: '+j.warnings.join('; ')+'\\n'):'';
+      try{renderLaunchDiff(j);}catch(_){}out.textContent=warn+(j.commands||[]).map(function(c){return c.to+' ['+(c.harness||'')+']: '+c.command;}).join('\\n')+'\\n(dry-run — booted nothing)';
     }else{
       try{showUndoToast((j.workers||[]).map(function(w){return w.name;}));}catch(_){}out.textContent='launched: '+(j.workers||[]).map(function(w){return w.name+' ['+(w.driver||'')+']'+(w.pid?(' (pid '+w.pid+')'):'')+(w.error?(' ERROR '+w.error):'');}).join(', ');
     }
@@ -1318,7 +1318,7 @@ function renderHarnessCards(){
         if(__dd){counts[__dd]=(counts[__dd]||0)+1;}
       }
     }catch(_){}
-    document.getElementById('harness-cards').innerHTML=(hj||[]).map(function(h){
+    document.getElementById('harness-cards').innerHTML=(Array.isArray(hj)?hj:[]).map(function(h){
       var ver=h.found?(h.version||'installed'):('missing ('+(h.detail||'not installed')+')');
       var isSel=window.__selectedHarnesses.has(h.driver);
       var cls='harness-card'+(isSel?' sel':'')+(h.found?'':' missing');
