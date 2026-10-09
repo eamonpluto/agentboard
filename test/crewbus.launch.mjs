@@ -61,10 +61,15 @@ check("plan: model selection", validateLaunchPlan({ harness: "claude", model: "c
 
 // ---- lib: model catalog ----
 const cat = getDiscoveredModels();
+check("catalog: claude has opus 5.5", cat.claude.some((m) => m.id === "claude-opus-5-5"));
 check("catalog: claude has 3.7", cat.claude.some((m) => m.id === "claude-3-7-sonnet"));
+check("catalog: codex has gpt-6.1-sol", cat.codex.some((m) => m.id === "gpt-6.1-sol"));
 check("catalog: codex has o3-mini", cat.codex.some((m) => m.id === "o3-mini"));
+check("catalog: antigravity has 3.8-flash", cat.antigravity.some((m) => m.id === "gemini-3.8-flash"));
 check("catalog: antigravity has 2.5-pro", cat.antigravity.some((m) => m.id === "gemini-2.5-pro"));
+check("catalog: grok has 4.7", cat.grok.some((m) => m.id === "grok-4.7"));
 check("catalog: grok has grok-3", cat.grok.some((m) => m.id === "grok-3"));
+check("catalog: cursor has grok-4.7", cat.cursor.some((m) => m.id === "cursor/grok-4.7"));
 check("catalog: opencode has models", Array.isArray(cat.opencode) && cat.opencode.length > 0);
 
 // ---- lib: pair URL fragment rule ----

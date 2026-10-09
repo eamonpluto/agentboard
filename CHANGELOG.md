@@ -14,7 +14,13 @@ PATCH RELEASE: Windows OpenCode harness detection fix, dynamic model selector sy
   - Added "Custom / specify model ID…" option with an inline write-in field for arbitrary provider/model slugs.
 
 - **Refreshed Model Catalog & Live Discovery**:
-  - Refreshed built-in `HARNESS_MODELS` with modern frontier, standard, and fast models across Anthropic (Claude 3.7 Sonnet / Opus 4), OpenAI (o3-mini, o1, gpt-4.5, gpt-4o), Google (Gemini 2.5 Pro / Flash, Gemini 2.0 Flash Thinking), xAI (Grok 3 / 3 Mini), and OpenCode.
+  - Refreshed built-in `HARNESS_MODELS` with the latest frontier, standard, and fast models across all supported harnesses:
+    - **Anthropic Claude Code**: `claude-opus-5-5` (Frontier Reasoning & Coding), `claude-opus-5`, `claude-opus-4-8`, `claude-sonnet-5-5` (Flagship Coding), `claude-sonnet-5`, `claude-sonnet-4-6`, `claude-haiku-5-5`, `claude-fable-5-1`, plus legacy `claude-3-7-sonnet` / `claude-3-5-sonnet`.
+    - **OpenAI Codex**: `gpt-6.1-sol` (Flagship Ultrafast Coding), `gpt-6-luna` (Decisions & Agentic Routing), `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`, `gpt-5-codex` (Agent Architecture), `gpt-5.5`, plus legacy `o3-mini` / `o1` / `gpt-4o`.
+    - **Google Antigravity**: `gemini-3.8-flash` (Agentic Reasoning & Speed), `gemini-3.7-flash`, `gemini-3.5-flash` (Production Workhorse), `gemini-3.5-flash-lite`, `gemini-3.1-pro` (Deep Analysis), `gemini-4-argon`, plus legacy `gemini-2.5-pro` / `gemini-2.5-flash`.
+    - **xAI Grok**: `grok-4.7` (Flagship Coding & 500k Context), `grok-4.6`, `grok-4.3` (1M-Token Context / High Throughput), plus legacy `grok-3` redirect.
+    - **Cursor Agent**: `cursor/grok-4.7` (Flagship Agent), `cursor/composer` (Multi-File Editing), `cursor/claude-opus-5`, `cursor/claude-sonnet-4-6`, `cursor/gpt-6.1-sol`, `cursor/gpt-5.5`.
+    - **OpenCode**: `opencode/claude-sonnet-4-6`, `opencode/claude-opus-5`, `opencode-go/claude-haiku-5-5`, `opencode/gemini-3.8-flash`, `opencode/gemini-3.1-pro`, `opencode/gpt-6.1-sol`, `opencode/gpt-5-codex`, `opencode/deepseek-v4-pro`, `opencode/grok-4.7`, and direct provider endpoints.
   - Added live model discovery via `GET /api/models?refresh=1` and a `↻` refresh button in the Web Launch Studio to discover installed models (e.g. via `opencode models`) on demand.
 
 ## 10.0.0 (2026-10-08)
