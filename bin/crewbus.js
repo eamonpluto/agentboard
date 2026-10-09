@@ -51,7 +51,7 @@ import { appendChainRecord, auditHmacKey, boardTotalBytes, chainFilePath, countC
 import { ackedIds, checkSendRateLimit, deliverDMs, enforceMaxChars, filterDigest, findDuplicateSend, findMessageById, heartbeat, isVerified, loadManifest, manifestPath, msgTimeMs, parseRecipients, printDigest, printMsg, readDMs, readVisible, recordBroadcastManifest, requireFanoutConfirm, resolveFwdDepth, runVerifier, verifyMessageSig, isHigh, signMessage, untrustedEnvelope, relTime, rateFilePath, broadcastTargets, readBroadcastsFor, formatTo, msgHeader, readAckMarker, splitCommand, readRecipientsFile } from "./lib/mail.js";
 import { batchReplyIds, collectBatch, contributingGroups, expandGroups, expandGroupsOrFail, gatherTelemetry, groupTelemetryData, heuristicSenderType, readGroup, ensureGroupCreatedAt, readResultRecord, writeResultRecord, findFirstVerifiedReply } from "./lib/groups.js";
 import { appendChannelPost, channelLogPath, groupChannelName, lockAlive, lockPath, mergeChannelText, mirrorToGroupChannels, printChannelPost, readChannelPosts, readLock, summarizePosts, writeChannelCursor, SUMMARY_STOP, channelCursorPath, readChannelCursor, lockHash, acquireLockDoc, releaseLockDoc, tailChannelPosts, listLocks, parseChannelText } from "./lib/channels.js";
-import { boardSnapshot, cmdWeb, escapeHtml, fleetSnapshot, channelsSnapshot, resultsSnapshot, auditSnapshot, handleApiAck, renderBoardHtml, handleApiKill, handleWebDashboardRoute } from "./lib/web.js";
+import { boardSnapshot, cmdWeb, escapeHtml, fleetSnapshot, channelsSnapshot, resultsSnapshot, auditSnapshot, handleApiAck, renderBoardHtml, handleApiKill, handleApiLaunch, handleWebDashboardRoute } from "./lib/web.js";
 import { LAUNCH_DRIVER_FALLBACK, PAIR_SCOPES, advertiseEnv, buildPairUrl, detectHarnessBinaries, formatHarnessMenu, isBodyFileRef, launchDrivers, parseCountChoice, parseHarnessChoice, parsePermissionChoice, parseYesNo, probeBinary, validateLaunchPlan, HARNESS_MODELS, getDiscoveredModels, refreshDiscoveredModels } from "./lib/launch.js";
 import readline from "node:readline";
 
@@ -5377,14 +5377,21 @@ async function cmdServe(args) {
           // packages/contracts/launch.json). Same gates as /api/spawn
           // (standby 503, relay secret, --allow-remote-spawn OPT-IN), then
           // launch-plan validation, then the SAME remoteSpawn core.
+          // On local loopback without a configured relay secret, runs the
+          // local dashboard launch core (handleApiLaunch) directly.
           if (isStandbyWriter()) { standbyRefuse(res, "POST /api/launch"); return; }
-          if (!(await requireRelaySecret(req, res, url, relayCtx))) return;
-          // Control-plane M6-lite: narrowed device creds need launch:spawn.
-          if (!requireScope(req, res, "launch:spawn")) return;
-          if (!allowRemoteSpawn) {
-            res.writeHead(403, { "content-type": "application/json; charset=utf-8" });
-            res.end(JSON.stringify({ error: "remote launch is OPT-IN: restart the relay with --allow-remote-spawn" }));
-            return;
+          const isLoopClient = req.socket.remoteAddress === "127.0.0.1" || req.socket.remoteAddress === "::1" || req.socket.remoteAddress === "::ffff:127.0.0.1";
+          const hasRelayAuth = !!(req.headers["x-crewbus-secret"] || req.headers["x-crewbus-device"] || req.headers["authorization"]);
+          const isLocalDashboard = isLoopClient && !remote && !relaySecret && !hasRelayAuth;
+          if (!isLocalDashboard) {
+            if (!(await requireRelaySecret(req, res, url, relayCtx))) return;
+            // Control-plane M6-lite: narrowed device creds need launch:spawn.
+            if (!requireScope(req, res, "launch:spawn")) return;
+            if (!allowRemoteSpawn) {
+              res.writeHead(403, { "content-type": "application/json; charset=utf-8" });
+              res.end(JSON.stringify({ error: "remote launch is OPT-IN: restart the relay with --allow-remote-spawn" }));
+              return;
+            }
           }
           if (!String(req.headers["content-type"] || "").includes("application/json")) {
             res.writeHead(415, { "content-type": "application/json; charset=utf-8" });
@@ -5412,6 +5419,13 @@ async function cmdServe(args) {
               } catch {
                 res.writeHead(400, { "content-type": "application/json; charset=utf-8" });
                 res.end(JSON.stringify({ error: "invalid JSON body" }));
+                return;
+              }
+              if (isLocalDashboard) {
+                const out = await handleApiLaunch(d, a);
+                appendChainRecord(d, (a && a.from) || "unknown", "api-launch", { ok: out.status === 200, harness: a && (a.harness || (Array.isArray(a.harnesses) && a.harnesses[0])) }, "audit", { authMethod: "local" });
+                res.writeHead(out.status, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+                res.end(JSON.stringify(out.payload));
                 return;
               }
               const v = validateLaunchPlan(a || {});
@@ -5456,13 +5470,18 @@ async function cmdServe(args) {
         }
         if (req.method === "POST" && url.pathname === "/api/kill") {
           if (isStandbyWriter()) { standbyRefuse(res, "POST /api/kill"); return; }
-          if (!(await requireRelaySecret(req, res, url, relayCtx))) return;
-          // Control-plane M6-lite: narrowed device creds need launch:kill.
-          if (!requireScope(req, res, "launch:kill")) return;
-          if (!allowRemoteSpawn) {
-            res.writeHead(403, { "content-type": "application/json; charset=utf-8" });
-            res.end(JSON.stringify({ error: "remote kill is OPT-IN: restart the relay with --allow-remote-spawn" }));
-            return;
+          const isLoopClient = req.socket.remoteAddress === "127.0.0.1" || req.socket.remoteAddress === "::1" || req.socket.remoteAddress === "::ffff:127.0.0.1";
+          const hasRelayAuth = !!(req.headers["x-crewbus-secret"] || req.headers["x-crewbus-device"] || req.headers["authorization"]);
+          const isLocalDashboard = isLoopClient && !remote && !relaySecret && !hasRelayAuth;
+          if (!isLocalDashboard) {
+            if (!(await requireRelaySecret(req, res, url, relayCtx))) return;
+            // Control-plane M6-lite: narrowed device creds need launch:kill.
+            if (!requireScope(req, res, "launch:kill")) return;
+            if (!allowRemoteSpawn) {
+              res.writeHead(403, { "content-type": "application/json; charset=utf-8" });
+              res.end(JSON.stringify({ error: "remote kill is OPT-IN: restart the relay with --allow-remote-spawn" }));
+              return;
+            }
           }
           if (!String(req.headers["content-type"] || "").includes("application/json")) {
             res.writeHead(415, { "content-type": "application/json; charset=utf-8" });
@@ -5493,7 +5512,7 @@ async function cmdServe(args) {
                 return;
               }
               const out = await handleApiKill(d, body);
-              appendChainRecord(d, (body && body.from) || "unknown", "api-kill", { ok: out.status === 200 }, "audit", { authMethod: req.oidc ? "oidc" : "secret" });
+              appendChainRecord(d, (body && body.from) || "unknown", "api-kill", { ok: out.status === 200 }, "audit", { authMethod: isLocalDashboard ? "local" : (req.oidc ? "oidc" : "secret") });
               res.writeHead(out.status, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
               res.end(JSON.stringify(out.payload));
             } catch (e) {

@@ -146,6 +146,25 @@ check("serve: --pair-qrcode prints pair URL", /pair URL: crewbus:\/\/pair\?[^ ]+
 check("serve: pair secret in fragment only", !qr.out.split("\n").find((l) => l.startsWith("pair URL:"))?.split("#")[0].includes("abp-"));
 qr.kill();
 
+// ---- desktop mode: serve --port 0 without --secret allows loopback launch & kill ----
+const desktopSrv = startServer(["serve", "--port", "0", "--board", board]);
+const dsAt = await desktopSrv.waitFor(/crewbus serve at http:\/\/(\S+)/);
+const dsBase = `http://${dsAt[1]}`;
+
+const dsDry = await httpCall(dsBase, "POST", "/api/launch", { from: "lead", token: leadTok, harness: "grok", body: "desktop dry run", dryRun: true });
+check("desktop serve: POST /api/launch dry-run 200 without --allow-remote-spawn", dsDry.status === 200 && dsDry.json && dsDry.json.dryRun === true && Array.isArray(dsDry.json.commands));
+
+const dsBadTok = await httpCall(dsBase, "POST", "/api/launch", { from: "lead", token: "abt-badtoken", harness: "grok", body: "x", dryRun: true });
+check("desktop serve: POST /api/launch bad token rejected 403", dsBadTok.status === 403);
+
+const dsLive = await httpCall(dsBase, "POST", "/api/launch", { from: "lead", token: leadTok, harness: "generic", cmd: 'node -e "process.exit(0)"', to: "dw1", body: "desktop live boot" });
+check("desktop serve: POST /api/launch live boots workers", dsLive.status === 200 && dsLive.json && Array.isArray(dsLive.json.workers) && dsLive.json.workers.length === 1 && typeof dsLive.json.workers[0].pid === "number");
+
+const dsKill = await httpCall(dsBase, "POST", "/api/kill", { from: "lead", token: leadTok, to: ["dw1"] });
+check("desktop serve: POST /api/kill succeeds without --allow-remote-spawn", dsKill.status === 200);
+
+desktopSrv.kill();
+
 fs.rmSync(board, { recursive: true, force: true });
 
 if (failures > 0) {
