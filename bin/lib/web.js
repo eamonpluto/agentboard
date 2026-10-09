@@ -18,7 +18,7 @@ import http from "node:http";
 import { boardDir, requireBoard, getFlag, fail, writeJson, listJson, cleanWebName, readJson, gitRevForBoard, newId, MAX_SPAWN, MAX_BODY_CHARS } from "./store.js";
 import { readAgent, agentTokenMatches, authorizeCheck, mintToken, newSalt, hashToken, touchAgent } from "./identity.js";
 import { readDMs, readVisible, ackedIds, findMessageById, deliverDMs, parseRecipients } from "./mail.js";
-import { workerStatus, pidAlive, killWorkers, bootWorker, buildSpawnPrompt, buildSpawnTarget, formatSpawnCmd } from "./spawn.js";
+import { workerStatus, pidAlive, killWorkers, bootWorker, buildSpawnPrompt, buildSpawnTarget, formatSpawnCmd, installCliToUserPath, ensureBoardCliShim } from "./spawn.js";
 import { groupTelemetryData } from "./groups.js";
 import { httpJson } from "./sync.js";
 import { readChainRecords, verifyChainRecords, appendChainRecord, readHold, readBoardQuotas } from "./export.js";
@@ -589,6 +589,7 @@ details.tech-details summary{cursor:pointer;font-weight:500;user-select:none}
         <div class="pop-path" id="pop-board-path">${e(boardPath)}</div>
         <button type="button" id="copy-board-btn" class="pop-btn"><svg class="btn-ic" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy Board Path</button>
         <button type="button" class="pop-btn" id="pop-pair-btn" style="margin-top:8px"><svg class="btn-ic" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg> Pair Mobile Client (QR)…</button>
+        <button type="button" class="pop-btn" id="pop-install-cli-btn" style="margin-top:8px"><svg class="btn-ic" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg> Install 'crewbus' CLI in PATH</button>
       </div>
     </div>
 
@@ -1337,6 +1338,7 @@ function getActionIcon(act){
     case 'openfolder':return '<svg class="pal-ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>';
     case 'pairmobile':return '<svg class="pal-ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>';
     case 'refresh':return '<svg class="pal-ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>';
+    case 'installcli':return '<svg class="pal-ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>';
     default:return '';
   }
 }
@@ -1348,6 +1350,7 @@ function paletteSections(){
     {kind:'action',label:'Copy board path',action:'copyboard'},
     {kind:'action',label:'Open project folder…',action:'openfolder'},
     {kind:'action',label:'Pair mobile client (QR)…',action:'pairmobile'},
+    {kind:'action',label:'Install \'crewbus\' CLI in PATH',action:'installcli'},
     {kind:'action',label:'Refresh board state',action:'refresh'},
     {kind:'section',label:'Launch',id:'sec-launch'},
     {kind:'section',label:'Boards',id:'sec-boards'},
@@ -1417,6 +1420,7 @@ function paletteActivate(m){
       try{window.open('./pair.html','_blank','width=420,height=560');}catch(_){}
     }
     else if(m.action==='refresh'){refresh();}
+    else if(m.action==='installcli'){document.getElementById('pop-install-cli-btn').click();}
   }else if(m.kind==='section'){
     approotNavTo(m.id);
   }else{
@@ -1646,6 +1650,27 @@ var ppb=document.getElementById('pop-pair-btn');
 if(ppb){ppb.onclick=function(){
   try{window.parent.postMessage({type:'crewbus:open-pair'},'*');}catch(_){}
   try{window.open('./pair.html','_blank','width=420,height=560');}catch(_){}
+};}
+var picb=document.getElementById('pop-install-cli-btn');
+if(picb){picb.onclick=async function(){
+  picb.disabled=true;
+  picb.textContent='Installing CLI…';
+  try{
+    var r=await fetch('/api/install-cli',{method:'POST'});
+    var j=await r.json();
+    if(j&&j.ok){
+      say('CLI installed! '+(j.detail||''));
+      picb.textContent='CLI Installed (in PATH)';
+    }else{
+      say('Failed to install CLI: '+(j&&j.error||'unknown error'));
+      picb.textContent='Install Failed — Retry';
+      picb.disabled=false;
+    }
+  }catch(e){
+    say('Install error: '+e.message);
+    picb.textContent='Install Failed — Retry';
+    picb.disabled=false;
+  }
 };}
 document.getElementById('project-trigger').onclick=function(e){
   e.stopPropagation();
@@ -1889,12 +1914,31 @@ export async function handleWebDashboardRoute(req, res, url, d) {
     res.end(JSON.stringify({ ok: false, error: "no lead.token found" }));
     return true;
   }
+  if (req.method === "POST" && url.pathname === "/api/install-cli") {
+    const ip = req.socket.remoteAddress || "";
+    const isLoop = ip === "127.0.0.1" || ip === "::1" || ip === "::ffff:127.0.0.1";
+    if (!isLoop) {
+      res.writeHead(403, { "content-type": "application/json; charset=utf-8" });
+      res.end(JSON.stringify({ error: "loopback only" }));
+      return true;
+    }
+    try {
+      const resInstall = installCliToUserPath();
+      res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+      res.end(JSON.stringify({ ok: true, ...resInstall }));
+    } catch (err) {
+      res.writeHead(500, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+      res.end(JSON.stringify({ ok: false, error: String(err && err.message ? err.message : err) }));
+    }
+    return true;
+  }
   return false;
 }
 
 export async function cmdWeb(args) {
   const root = boardDir(args);
   const d = requireBoard(root);
+  ensureBoardCliShim(d);
   const host = getFlag(args, "--host") || "127.0.0.1";
   const port = Number(getFlag(args, "--port") || 0);
   if (!(port >= 0 && port < 65536)) fail("--port must be 0-65535 (0 = random)");

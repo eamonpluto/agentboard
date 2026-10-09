@@ -21,6 +21,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
+import os from "node:os";
 import { execFileSync, spawn } from "node:child_process";
 import { fail, readJson, writeJson, cleanBranchPrefix } from "./store.js";
 import { touchAgent } from "./identity.js";
@@ -535,6 +536,111 @@ export function launchWorkerProcess({ exe, args, shell, cwd, env, logPath, stdin
   return { pid: child.pid };
 }
 
+// Ensure board-local bin/ shim exists (crewbus.cmd on Windows, crewbus on POSIX)
+// so any harness worker spawned by Desktop or CLI can find `crewbus` in PATH without global npm install.
+export function ensureBoardCliShim(d) {
+  if (!d || !d.root) return "";
+  const binDir = path.join(d.root, "bin");
+  try {
+    fs.mkdirSync(binDir, { recursive: true });
+    const nodeExe = process.execPath;
+    const cliJs = path.resolve(process.argv[1]);
+
+    const cmdPath = path.join(binDir, "crewbus.cmd");
+    const cmdContent = `@echo off\r\n"${nodeExe}" "${cliJs}" %*\r\n`;
+    try {
+      if (!fs.existsSync(cmdPath) || fs.readFileSync(cmdPath, "utf8") !== cmdContent) {
+        fs.writeFileSync(cmdPath, cmdContent, "utf8");
+      }
+    } catch {}
+
+    const shPath = path.join(binDir, "crewbus");
+    const shContent = `#!/bin/sh\nexec "${nodeExe.replace(/\\/g, "/")}" "${cliJs.replace(/\\/g, "/")}" "$@"\n`;
+    try {
+      if (!fs.existsSync(shPath) || fs.readFileSync(shPath, "utf8") !== shContent) {
+        fs.writeFileSync(shPath, shContent, "utf8");
+        try { fs.chmodSync(shPath, 0o755); } catch {}
+      }
+    } catch {}
+  } catch {}
+  return binDir;
+}
+
+// Install standalone CLI wrappers to user PATH (~/.crewbus/bin)
+// Works offline using the bundled node engine and crewbus.js (no npm needed).
+export function installCliToUserPath() {
+  const nodeExe = process.execPath;
+  const cliJs = path.resolve(process.argv[1]);
+  const userBinDir = path.join(os.homedir(), ".crewbus", "bin");
+  fs.mkdirSync(userBinDir, { recursive: true });
+
+  const cmdPath = path.join(userBinDir, "crewbus.cmd");
+  const cmdContent = `@echo off\r\n"${nodeExe}" "${cliJs}" %*\r\n`;
+  fs.writeFileSync(cmdPath, cmdContent, "utf8");
+
+  const shPath = path.join(userBinDir, "crewbus");
+  const shContent = `#!/bin/sh\nexec "${nodeExe.replace(/\\/g, "/")}" "${cliJs.replace(/\\/g, "/")}" "$@"\n`;
+  fs.writeFileSync(shPath, shContent, "utf8");
+  try { fs.chmodSync(shPath, 0o755); } catch {}
+
+  let addedToPath = false;
+  let detail = "";
+
+  if (process.platform === "win32") {
+    try {
+      const getCmd = "[Environment]::GetEnvironmentVariable('Path', 'User')";
+      const current = execFileSync("powershell.exe", ["-NoProfile", "-Command", getCmd], { encoding: "utf8", timeout: 5000 }).trim();
+      const parts = current.split(";").map((p) => p.trim()).filter(Boolean);
+      const normalizedBin = path.resolve(userBinDir).toLowerCase();
+      const alreadyThere = parts.some((p) => path.resolve(p).toLowerCase() === normalizedBin);
+      if (!alreadyThere) {
+        const newPath = parts.concat([userBinDir]).join(";");
+        const setCmd = `[Environment]::SetEnvironmentVariable('Path', '${newPath.replace(/'/g, "''")}', 'User')`;
+        execFileSync("powershell.exe", ["-NoProfile", "-Command", setCmd], { encoding: "utf8", timeout: 5000 });
+        addedToPath = true;
+        detail = "Added to Windows User PATH (effective in newly opened terminals)";
+      } else {
+        detail = "Already present in Windows User PATH";
+      }
+    } catch (e) {
+      detail = `Wrote shims to ${userBinDir}, but could not update User PATH automatically: ${(e && e.message) || e}`;
+    }
+  } else {
+    // POSIX: macOS / Linux
+    const localBin = path.join(os.homedir(), ".local", "bin");
+    let linked = false;
+    try {
+      if (fs.existsSync(localBin)) {
+        const target = path.join(localBin, "crewbus");
+        try { fs.unlinkSync(target); } catch {}
+        fs.symlinkSync(shPath, target);
+        linked = true;
+        addedToPath = true;
+        detail = `Symlinked to ${target}`;
+      }
+    } catch {}
+    if (!linked) {
+      const rcFile = path.join(os.homedir(), process.platform === "darwin" ? ".zshrc" : ".bashrc");
+      const exportLine = `export PATH="$HOME/.crewbus/bin:$PATH"`;
+      try {
+        let content = "";
+        try { content = fs.readFileSync(rcFile, "utf8"); } catch {}
+        if (!content.includes(".crewbus/bin")) {
+          fs.appendFileSync(rcFile, `\n# CrewBus CLI\n${exportLine}\n`, "utf8");
+          addedToPath = true;
+          detail = `Added export to ${rcFile}`;
+        } else {
+          detail = `Already configured in ${rcFile}`;
+        }
+      } catch (e) {
+        detail = `Wrote shim to ${userBinDir}`;
+      }
+    }
+  }
+
+  return { ok: true, binDir: userBinDir, addedToPath, detail };
+}
+
 export function bootWorker(d, spawnOpts, { to, id, from, subject, body, rev, logDir, budgetTokens, budgetMinutes, deadlineAt, spawnedWorktree, spawnedBranch, spawnedLifetime, sessionId }) { // line 4338
   const { cwd, root } = spawnOpts;
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
@@ -544,6 +650,17 @@ export function bootWorker(d, spawnOpts, { to, id, from, subject, body, rev, log
   const logPath = path.join(logDir, `${to}-${stamp}.log`);
   const scrub = scrubChildEnv(process.env, spawnOpts);
   const childEnv = { ...scrub.env, CREWBUS_DIR: d.root, CREWBUS_AGENT: to };
+  const shimDir = ensureBoardCliShim(d);
+  if (shimDir) {
+    const pKey = Object.keys(childEnv).find((k) => k.toUpperCase() === "PATH") || "PATH";
+    const curPath = childEnv[pKey] || "";
+    const newPath = curPath ? `${shimDir}${path.delimiter}${curPath}` : shimDir;
+    childEnv[pKey] = newPath;
+    if (process.platform === "win32") {
+      childEnv.PATH = newPath;
+      childEnv.Path = newPath;
+    }
+  }
   if (!scrub.kept && scrub.scrubbed.length > 0) {
     process.stderr.write(`crewbus: scrubbed ${scrub.scrubbed.length} credential var(s) from ${to}'s environment (${scrub.scrubbed.slice(0, 5).join(", ")}${scrub.scrubbed.length > 5 ? ", …" : ""}) — --keep-env to inherit, --allow-env to keep listed names\n`);
   }
@@ -602,6 +719,17 @@ export function bootRespawnedWorker(d, spawnOpts, { to, briefId, from, sessionId
   const logPath = path.join(logDir, `${to}-${stamp}.log`);
   const scrub = scrubChildEnv(process.env, spawnOpts);
   const childEnv = { ...scrub.env, CREWBUS_DIR: d.root, CREWBUS_AGENT: to };
+  const shimDir = ensureBoardCliShim(d);
+  if (shimDir) {
+    const pKey = Object.keys(childEnv).find((k) => k.toUpperCase() === "PATH") || "PATH";
+    const curPath = childEnv[pKey] || "";
+    const newPath = curPath ? `${shimDir}${path.delimiter}${curPath}` : shimDir;
+    childEnv[pKey] = newPath;
+    if (process.platform === "win32") {
+      childEnv.PATH = newPath;
+      childEnv.Path = newPath;
+    }
+  }
   if (!scrub.kept && scrub.scrubbed.length > 0) {
     process.stderr.write(`crewbus: scrubbed ${scrub.scrubbed.length} credential var(s) from ${to}'s environment (${scrub.scrubbed.slice(0, 5).join(", ")}${scrub.scrubbed.length > 5 ? ", …" : ""}) — --keep-env to inherit, --allow-env to keep listed names\n`);
   }

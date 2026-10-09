@@ -100,6 +100,22 @@ check("web: POST /api/launch bad token 403", badTok.status === 403);
 const live = await httpCall(webBase, "POST", "/api/launch", { from: "lead", token: leadTok, harness: "generic", cmd: 'node -e "process.exit(0)"', to: "ww1", body: "quick check" });
 check("web: POST /api/launch live boots (workers)", live.status === 200 && live.json && Array.isArray(live.json.workers) && live.json.workers.length === 1 && typeof live.json.workers[0].pid === "number");
 run(["spawn-kill", "--from", "lead", "--token", leadTok, "--to", "ww1"]);
+
+// ---- CLI worker shims & standalone installer ----
+const boardBin = path.join(board, "bin");
+check("web: ensureBoardCliShim created board bin dir", fs.existsSync(boardBin));
+check("web: ensureBoardCliShim wrote crewbus.cmd", fs.existsSync(path.join(boardBin, "crewbus.cmd")));
+check("web: ensureBoardCliShim wrote crewbus POSIX shim", fs.existsSync(path.join(boardBin, "crewbus")));
+
+const installRes = await httpCall(webBase, "POST", "/api/install-cli");
+check("web: POST /api/install-cli 200 ok", installRes.status === 200 && installRes.json && installRes.json.ok === true && typeof installRes.json.binDir === "string");
+if (installRes.json && installRes.json.binDir) {
+  check("web: installed user crewbus wrapper exists", fs.existsSync(path.join(installRes.json.binDir, process.platform === "win32" ? "crewbus.cmd" : "crewbus")));
+}
+
+const cliInstallOut = run(["install-cli"]);
+check("cli: crewbus install-cli runs cleanly", cliInstallOut.includes("standalone CLI wrappers written to"));
+
 web.kill();
 
 // ---- relay serve: advertise + gates ----

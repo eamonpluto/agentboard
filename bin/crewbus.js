@@ -46,7 +46,7 @@ import { VALID_ROLES, agentTokenMatches, assertMintWon, authorize, authorizeChec
 import { saveTokenFile } from "./lib/tokenfile.js";
 import { CLIENT_TLS, SYNC_LWW, cleanSyncRel, clientInsecureFromArgs, crewSurvey, httpJson, readPemFlag, readSyncState, readTombstones, relayAuthEntries, relayCredFor, relayCredHeaders, setupClientTls, splitByWeight, syncRound, syncWalk, warnInsecureOnce, writeSyncState, writeTombstone, SYNC_SUBS, SYNC_UNION, RELAY_CAPS, SUB_CAP, SUB_CAP_NOTE, tombstoneIdForRel, readSyncDoc } from "./lib/sync.js";
 import { devicePath, isLoopbackHost, newDeviceCred, newPairToken, pairingPath, parseDeviceCred, readDevice, readRelayState, relaySecretFromArgs, remoteSpawn, requireRelayClientCert, requireRelaySecret, requireScope, tryAcquireFence, verifyOidcJwt, writeRelayState, relayStatePath, bearerFromReq, getOidcConfig, getOidcJwks, b64urlDecode, b64urlJson, jwsRawToDer, oidcGetJson, OIDC_SKEW_SEC, OIDC_JWKS_TTL_MS, OIDC_ALG_HASH, OIDC_EC_SIZE, deviceFromReq } from "./lib/relay.js";
-import { assertGitCheckout, bootRespawnedWorker, bootWorker, buildRespawnBrief, buildRespawnTarget, buildSpawnPrompt, buildSpawnTarget, formatSpawnCmd, isPidStale, killWorkers, maybeIsolate, parseAllowEnv, pidAlive, provisionBranch, provisionWorktree, readWorkerSession, requireAutoConfirm, sandboxPresent, scrubChildEnv, syncWorkerSession, workerStatus, worktreeStamp, defaultMaxTurnsFor } from "./lib/spawn.js";
+import { assertGitCheckout, bootRespawnedWorker, bootWorker, buildRespawnBrief, buildRespawnTarget, buildSpawnPrompt, buildSpawnTarget, formatSpawnCmd, isPidStale, killWorkers, maybeIsolate, parseAllowEnv, pidAlive, provisionBranch, provisionWorktree, readWorkerSession, requireAutoConfirm, sandboxPresent, scrubChildEnv, syncWorkerSession, workerStatus, worktreeStamp, defaultMaxTurnsFor, ensureBoardCliShim, installCliToUserPath } from "./lib/spawn.js";
 import { appendChainRecord, auditHmacKey, boardTotalBytes, chainFilePath, countChannels, dirSize, doExportToFile, enforceAgentQuota, enforceBytesQuota, enforceChannelQuota, holdActive, holdDocPath, holdRefusal, parseQuotaBytes, parseQuotaCount, readBackupInner, readBoardQuotas, readChainRecords, readHold, readSnapshotSchedule, resolveBackupKeyMaterial, setAuditForward, snapshotStamp, startAuditForwarder, verifyChainRecords, collectBoardFiles, encryptBackupPayload, decryptBackupPayload, rawKeyFromMaterial, deriveBackupKey, toAuditExport, spoolAuditEvent, postAuditEvent, auditSpoolDir, drainAuditSpool, enqueueAuditForward, signAuditRecord, chainRecordHash, AUDIT_FORWARD_URL, AUDIT_FORWARD_KEY } from "./lib/export.js";
 import { ackedIds, checkSendRateLimit, deliverDMs, enforceMaxChars, filterDigest, findDuplicateSend, findMessageById, heartbeat, isVerified, loadManifest, manifestPath, msgTimeMs, parseRecipients, printDigest, printMsg, readDMs, readVisible, recordBroadcastManifest, requireFanoutConfirm, resolveFwdDepth, runVerifier, verifyMessageSig, isHigh, signMessage, untrustedEnvelope, relTime, rateFilePath, broadcastTargets, readBroadcastsFor, formatTo, msgHeader, readAckMarker, splitCommand, readRecipientsFile } from "./lib/mail.js";
 import { batchReplyIds, collectBatch, contributingGroups, expandGroups, expandGroupsOrFail, gatherTelemetry, groupTelemetryData, heuristicSenderType, readGroup, ensureGroupCreatedAt, readResultRecord, writeResultRecord, findFirstVerifiedReply } from "./lib/groups.js";
@@ -4801,6 +4801,7 @@ async function cmdCrew(args) {
 async function cmdServe(args) {
   const root = boardDir(args);
   const d = requireBoard(root);
+  ensureBoardCliShim(d);
   const host = getFlag(args, "--host") || "127.0.0.1";
   const port = Number(getFlag(args, "--port") || 0);
   if (!(port >= 0 && port < 65536)) fail("--port must be 0-65535 (0 = random)");
@@ -6240,6 +6241,8 @@ Setup:
   crewbus init [--global] [--board <path>] [--force] [--no-opencode] [--portable]
                  [--harness opencode,claude,codex,antigravity,grok,cursor,generic]
     create board in ./.crewbus, write AGENTS.md block, install harness
+  crewbus install-cli
+    install standalone CLI wrapper to user PATH (~/.crewbus/bin)
     wiring (hooks + MCP config + notes). Without --harness, init applies the
     union of detected markers (.opencode/.claude/.codex/.agents/.grok/.cursor).
     init also pre-approves board-only bus I/O (crewbus MCP server +
@@ -7243,6 +7246,21 @@ async function cmdPoolResume(args) {
   }
 }
 
+function cmdInstallCli() {
+  const res = installCliToUserPath();
+  if (res.ok) {
+    console.log(`crewbus: standalone CLI wrappers written to ${res.binDir}`);
+    if (res.addedToPath) {
+      console.log(`crewbus: ${res.detail}`);
+      console.log(`crewbus: restart your terminal window, then type "crewbus" to verify`);
+    } else {
+      console.log(`crewbus: ${res.detail}`);
+    }
+  } else {
+    fail(`install-cli failed: ${res.detail || "unknown error"}`);
+  }
+}
+
 async function main() {
   const [, , cmd, ...rest] = process.argv;
   if (REMOVED.has(cmd)) {
@@ -7250,6 +7268,7 @@ async function main() {
   }
   switch (cmd) {
     case "init": return cmdInit(rest);
+    case "install-cli": return cmdInstallCli();
     case "register": return cmdRegister(rest);
     case "acl": return cmdAcl(rest);
     case "agents": return cmdAgents(rest);
