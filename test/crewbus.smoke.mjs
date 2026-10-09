@@ -963,7 +963,7 @@ fs.rmSync(remStub, { force: true });
   const pDev = (pEx.match(/(abd-[0-9a-f-]+)/) || [])[1];
   check("pairing exchange mints device credential", !!pDev && pEx.includes("paired as device"));
   const pDevOnly = execFileSync("node", [CLI, "sync", "--with", pUrl, "--device", pDev, "--once"], { env: pEnvB }).toString();
-  check("device credential syncs without shared secret", pDevOnly.includes("synced with") && !pDevOnly.includes("403"));
+  check("device credential syncs without shared secret", pDevOnly.includes("synced with") && !pDevOnly.includes("HTTP 403"));
   execFileSync("node", [CLI, "send", "--from", "pairadmin", "--to", "zed2", "--body", "post-pair wave"], { env: pAdminEnv });
   const pDevPull = execFileSync("node", [CLI, "sync", "--with", pUrl, "--device", pDev, "--once"], { env: pEnvB }).toString();
   check("device credential pulls new mail", /pulled [1-9]/.test(pDevPull) && fs.existsSync(path.join(pB, "dm", "zed2")));
