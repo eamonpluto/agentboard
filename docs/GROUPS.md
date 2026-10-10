@@ -75,3 +75,28 @@ backfilled from the group file mtime for pre-existing groups.
   auto-assign. When an agent is in several groups, the recorder decides
   which group the result counts for.
 
+## Cross-group collaboration
+
+Groups share one board, so any member can already read anything. The
+thing that decides whether groups actually collaborate is whether the
+brief tells them the map. Since v10.0.x every `spawn` brief carries a
+**Crew:** block (see `buildCrewContext` in `bin/lib/spawn.js`): your
+group(s) + members + lane, the other groups + members, their group
+channels, and the peer-DM norm. Conventions that block assumes:
+
+- **Peer-direct for questions.** `crewbus send --from you --to-group
+  <group> --subject "..." --body "..."` reaches every member of
+  another group. Ask the group that owns a thing first; the lead is
+  for approvals (`--priority high`) and scope disputes only.
+- **Channels are the shared read surface.** `crewbus channel tail
+  grp-<group>` shows a group's briefs + mirrored progress; reads need
+  no token. Channel *posting* is lead|admin-only, so workers write
+  via DMs, never via `channel post`.
+- **Boot habit.** `crewbus agents` + `crewbus group list` once at
+  start, so a worker knows who else is here. A worker that never runs
+  a discovery command will work star-topology through the lead — that
+  is a failure of the brief, not the worker.
+- **Scope questions stay lanes-first.** "Stay in your lane" prevents
+  collisions; "DM the group that owns a thing" prevents silos. A
+  brief should name both the boundary *and* the bridge.
+

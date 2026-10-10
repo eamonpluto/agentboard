@@ -32,6 +32,17 @@ export function escapeHtml(s) {
 
 export function boardSnapshot(d, activeWindowSec) {
   const cutoff = Date.now() - activeWindowSec * 1000;
+  // Liveness first: pid-bearing agents are active only while their process
+  // is verifiably alive (kill-0 + start-time guard inside workerStatus) —
+  // a fresh lastSeen alone proves nothing, because watcher heartbeats keep
+  // refreshing docs for long-dead sessions. Pid-less agents (humans, CLI
+  // peers) fall back to lastSeen freshness. Reuses the workers array below
+  // (no extra status syscalls).
+  const workers = listJson(d.agents)
+    .map((e) => e.data)
+    .filter((a) => a && a.name && typeof a.spawnedPid === "number")
+    .map((a) => workerStatus(d, a.name, 5));
+  const liveByName = new Map(workers.map((w) => [w.name, w.alive === true]));
   const agents = listJson(d.agents)
     .map((e) => e.data)
     .filter((x) => x && x.name)
@@ -42,12 +53,13 @@ export function boardSnapshot(d, activeWindowSec) {
       const { token, tokenHash, salt, ...safe } = a; // tokens never leave the server
       return {
         ...safe,
-        active: Date.parse(a.lastSeen) >= cutoff,
+        active: typeof a.spawnedPid === "number"
+          ? liveByName.get(a.name) === true
+          : Date.parse(a.lastSeen) >= cutoff,
         dmCount: visible.length,
         unacked: visible.filter((m) => !acked.has(m.id)).length,
       };
     });
-  const workers = agents.filter((a) => typeof a.spawnedPid === "number").map((a) => workerStatus(d, a.name, 5));
   const broadcasts = listJson(d.broadcast || path.join(d.root, "broadcast"))
     .map((e) => e.data)
     .filter((b) => b && b.id && b.from)
@@ -647,8 +659,9 @@ details.tech-details summary{cursor:pointer;font-weight:500;user-select:none}
         <span>Search commands, workers, sections…</span>
         <kbd>Ctrl+K</kbd>
       </button>
-      <div class="topbar-right">
-        <label style="display:none">harness <select id="topbar-harness" aria-label="harness quick-pick"></select></label>
+        <div class="topbar-right">
+          <span id="poll-age" class="dim" title="age of the data on screen (Chrome throttles background tabs — a stale view is otherwise indistinguishable from a live one)"></span>
+          <label style="display:none">harness <select id="topbar-harness" aria-label="harness quick-pick"></select></label>
         <button type="button" id="inspector-toggle-btn" title="Toggle Inspector sidebar">Inspector ◨</button>
       </div>
     </header>
@@ -921,8 +934,8 @@ async function kill(names){
 }
 document.getElementById('killall').onclick=async function(){
   var rows=window.__workers||[];
-  var names=rows.filter(function(w){return w.known&&typeof w.pid==='number';}).map(function(w){return w.name;});
-  if(!names.length){say('no spawned workers');return;}
+    var names=rows.filter(function(w){return w.known&&w.alive===true;}).map(function(w){return w.name;});
+    if(!names.length){say('no live workers (kill needs a running pid)');return;}
   kill(names);
 };
 document.getElementById('ackall').onclick=async function(){
@@ -941,6 +954,8 @@ async function refresh(){
   try{
     var r=await fetch('/api/board',{cache:'no-store'});
     var s=await r.json();
+    window.__lastBoardPoll=Date.now();
+    updatePollAge();
     window.__workers=s.workers;
     var active=s.agents.filter(function(a){return a.active;}).length;
     var unacked=s.agents.reduce(function(n,a){return n+a.unacked;},0);
@@ -961,12 +976,12 @@ async function refresh(){
     document.getElementById('workers').innerHTML=s.workers.map(function(w){
       var tail=(w.tail||[]).slice(-3).map(function(l){return '<div class="log">'+esc(l)+'</div>';}).join('')||'<span class="dim">no log</span>';
       var rep=w.reply?esc(w.reply.id)+'<div class="dim">'+esc(w.reply.head)+'</div>':'—';
-      var btn=(w.known&&typeof w.pid==='number')?'<button class="danger" data-kill="'+esc(w.name)+'">kill</button>':'';
+      var btn=(w.known&&w.alive===true)?'<button class="danger" data-kill="'+esc(w.name)+'">kill</button>':'';
       return '<tr data-worker="'+esc(w.name)+'" class="worker-row"><td><b>'+esc(w.name)+'</b><div class="dim">by '+esc(w.spawnedBy||'?')+'</div></td><td>'+esc(stateOf(w))+'</td><td>'+(w.pid===null||w.pid===undefined?'—':esc(String(w.pid)))+'</td><td>'+rep+'</td><td>'+tail+'</td><td>'+btn+'</td></tr>';
     }).join('')||'<tr><td colspan="6" class="dim">no spawned workers</td></tr>';
     Array.prototype.forEach.call(document.querySelectorAll('[data-kill]'),function(b){b.onclick=function(){kill([b.getAttribute('data-kill')]);};});
     document.getElementById('agents').innerHTML=s.agents.map(function(a){
-      return '<tr><td><b>'+esc(a.name)+'</b></td><td>'+(a.active?'● active':'○ stale')+'</td><td>'+esc(a.lastSeen||'?')+'</td><td>'+esc(a.sessionId||'—')+'</td><td>'+a.dmCount+'</td><td>'+a.unacked+'</td></tr>';
+      return '<tr><td><b>'+esc(a.name)+'</b></td><td>'+(a.active?'● active':'○ stale')+'</td><td title="'+esc(a.lastSeen||'?')+'">'+esc(ago(a.lastSeen))+'</td><td>'+esc(a.sessionId||'—')+'</td><td>'+a.dmCount+'</td><td>'+a.unacked+'</td></tr>';
     }).join('')||'<tr><td colspan="6" class="dim">no agents yet</td></tr>';
     document.getElementById('bcast').innerHTML=s.broadcasts.map(function(b){
       var to=Array.isArray(b.to)?b.to.join(','):String(b.to||'');
@@ -1540,7 +1555,7 @@ function showInspector(name){
     +'<div class="dim">reply: '+rep+' · acked: '+esc(w.acked?'yes':'no')+' · session: '+esc(w.harnessSessionId||'—')+'</div>'
     +'<div class="log" style="margin-top:6px">'+tail+'</div>'
     +'<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">'
-    +((w.known&&typeof w.pid==='number')?'<button class="danger" id="insp-kill">kill</button>':'')
+      +((w.known&&w.alive===true)?'<button class="danger" id="insp-kill">kill</button>':'')
     +(w.reply?'<button id="insp-ack">ack reply</button>':'')
     +'<button id="insp-respawn">respawn (CLI-only)</button></div>'
     +'<div class="dim" id="insp-respawn-cmd" style="margin-top:4px"></div>';
@@ -1751,9 +1766,15 @@ document.getElementById('launch-brief').addEventListener('keydown',function(e){
     document.getElementById('launch-go').click();
   }
 });
-loadLaunchMeta();
-refresh();
-setInterval(refresh,5000);
+  loadLaunchMeta();
+  refresh();
+  setInterval(refresh,5000);
+  // Data-age indicator: background tabs get their 5s poll throttled, so a
+  // stale view must say so instead of passing for live (see poll-age).
+  function agoMs(ms){var s=Math.max(0,Math.floor(ms/1000));if(s<60)return s+'s';var m=Math.floor(s/60);if(m<60)return m+'m';return Math.floor(m/60)+'h';}
+  function ago(iso){try{var t=Date.parse(iso);if(isNaN(t))return '?';return agoMs(Date.now()-t)+' ago';}catch(e){return '?';}}
+  function updatePollAge(){var el=document.getElementById('poll-age');if(!el)return;if(!window.__lastBoardPoll){el.textContent='not updated yet';return;}var age=Date.now()-window.__lastBoardPoll;var stale=age>15000;el.textContent=(stale?'STALE · ':'')+'updated '+agoMs(age)+' ago';el.style.color=stale?'var(--danger)':'';}
+  setInterval(updatePollAge,1000);
 </script>
 </body></html>`;
 }

@@ -65,6 +65,13 @@ export const DmWatchPlugin = async ({ client, directory }) => {
   const deliveredDir = path.join(root, "delivered");
 
   const agentToSession = new Map(); // agent -> sessionID
+  const sessionMeta = new Map(); // agent -> { sessionID, confirmedAt }
+  // A mapped session is proof of life only while fresh: entries age out
+  // after TTL without a confirmed delivery or re-registration, so dead
+  // workers stop being heartbeated (and stop reading "active") instead
+  // of lingering forever. Their mail then waits for pull until the live
+  // session re-registers — the same fallback as a refused push.
+  const SESSION_TTL_MS = 30 * 60 * 1000;
   const processed = new Set(); // "<agent>/<msgId>"
   const lastBeat = new Map(); // agent -> epoch ms of last presence write
 
@@ -97,7 +104,14 @@ export const DmWatchPlugin = async ({ client, directory }) => {
     for (const f of files) {
       if (!f.endsWith(".json")) continue;
       const doc = readJsonSafe(path.join(agentsDir, f));
-      if (doc && doc.name && doc.sessionId) agentToSession.set(doc.name, doc.sessionId);
+      if (doc && doc.name && doc.sessionId) {
+        agentToSession.set(doc.name, doc.sessionId);
+        const meta = sessionMeta.get(doc.name);
+        if (!meta || meta.sessionID !== doc.sessionId) {
+          // (Re)registration: a new session id is fresh proof of life.
+          sessionMeta.set(doc.name, { sessionID: doc.sessionId, confirmedAt: Date.now() });
+        }
+      }
     }
   }
 
@@ -117,23 +131,15 @@ export const DmWatchPlugin = async ({ client, directory }) => {
     if (prev && prev.lastSeen && now - new Date(prev.lastSeen).getTime() < 60000) return;
     const at = new Date().toISOString();
     try {
-      fs.writeFileSync(p, JSON.stringify({
-        name: agent,
-        firstSeen: (prev && prev.firstSeen) || at,
-        lastSeen: at,
-        sessionId: (prev && prev.sessionId) || undefined,
-        lastDir: (prev && prev.lastDir) || undefined,
-        spawnedPid: (prev && prev.spawnedPid) || undefined,
-        spawnedAt: (prev && prev.spawnedAt) || undefined,
-        spawnedBy: (prev && prev.spawnedBy) || undefined,
-        briefId: (prev && prev.briefId) || undefined,
-        spawnedWorktree: (prev && prev.spawnedWorktree) || undefined,
-        spawnedBranch: (prev && prev.spawnedBranch) || undefined,
-        spawnedLifetime: (prev && prev.spawnedLifetime) || undefined,
-        token: (prev && prev.token) || undefined,
-        tokenHash: (prev && prev.tokenHash) || undefined,
-        salt: (prev && prev.salt) || undefined,
-      }, null, 2) + "\n");
+      // Merge over prev, never enumerate (see mergeAgentDoc in
+      // bin/lib/identity.js — this file is standalone so the merge is
+      // inlined): a heartbeat must not drop fields it doesn't own.
+      const merged = { ...(prev && typeof prev === "object" ? prev : {}) };
+      for (const [k, v] of Object.entries({ name: agent, firstSeen: (prev && prev.firstSeen) || at, lastSeen: at })) {
+        if (v === undefined) delete merged[k];
+        else merged[k] = v;
+      }
+      fs.writeFileSync(p, JSON.stringify(merged, null, 2) + "\n");
     } catch {}
   }
 
@@ -328,6 +334,10 @@ export const DmWatchPlugin = async ({ client, directory }) => {
         await client.session.prompt({ path: { id: sessionID }, body: { parts: [{ type: "text", text }] } });
       }
       advanceCursor(agent, msg.id);
+      // A completed push is the only proof of life this watcher can
+      // observe directly — refresh the mapping TTL so live sessions
+      // stay pushable across idle stretches.
+      sessionMeta.set(agent, { sessionID, confirmedAt: Date.now() });
     } catch (e) {
       const detail = e && e.message ? e.message : String(e);
       releaseClaim(agent, msg.id);
@@ -360,6 +370,16 @@ export const DmWatchPlugin = async ({ client, directory }) => {
     for (const agent of agents) {
       const sessionID = agentToSession.get(agent);
       if (!sessionID) continue; // nobody live for this name — mail waits for pull
+      const meta = sessionMeta.get(agent);
+      if (!meta || meta.sessionID !== sessionID || Date.now() - meta.confirmedAt > SESSION_TTL_MS) {
+        // Stale mapping: no confirmed delivery and no re-registration
+        // within TTL. Drop it (clears the doc's sessionId too) so the
+        // agent stops reading "active" and its mail waits for pull until
+        // the live session re-registers.
+        invalidateSession(agent, sessionID);
+        sessionMeta.delete(agent);
+        continue;
+      }
       heartbeat(agent);
       let files = [];
       try {

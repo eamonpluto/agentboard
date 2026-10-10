@@ -385,6 +385,25 @@ export function authorizeThrow(d, agent, action, scope) { // line 591
   return r;
 }
 
+// Canonical agent-doc merge: every writer starts from prev and applies
+// only its patch, so parallel writers (register, heartbeat, the dm-send
+// tool, the dm-watch plugin) can never drop fields they don't own (spawn
+// bookkeeping, tokens, roles). A patch key wins on any defined value —
+// including false/0/"" — so callers MUST pass undefined for no-change.
+// New agent-doc writers must use this or spread prev; never enumerate.
+export function mergeAgentDoc(prev, patch) {
+  const base = (prev && typeof prev === "object") ? { ...prev } : {};
+  const p = (patch && typeof patch === "object") ? patch : {};
+  for (const k of Object.keys(p)) {
+    if (p[k] === undefined) delete base[k];
+    else base[k] = p[k];
+  }
+  for (const k of Object.keys(base)) {
+    if (base[k] === undefined) delete base[k];
+  }
+  return base;
+}
+
 export function touchAgent(d, name, extra) { // line 2647
   const p = path.join(d.agents, `${name}.json`);
   const now = new Date().toISOString();
@@ -393,36 +412,13 @@ export function touchAgent(d, name, extra) { // line 2647
     prev = readJson(p);
   } catch {}
   const { v, hlc } = stampSyncDoc(prev);
-  const doc = {
+  const doc = mergeAgentDoc(prev, {
     name,
     firstSeen: (prev && prev.firstSeen) || now,
     lastSeen: now,
-    sessionId: (extra && extra.sessionId) || (prev && prev.sessionId) || undefined,
-    lastDir: (extra && extra.lastDir) || (prev && prev.lastDir) || undefined,
-    spawnedPid: (extra && extra.spawnedPid) || (prev && prev.spawnedPid) || undefined,
-    spawnedAt: (extra && extra.spawnedAt) || (prev && prev.spawnedAt) || undefined,
-    spawnedBy: (extra && extra.spawnedBy) || (prev && prev.spawnedBy) || undefined,
-    briefId: (extra && extra.briefId) || (prev && prev.briefId) || undefined,
-    budgetTokens: (extra && extra.budgetTokens) || (prev && prev.budgetTokens) || undefined,
-    budgetMinutes: (extra && extra.budgetMinutes) || (prev && prev.budgetMinutes) || undefined,
-    budgetSince: (extra && extra.budgetSince) || (prev && prev.budgetSince) || undefined,
-    deadlineAt: (extra && extra.deadlineAt) || (prev && prev.deadlineAt) || undefined,
-    spawnedWorktree: (extra && extra.spawnedWorktree) || (prev && prev.spawnedWorktree) || undefined,
-    spawnedBranch: (extra && extra.spawnedBranch) || (prev && prev.spawnedBranch) || undefined,
-    spawnedLifetime: (extra && extra.spawnedLifetime) || (prev && prev.spawnedLifetime) || undefined,
-    spawnedHarness: (extra && extra.spawnedHarness) || (prev && prev.spawnedHarness) || undefined,
-    spawnedEnvScrubbed: (extra && extra.spawnedEnvScrubbed) || (prev && prev.spawnedEnvScrubbed) || undefined,
-    token: (prev && prev.token) || undefined,
-    tokenHash: (prev && prev.tokenHash) || undefined,
-    salt: (prev && prev.salt) || undefined,
-    expiresAt: (extra && extra.expiresAt !== undefined ? extra.expiresAt : undefined) ?? (prev && prev.expiresAt !== undefined ? prev.expiresAt : undefined),
-    rotatedAt: (extra && extra.rotatedAt !== undefined ? extra.rotatedAt : undefined) ?? (prev && prev.rotatedAt !== undefined ? prev.rotatedAt : undefined),
-    service: (extra && extra.service !== undefined ? extra.service : undefined) ?? (prev && prev.service !== undefined ? prev.service : undefined),
-    offboarded: (extra && extra.offboarded !== undefined ? extra.offboarded : undefined) ?? (prev && prev.offboarded !== undefined ? prev.offboarded : undefined),
-    revokedAt: (extra && extra.revokedAt !== undefined ? extra.revokedAt : undefined) ?? (prev && prev.revokedAt !== undefined ? prev.revokedAt : undefined),
-    role: (extra && extra.role !== undefined ? extra.role : undefined) ?? (prev && prev.role !== undefined ? prev.role : undefined),
+    ...(extra || {}),
     v, hlc,
-  };
+  });
   writeAgentFile(d, name, doc);
   return doc;
 }

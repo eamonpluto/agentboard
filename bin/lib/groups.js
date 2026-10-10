@@ -104,7 +104,10 @@ export function readGroup(d, name) {
 export function expandGroups(d, raw) {
   const out = [];
   if (raw === undefined || raw === null || String(raw).trim() === "") return out;
-  for (const part of String(raw).split(",")) {
+  for (const part of String(raw).split(/[,\s]+/)) {
+    // Group names carry no spaces (see cleanGroupName), so splitting on
+    // whitespace too is safe — and it saves PowerShell users whose
+    // unquoted --to-group a,b arrives space-rejoined (see cmdGroup --add).
     if (part.trim() === "") continue;
     const g = String(part).trim().toLowerCase().replace(/[^a-z0-9_.-]/g, "-").slice(0, 40);
     if (!g || g === "@all") throw new Error(`invalid group name "${part}"`);

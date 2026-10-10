@@ -9,7 +9,7 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { readJson, writeJson, listJson, newId, sanitizeName, fail, MAX_RECIPIENTS, BROADCAST_AFTER, MAX_FWD_DEPTH, SEND_RATE_CAP, SEND_RATE_WINDOW_MS, DEDUPE_WINDOW_MS, cleanPriority, cleanSubject, cleanReply, cleanArtifact, stampSyncDoc } from "./store.js";
-import { writeAgentFile, timingSafeEqualStr } from "./identity.js";
+import { writeAgentFile, timingSafeEqualStr, mergeAgentDoc } from "./identity.js";
 import { writeTombstone } from "./sync.js";
 import { boardHmacKey } from "./export.js";
 
@@ -733,34 +733,15 @@ export function heartbeat(d, name, minAgeMs) { // line 2689
     if (!(age >= minAgeMs)) return prev;
   }
   const { v, hlc } = stampSyncDoc(prev);
-  const doc = {
+  // Merge, never enumerate: heartbeat must not drop fields it doesn't own
+  // (spawn bookkeeping, tokens, roles — see mergeAgentDoc in identity.js).
+  const doc = mergeAgentDoc(prev, {
     name,
     firstSeen: (prev && prev.firstSeen) || now,
     lastSeen: now,
-    sessionId: (prev && prev.sessionId) || undefined,
     lastDir: process.cwd(),
-    spawnedPid: (prev && prev.spawnedPid) || undefined,
-    spawnedAt: (prev && prev.spawnedAt) || undefined,
-    spawnedBy: (prev && prev.spawnedBy) || undefined,
-    briefId: (prev && prev.briefId) || undefined,
-    budgetTokens: (prev && prev.budgetTokens) || undefined,
-    budgetMinutes: (prev && prev.budgetMinutes) || undefined,
-    budgetSince: (prev && prev.budgetSince) || undefined,
-    deadlineAt: (prev && prev.deadlineAt) || undefined,
-    spawnedWorktree: (prev && prev.spawnedWorktree) || undefined,
-    spawnedBranch: (prev && prev.spawnedBranch) || undefined,
-    spawnedLifetime: (prev && prev.spawnedLifetime) || undefined,
-    token: (prev && prev.token) || undefined,
-    tokenHash: (prev && prev.tokenHash) || undefined,
-    salt: (prev && prev.salt) || undefined,
-    expiresAt: (prev && prev.expiresAt !== undefined ? prev.expiresAt : undefined),
-    rotatedAt: (prev && prev.rotatedAt !== undefined ? prev.rotatedAt : undefined),
-    service: (prev && prev.service !== undefined ? prev.service : undefined),
-    offboarded: (prev && prev.offboarded !== undefined ? prev.offboarded : undefined),
-    revokedAt: (prev && prev.revokedAt !== undefined ? prev.revokedAt : undefined),
-    role: (prev && prev.role !== undefined ? prev.role : undefined),
     v, hlc,
-  };
+  });
   try {
     fs.mkdirSync(d.agents, { recursive: true });
     writeAgentFile(d, name, doc);

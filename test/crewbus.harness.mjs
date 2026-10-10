@@ -9,7 +9,9 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const CLI = fileURLToPath(new URL("../bin/crewbus.js", import.meta.url));
 const HOOK = fileURLToPath(new URL("../bin/crewbus-hook.js", import.meta.url));
 const MCP = fileURLToPath(new URL("../bin/crewbus-mcp.js", import.meta.url));
-import { buildSpawnTarget, buildSpawnPrompt, buildRespawnTarget, buildRespawnBrief, extractHarnessSessionId, isPidStale, readWorkerSession, syncWorkerSession, workerStatus, bootWorker, pidStartTime, parsePsEtime } from "../bin/lib/spawn.js";
+import { buildSpawnTarget, buildSpawnPrompt, buildCrewContext, buildRespawnTarget, buildRespawnBrief, extractHarnessSessionId, isPidStale, readWorkerSession, syncWorkerSession, workerStatus, bootWorker, pidStartTime, parsePsEtime } from "../bin/lib/spawn.js";
+import { mergeAgentDoc } from "../bin/lib/identity.js";
+import { boardSnapshot } from "../bin/lib/web.js";
 import { ensureBoard } from "../bin/lib/store.js";
 
 let failures = 0;
@@ -247,7 +249,24 @@ const toolGrp = await toolMod.default.execute(
   { from: "t1", to_group: "tg", body: "group brief", token: t1Tok },
   { sessionID: "ses_t", worktree: toolSub, directory: toolSub }
 );
-check("tool: to_group fans out", toolGrp.includes("sent 2 messages") && fs.existsSync(path.join(toolProj, ".crewbus", "dm", "t5")));
+  check("tool: to_group fans out", toolGrp.includes("sent 2 messages") && fs.existsSync(path.join(toolProj, ".crewbus", "dm", "t5")));
+  // tool upsert merges, never enumerates: a spawned worker reporting through
+  // the tool must keep its spawn bookkeeping + role (regression: pid/role wipe).
+  // Realistic shape: spawn created the doc (pid, no token yet); first tool
+  // send mints the token (ensureSender path), the upsert below must merge.
+  fs.writeFileSync(
+    path.join(toolProj, ".crewbus", "agents", "tw.json"),
+    JSON.stringify({ name: "tw", firstSeen: "2026-01-01T00:00:00.000Z", lastSeen: "2026-01-01T00:00:00.000Z", spawnedPid: 4242, spawnedBy: "tlead", briefId: "b-1", role: "worker", spawnedLifetime: "persistent" })
+  );
+  const toolW = await toolMod.default.execute(
+    { from: "tw", to: "tlead", body: "worker report" },
+    { sessionID: "ses_w", worktree: toolSub, directory: toolSub }
+  );
+  check("tool: spawned worker first send mints", /token abt-[0-9a-f]+/.test(toolW));
+  const twDoc = JSON.parse(fs.readFileSync(path.join(toolProj, ".crewbus", "agents", "tw.json"), "utf8"));
+  check("tool: upsert keeps spawn bookkeeping", twDoc.spawnedPid === 4242 && twDoc.spawnedBy === "tlead" && twDoc.briefId === "b-1" && twDoc.spawnedLifetime === "persistent");
+  check("tool: upsert keeps role (no silent lead promotion)", twDoc.role === "worker");
+  check("tool: upsert refreshes session + lastSeen", twDoc.sessionId === "ses_w" && twDoc.lastSeen !== "2026-01-01T00:00:00.000Z");
 fs.rmSync(toolDir, { recursive: true, force: true });
 fs.rmSync(toolProj, { recursive: true, force: true });
 
@@ -430,8 +449,12 @@ check("capture: log corroboration confirms", syncWorkerSession(capD, "cap4").idS
 bootWorker(capD, { harness: "generic", cmd: 'node -e "process.exit(0)"', cwd: capBoard, root: capD.root }, { to: "cap5", id: "msg-v", from: "lead", body: "b", logDir: path.join(capBoard, "logs"), sessionId: PRE_UUID });
 const cap5doc = readWorkerSession(capD, "cap5");
 fs.appendFileSync(cap5doc.logPath, JSON.stringify({ session_id: "other-id-9" }) + "\n");
-const cap5synced = syncWorkerSession(capD, "cap5");
-check("capture: log disagreement overrides", cap5synced.harnessSessionId === "other-id-9" && cap5synced.idSource === "log-override");
+  const cap5synced = syncWorkerSession(capD, "cap5");
+  check("capture: log disagreement overrides", cap5synced.harnessSessionId === "other-id-9" && cap5synced.idSource === "log-override");
+  const cap5log0 = fs.readFileSync(cap5doc.logPath, "utf8").split("\n")[0];
+  check("capture: boot line leads the log", cap5log0.startsWith("# crewbus boot cap5") && cap5log0.includes("brief msg-v"));
+  const cap4st = workerStatus(capD, "cap4", 1);
+  check("status: log size + mtime + idle surfaced", typeof cap4st.logSize === "number" && typeof cap4st.logMtimeMs === "number" && typeof cap4st.logIdleMs === "number");
 // the detached boot child can hold its log file briefly on Windows — retry
 for (let i = 0; i < 10; i++) {
   try {
@@ -640,6 +663,76 @@ const cpStale = run(["cli", "ack", "--from", "cplead", "--timeout", "1s"], cpj.e
 check("checkpoint: ack-timeout excludes", cpStale.includes("1 message(s)") && cpStale.includes(cpBrief) && !cpStale.includes("done X"));
 check("checkpoint: thread shows", run(["cli", "thread", "--id", cpBrief], cpj.e, cpj.p).includes("done X"));
 check("checkpoint: prompt discipline", buildSpawnPrompt({ name: "w", from: "lead", body: "b", replyId: "msg-1", cwd: "/tmp", root: "/tmp/.crewbus" }).includes("--checkpoint"));
+// --- crew context roster block (multi-group collaboration) ---
+const crewGroups = [
+  { name: "camera", members: ["cam-1", "cam-2", "cam-3"] },
+  { name: "gps", members: ["gps-1", "gps-2", "gps-3"] },
+];
+const crewA = buildCrewContext({ name: "cam-1", from: "lead", subject: "brief: camera lane", groups: crewGroups, myGroups: ["camera"] });
+check("crew: names my group + members", crewA.some((l) => l.includes("camera (cam-1,cam-2,cam-3)")));
+check("crew: names other group + members", crewA.some((l) => l.includes("gps (gps-1,gps-2,gps-3)")));
+check("crew: points at other group channels", crewA.some((l) => l.includes("grp-gps")));
+check("crew: peer-DM norm uses own name, lead only for approvals", crewA.some((l) => l.includes("crewbus send --from cam-1 --to-group") && l.includes("approvals")));
+check("crew: channel reads free, posts need lead rights", crewA.some((l) => l.includes("channel tail") && l.includes("lead rights")));
+check("crew: boot habit names discovery commands", crewA.some((l) => l.includes("crewbus agents") && l.includes("crewbus group list")));
+const crewPrompt = buildSpawnPrompt({ name: "cam-1", from: "lead", subject: "brief: camera lane", body: "b", replyId: "msg-1", cwd: "/tmp", root: "/tmp/.crewbus", crew: crewA });
+check("crew: prompt renders block under Crew:", crewPrompt.includes("Crew:") && crewPrompt.includes("your group(s): camera"));
+const crewSolo = buildCrewContext({ name: "w", from: "lead", groups: [], myGroups: [] });
+check("crew: solo lane invites agents discovery", crewSolo.some((l) => l.includes("crewbus agents")));
+const crewBare = buildSpawnPrompt({ name: "w", from: "lead", body: "b", replyId: "msg-1", cwd: "/tmp", root: "/tmp/.crewbus" });
+check("crew: absent without crew (backward compatible)", !crewBare.includes("Crew:"));
+// --- agent-doc merge: writers start from prev, never enumerate (review P0) ---
+const mgPrev = { name: "w", spawnedPid: 99, spawnedBy: "lead", briefId: "b", role: "worker", tokenHash: "h", salt: "s" };
+const mgOut = mergeAgentDoc(mgPrev, { name: "w", lastSeen: "now" });
+check("merge: preserves untouched fields", mgOut.spawnedPid === 99 && mgOut.role === "worker" && mgOut.tokenHash === "h" && mgOut.spawnedBy === "lead");
+check("merge: patch wins, undefined clears", mergeAgentDoc(mgPrev, { role: "lead" }).role === "lead" && !("spawnedPid" in mergeAgentDoc(mgPrev, { spawnedPid: undefined })));
+check("merge: never mutates prev", mgPrev.spawnedPid === 99 && mgPrev.role === "worker");
+// register mint preserves spawn metadata (spawned workers hit this path)
+const regB = fs.mkdtempSync(path.join(os.tmpdir(), "cb-reg-"));
+const regEnv = { ...process.env, CREWBUS_DIR: path.join(regB, ".crewbus") };
+fs.mkdirSync(path.join(regB, ".crewbus", "agents"), { recursive: true });
+fs.writeFileSync(path.join(regB, ".crewbus", "agents", "rw.json"), JSON.stringify({ name: "rw", firstSeen: "2026-01-01T00:00:00.000Z", lastSeen: "2026-01-01T00:00:00.000Z", spawnedPid: 4243, spawnedBy: "rlead", briefId: "b-9", spawnedLifetime: "persistent", spawnedHarness: "opencode" }));
+run(["cli", "register", "--from", "rw"], regEnv, regB);
+const rwDoc = JSON.parse(fs.readFileSync(path.join(regB, ".crewbus", "agents", "rw.json"), "utf8"));
+check("register: mint preserves spawn bookkeeping", rwDoc.spawnedPid === 4243 && rwDoc.spawnedBy === "rlead" && rwDoc.briefId === "b-9");
+check("register: mint preserves lifetime + harness", rwDoc.spawnedLifetime === "persistent" && rwDoc.spawnedHarness === "opencode");
+check("register: mint assigns role + token", typeof rwDoc.role === "string" && !!rwDoc.tokenHash);
+fs.rmSync(regB, { recursive: true, force: true });
+// --- presence is liveness, not heartbeat freshness (review P0) ---
+const presB = fs.mkdtempSync(path.join(os.tmpdir(), "cb-pres-"));
+const presRoot = path.join(presB, ".crewbus");
+const presD = ensureBoard(presRoot);
+const nowIso = new Date().toISOString();
+fs.writeFileSync(path.join(presRoot, "agents", "live.json"), JSON.stringify({ name: "live", firstSeen: nowIso, lastSeen: nowIso, spawnedPid: process.pid }));
+fs.writeFileSync(path.join(presRoot, "agents", "dead.json"), JSON.stringify({ name: "dead", firstSeen: nowIso, lastSeen: nowIso, spawnedPid: 999999991 }));
+fs.writeFileSync(path.join(presRoot, "agents", "human.json"), JSON.stringify({ name: "human", firstSeen: nowIso, lastSeen: nowIso }));
+const presByName = new Map(boardSnapshot(presD, 300).agents.map((a) => [a.name, a]));
+check("presence: live pid reads active", presByName.get("live").active === true);
+check("presence: dead pid reads stale despite fresh lastSeen", presByName.get("dead").active === false);
+check("presence: pid-less fresh agent reads active", presByName.get("human").active === true);
+fs.rmSync(presB, { recursive: true, force: true });
+// --- doctor dead-man scan: informational, never FAIL (review P1) ---
+const docB = fs.mkdtempSync(path.join(os.tmpdir(), "cb-docdead-"));
+const docEnv = { ...process.env, CREWBUS_DIR: path.join(docB, ".crewbus") };
+delete docEnv.CREWBUS_AGENT;
+fs.mkdirSync(path.join(docB, ".crewbus", "agents"), { recursive: true });
+fs.writeFileSync(path.join(docB, ".crewbus", "agents", "dw.json"), JSON.stringify({ name: "dw", firstSeen: "2026-01-01T00:00:00.000Z", lastSeen: "2026-01-01T00:00:00.000Z", spawnedPid: 999999992, spawnedBy: "dlead", briefId: "b-dw" }));
+let docOut = "";
+try {
+  docOut = run(["cli", "doctor"], docEnv, docB);
+} catch (e) {
+  docOut = String((e.stdout || "") + (e.stderr || ""));
+}
+check("doctor: dead-man flags exit-without-reply", docOut.includes("dead-man: dw exited with no reply"));
+check("doctor: dead-man stays informational", !/FAIL  dead-man/.test(docOut));
+fs.rmSync(docB, { recursive: true, force: true });
+// --- whitespace-tolerant group lists (review P1: pwsh space-rejoin) ---
+const grpB = fs.mkdtempSync(path.join(os.tmpdir(), "cb-grp-"));
+const grpEnv = { ...process.env, CREWBUS_DIR: path.join(grpB, ".crewbus") };
+run(["cli", "group", "create", "ws", "--add", "ws-1 ws-2"], grpEnv, grpB);
+const wsDoc = JSON.parse(fs.readFileSync(path.join(grpB, ".crewbus", "groups", "ws.json"), "utf8"));
+check("groups: space-joined --add parses as several members", wsDoc.members.length === 2 && wsDoc.members.includes("ws-1") && wsDoc.members.includes("ws-2"));
+fs.rmSync(grpB, { recursive: true, force: true });
 // spawn-status reply detection ignores checkpoints (lib-level, no binary needed)
 const cpD = ensureBoard(path.join(cpj.p, ".crewbus"));
 fs.writeFileSync(path.join(cpj.p, ".crewbus", "agents", "cpw2.json"), JSON.stringify({ name: "cpw2", spawnedPid: 999999995, spawnedBy: "cplead", briefId: "b-ck" }));

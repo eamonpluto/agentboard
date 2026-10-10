@@ -42,11 +42,11 @@ import { execFileSync, spawn } from "node:child_process";
 // at top level so the import graph (store <- everyone; identity <- sync/spawn/
 // mail/groups/channels/web/relay/export) has no evaluation-order hazards.
 import { BOARD_VERSION, BROADCAST_AFTER, MAX_BODY_CHARS, MAX_RECIPIENTS, MAX_SPAWN, VALUE_FLAGS, boardDir, chmodAgentFile, cleanArtifact, cleanBranchPrefix, cleanChannelName, cleanGroupName, cleanPriority, cleanReply, cleanSenderType, cleanSubject, cleanWebName, dirs, ensureBoard, fail, findBoardUpward, getFlag, gitRevForBoard, listJson, newId, optionalAgent, parseDuration, readBoardMeta, readJson, refuseDriveRootBoard, requireBoard, resolveAgent, restArgs, sanitizeName, writeBoardMeta, writeExclusiveJson, writeJson, nextHlc, stampSyncDoc, hlcCompare, SEND_RATE_CAP, SEND_RATE_WINDOW_MS, MAX_FWD_DEPTH, DEDUPE_WINDOW_MS, webErr } from "./lib/store.js";
-import { VALID_ROLES, agentTokenMatches, assertMintWon, authorize, authorizeCheck, checkToken, cleanRole, countAgentRecords, defaultRoleForNew, ensureSender, hashToken, isHashRevoked, mergeSyncedAgent, mintToken, newSalt, readAgent, readBoardAcl, resolveToken, revokedPathForHash, roleOfRecord, sanitizeAgentForSync, stripAgentSecrets, timingSafeEqualStr, touchAgent, writeAgentFile, writeBoardAcl, isBoardFrozen } from "./lib/identity.js";
+import { VALID_ROLES, agentTokenMatches, assertMintWon, authorize, authorizeCheck, checkToken, cleanRole, countAgentRecords, defaultRoleForNew, ensureSender, hashToken, isHashRevoked, mergeAgentDoc, mergeSyncedAgent, mintToken, newSalt, readAgent, readBoardAcl, resolveToken, revokedPathForHash, roleOfRecord, sanitizeAgentForSync, stripAgentSecrets, timingSafeEqualStr, touchAgent, writeAgentFile, writeBoardAcl, isBoardFrozen } from "./lib/identity.js";
 import { saveTokenFile } from "./lib/tokenfile.js";
 import { CLIENT_TLS, SYNC_LWW, cleanSyncRel, clientInsecureFromArgs, crewSurvey, httpJson, readPemFlag, readSyncState, readTombstones, relayAuthEntries, relayCredFor, relayCredHeaders, setupClientTls, splitByWeight, syncRound, syncWalk, warnInsecureOnce, writeSyncState, writeTombstone, SYNC_SUBS, SYNC_UNION, RELAY_CAPS, SUB_CAP, SUB_CAP_NOTE, tombstoneIdForRel, readSyncDoc } from "./lib/sync.js";
 import { devicePath, isLoopbackHost, newDeviceCred, newPairToken, pairingPath, parseDeviceCred, readDevice, readRelayState, relaySecretFromArgs, remoteSpawn, requireRelayClientCert, requireRelaySecret, requireScope, tryAcquireFence, verifyOidcJwt, writeRelayState, relayStatePath, bearerFromReq, getOidcConfig, getOidcJwks, b64urlDecode, b64urlJson, jwsRawToDer, oidcGetJson, OIDC_SKEW_SEC, OIDC_JWKS_TTL_MS, OIDC_ALG_HASH, OIDC_EC_SIZE, deviceFromReq } from "./lib/relay.js";
-import { assertGitCheckout, bootRespawnedWorker, bootWorker, buildRespawnBrief, buildRespawnTarget, buildSpawnPrompt, buildSpawnTarget, formatSpawnCmd, isPidStale, killWorkers, maybeIsolate, parseAllowEnv, pidAlive, provisionBranch, provisionWorktree, readWorkerSession, requireAutoConfirm, sandboxPresent, scrubChildEnv, syncWorkerSession, workerStatus, worktreeStamp, defaultMaxTurnsFor, ensureBoardCliShim, installCliToUserPath } from "./lib/spawn.js";
+import { assertGitCheckout, bootRespawnedWorker, bootWorker, buildCrewContext, buildRespawnBrief, buildRespawnTarget, buildSpawnPrompt, buildSpawnTarget, formatSpawnCmd, isPidStale, killWorkers, maybeIsolate, parseAllowEnv, pidAlive, provisionBranch, provisionWorktree, readWorkerSession, requireAutoConfirm, sandboxPresent, scrubChildEnv, syncWorkerSession, workerStatus, worktreeStamp, defaultMaxTurnsFor, ensureBoardCliShim, installCliToUserPath } from "./lib/spawn.js";
 import { appendChainRecord, auditHmacKey, boardTotalBytes, chainFilePath, countChannels, dirSize, doExportToFile, enforceAgentQuota, enforceBytesQuota, enforceChannelQuota, holdActive, holdDocPath, holdRefusal, parseQuotaBytes, parseQuotaCount, readBackupInner, readBoardQuotas, readChainRecords, readHold, readSnapshotSchedule, resolveBackupKeyMaterial, setAuditForward, snapshotStamp, startAuditForwarder, verifyChainRecords, collectBoardFiles, encryptBackupPayload, decryptBackupPayload, rawKeyFromMaterial, deriveBackupKey, toAuditExport, spoolAuditEvent, postAuditEvent, auditSpoolDir, drainAuditSpool, enqueueAuditForward, signAuditRecord, chainRecordHash, AUDIT_FORWARD_URL, AUDIT_FORWARD_KEY } from "./lib/export.js";
 import { ackedIds, checkSendRateLimit, deliverDMs, enforceMaxChars, filterDigest, findDuplicateSend, findMessageById, heartbeat, isVerified, loadManifest, manifestPath, msgTimeMs, parseRecipients, printDigest, printMsg, readDMs, readVisible, recordBroadcastManifest, requireFanoutConfirm, resolveFwdDepth, runVerifier, verifyMessageSig, isHigh, signMessage, untrustedEnvelope, relTime, rateFilePath, broadcastTargets, readBroadcastsFor, formatTo, msgHeader, readAckMarker, splitCommand, readRecipientsFile } from "./lib/mail.js";
 import { batchReplyIds, collectBatch, contributingGroups, expandGroups, expandGroupsOrFail, gatherTelemetry, groupTelemetryData, heuristicSenderType, readGroup, ensureGroupCreatedAt, readResultRecord, writeResultRecord, findFirstVerifiedReply } from "./lib/groups.js";
@@ -2023,24 +2023,20 @@ function cmdRegister(args) {
       // here (else anyone could self-mint admin). Warn, keep the default.
       process.stderr.write(`crewbus: warning: --role ignored (only an admin can grant roles; ask an admin to run register --from <admin> --for ${agent} --role ${String(roleWant).trim().toLowerCase()})\n`);
     }
-    const record = {
+    const record = mergeAgentDoc(prev, {
       name: agent,
       firstSeen: (prev && prev.firstSeen) || now,
       lastSeen: now,
       sessionId: session || (prev && prev.sessionId) || undefined,
       lastDir: process.cwd(),
-      spawnedPid: (prev && prev.spawnedPid) || undefined,
-      spawnedAt: (prev && prev.spawnedAt) || undefined,
-      spawnedBy: (prev && prev.spawnedBy) || undefined,
-      briefId: (prev && prev.briefId) || undefined,
       tokenHash: hashToken(fresh, salt),
       salt,
-      expiresAt: expiresAt !== undefined ? expiresAt : (serviceFlag ? null : ((prev && prev.expiresAt !== undefined) ? prev.expiresAt : undefined)),
+      expiresAt: expiresRaw !== undefined ? expiresAt : (serviceFlag ? null : ((prev && prev.expiresAt !== undefined) ? prev.expiresAt : undefined)),
       service: serviceFlag ? true : ((prev && prev.service !== undefined) ? prev.service : undefined),
       revokedAt: undefined,
       role: newRole,
       v, hlc,
-    };
+    });
     if (!prev) {
       // Fresh first-claim races (parallel registers): exactly one may win,
       // via atomic exclusive create. Losers fail loudly like a claimed name.
@@ -2472,7 +2468,11 @@ function cmdGroup(args) {
     const adds = [];
     const addRaw = getFlag(rest, "--add");
     if (addRaw) {
-      for (const part of String(addRaw).split(",")) {
+      // Split on commas AND whitespace: PowerShell array-splats an unquoted
+      // --add a,b,c into separate argv items that can rejoin with spaces
+      // (npm shims), so "cam-1 cam-2 cam-3" must parse as three names, not
+      // one joined member.
+      for (const part of String(addRaw).split(/[,\s]+/)) {
         if (part.trim() === "") continue;
         const clean = sanitizeName(part, "recipient");
         if (!adds.includes(clean)) adds.push(clean);
@@ -2840,6 +2840,17 @@ function cmdSpawn(args) {
   const toGroupRaw = getFlag(args, "--to-group");
   if (alsoChannel && (!toGroupRaw || !String(toGroupRaw).trim())) fail("--also-channel needs --to-group <g,...> (it mirrors the brief into each group's channel)");
   const groupNames = String(toGroupRaw || "").split(",").map((s) => String(s).trim().toLowerCase().replace(/[^a-z0-9_.-]/g, "-").slice(0, 40)).filter(Boolean);
+  // Crew roster for the prompt block (see buildCrewContext in lib/spawn.js):
+  // every group on the board with its members, so each worker learns the
+  // map — its own group, the other groups, and the peer-DM norms — at
+  // boot instead of discovering (or never discovering) the board alone.
+  const rosterGroups = [];
+  for (const e of listJson(d.groups)) {
+    const g = e && e.data;
+    if (g && g.name && Array.isArray(g.members)) rosterGroups.push({ name: g.name, members: g.members.slice() });
+  }
+  rosterGroups.sort((a, b) => String(a.name).localeCompare(String(b.name)));
+  const crewFor = (to) => buildCrewContext({ name: to, from, subject, groups: rosterGroups, myGroups: rosterGroups.filter((g) => g.members.includes(to)).map((g) => g.name) });
   const model = getFlag(args, "--model");
   const auto = args.includes("--auto");
   requireAutoConfirm(args);
@@ -2895,12 +2906,12 @@ function cmdSpawn(args) {
       const driver = harnesses[i % harnesses.length];
       const itemMaxTurns = maxTurnsNum !== undefined ? maxTurnsNum : ((driver === "claude" || driver === "grok") ? 50 : undefined);
       const itemSpawnOpts = { ...spawnOpts, harness: driver, maxTurns: itemMaxTurns, allowTools: driver === "claude" ? allowTools : undefined };
-      const previewPrompt = buildSpawnPrompt({ name: to, from, subject, body: body.trim(), replyId: previewBatch || "msg-<id>", rev, cwd, root });
+      const previewPrompt = buildSpawnPrompt({ name: to, from, subject, body: body.trim(), replyId: previewBatch || "msg-<id>", rev, cwd, root, crew: crewFor(to) });
       const t = buildSpawnTarget({ ...itemSpawnOpts, name: to, promptPath: `<logs>/${to}-<stamp>.prompt.md`, prompt: previewPrompt });
       const wtNote = worktreePrefix !== undefined ? ` worktree ../${to}-<stamp> (branch ${worktreePrefix}/${to}-<stamp>)` : branchPrefix !== undefined ? ` branch ${branchPrefix}/${to}-<stamp>` : "";
       console.log(`would spawn ${to} [${driver}] (${lifetime}) cwd ${cwd}${wtNote} cmd: ${formatSpawnCmd(t)} [board ${d.root}]`);
     });
-    console.log(`--- prompt (first worker) ---\n${buildSpawnPrompt({ name: recipients[0], from, subject, body: body.trim(), replyId: previewBatch || "msg-<id>", rev, cwd, root })}`);
+    console.log(`--- prompt (first worker) ---\n${buildSpawnPrompt({ name: recipients[0], from, subject, body: body.trim(), replyId: previewBatch || "msg-<id>", rev, cwd, root, crew: crewFor(recipients[0]) })}`);
     return;
   }
   // Direct (N-copy) path is forced here (every worker needs its own message
@@ -2934,7 +2945,7 @@ function cmdSpawn(args) {
       } else if (branchPrefix !== undefined) {
         workerBranch = provisionBranch(cwd, branchPrefix, to).branch;
       }
-      const r = bootWorker(d, { ...itemSpawnOpts, cwd: workerCwd }, { to, id, from, subject, body: body.trim(), rev, logDir, budgetTokens, budgetMinutes, deadlineAt, spawnedWorktree: workerWorktree, spawnedBranch: workerBranch, spawnedLifetime: lifetime });
+      const r = bootWorker(d, { ...itemSpawnOpts, cwd: workerCwd }, { to, id, from, subject, body: body.trim(), rev, logDir, budgetTokens, budgetMinutes, deadlineAt, spawnedWorktree: workerWorktree, spawnedBranch: workerBranch, spawnedLifetime: lifetime, crew: crewFor(to) });
       const where = workerWorktree ? ` worktree ${workerWorktree}` : workerBranch ? ` branch ${workerBranch}` : "";
       console.log(`spawned ${to} pid ${r.pid} [${driver}] (${lifetime}) log ${r.logPath} reply ${id}${where} [board ${d.root}]`);
     } catch (e) {
@@ -3366,9 +3377,12 @@ function cmdSpawnStatus(args) {
   const json = args.includes("--json");
   let names;
   if (args.includes("--all")) {
+    // Pid-bearing workers plus bookkept ones whose pid record was lost
+    // (e.g. an older dm-send wiped it): the latter still report via
+    // workerStatus as "no pid recorded" instead of vanishing silently.
     names = listJson(d.agents)
       .map((e) => e.data)
-      .filter((x) => x && x.name && typeof x.spawnedPid === "number")
+      .filter((x) => x && x.name && (typeof x.spawnedPid === "number" || x.spawnedBy || x.briefId))
       .map((x) => x.name)
       .sort();
   } else {
@@ -4303,14 +4317,43 @@ function cmdDoctor(args) {
   else info(`not a git checkout (sends omit rev)`);
 
   let ids = parseHarnessFlag(args);
-  if (ids.length === 0) {
-    if (meta && Array.isArray(meta.harnesses) && meta.harnesses.length > 0) ids = meta.harnesses.filter((h) => HARNESSES.includes(h));
-    else {
-      ids = detectHarnesses(cwd);
-      if (ids.length === 0) ids = ["generic"];
+    if (ids.length === 0) {
+      if (meta && Array.isArray(meta.harnesses) && meta.harnesses.length > 0) ids = meta.harnesses.filter((h) => HARNESSES.includes(h));
+      else {
+        ids = detectHarnesses(cwd);
+        if (ids.length === 0) ids = ["generic"];
+      }
     }
-  }
-  if (!local) {
+    // Dead-man scan (read-only, board-local only — no cwd needed): the
+    // events a lead cannot see without polling — workers that exited
+    // without replying, passed deadlines, or went quiet while their pid
+    // is still alive. Informational only — never FAIL. Placed before the
+    // non-local early return so it runs for --board boards too.
+    try {
+      const dd = ensureBoard(root);
+      const found = [];
+      for (const e of listJson(path.join(root, "agents"))) {
+        const a = e && e.data;
+        if (!a || !a.name || typeof a.spawnedPid !== "number") continue;
+        let st = null;
+        try {
+          st = workerStatus(dd, a.name, 1);
+        } catch {
+          continue;
+        }
+        if (!st || !st.known) continue;
+        if (st.alive === false && a.briefId && !st.reply) {
+          found.push(`${a.name} exited with no reply to its brief — check its log (${st.logPath || "no log yet"})`);
+        } else if (st.budget && st.budget.exceeded) {
+          found.push(`${a.name} is past its deadline/budget — see spawn-status --to ${a.name}`);
+        } else if (st.alive === true && st.logIdleMs !== null && st.logIdleMs > 15 * 60 * 1000) {
+          found.push(`${a.name} alive but no log output for ${Math.round(st.logIdleMs / 60000)}m — possibly spinning; see spawn-status --to ${a.name}`);
+        }
+      }
+      for (const f of found.slice(0, 5)) info(`dead-man: ${f}`);
+      if (found.length > 5) info(`dead-man: …and ${found.length - 5} more — see spawn-status --all`);
+    } catch {}
+    if (!local) {
     info(`non-local board: skipping project-file checks for ${root}`);
     console.log(bad === 0 ? "doctor: healthy" : `doctor: ${bad} problem(s)`);
     if (bad > 0) process.exitCode = 1;
@@ -4426,16 +4469,16 @@ function cmdDoctor(args) {
         break;
     }
   }
-  // Reconcile hint (read-only): workers whose pids look recycled since a
-  // reboot read dead instead of running. Informational only — never FAIL.
-  try {
-    const stale = listJson(path.join(root, "agents"))
-      .map((e) => e.data)
-      .filter((x) => x && x.name && isPidStale(x.spawnedPid, x.spawnedAt))
-      .map((x) => x.name);
-    if (stale.length > 0) info(`${stale.length} worker(s) with stale pids (presumed dead after reboot): ${stale.slice(0, 5).join(",")}${stale.length > 5 ? "…" : ""} — see spawn-status --all; respawn to reboot`);
-  } catch {}
-  if (!process.env.CREWBUS_AGENT) info("CREWBUS_AGENT is unset — hooks need it to know who you are");
+    // Reconcile hint (read-only): workers whose pids look recycled since a
+    // reboot read dead instead of running. Informational only — never FAIL.
+    try {
+      const stale = listJson(path.join(root, "agents"))
+        .map((e) => e.data)
+        .filter((x) => x && x.name && isPidStale(x.spawnedPid, x.spawnedAt))
+        .map((x) => x.name);
+      if (stale.length > 0) info(`${stale.length} worker(s) with stale pids (presumed dead after reboot): ${stale.slice(0, 5).join(",")}${stale.length > 5 ? "…" : ""} — see spawn-status --all; respawn to reboot`);
+    } catch {}
+    if (!process.env.CREWBUS_AGENT) info("CREWBUS_AGENT is unset — hooks need it to know who you are");
   if (!process.env.CREWBUS_TOKEN) info("CREWBUS_TOKEN is unset — sends/reads as a claimed name need it");
   try {
     const legacy = fs.readdirSync(path.join(root, "agents")).filter((f) => f.endsWith(".json")).map((f) => {

@@ -204,7 +204,9 @@ export function chmodAgentFile(p) { // line 248
 }
 
 export function parseGroupList(raw) { // line 597
-  return String(raw || "").split(",").map((s) => String(s).trim().toLowerCase().replace(/[^a-z0-9_.-]/g, "-").slice(0, 40)).filter(Boolean);
+  // Commas and whitespace both separate (PowerShell can space-rejoin an
+  // unquoted a,b list); names themselves never contain spaces.
+  return String(raw || "").split(/[,\s]+/).map((s) => String(s).trim().toLowerCase().replace(/[^a-z0-9_.-]/g, "-").slice(0, 40)).filter(Boolean);
 }
 
 export function getFlag(args, flag) { // line 658

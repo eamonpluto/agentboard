@@ -382,22 +382,30 @@ export default tool({
     const tokenHint = minted.created ? ` identity '${from}' claimed, token ${minted.token} (set CREWBUS_TOKEN=${minted.token})` : "";
     const rev = gitRev(root);
     const at = new Date().toISOString();
-    // upsert sender with live session routing for the watcher plugin
+    // upsert sender with live session routing for the watcher plugin.
+    // Merge over prev, never enumerate: a hand-built record here once
+    // wiped spawn bookkeeping (spawnedPid/By, briefId) and roles off
+    // every worker that reported through this tool.
     const ap = path.join(root, "agents", from + ".json");
     let prev = null;
     try {
       prev = JSON.parse(fs.readFileSync(ap, "utf8"));
     } catch {}
-    writeJsonAtomic(ap, {
+    const merged = { ...(prev && typeof prev === "object" ? prev : {}) };
+    for (const [k, v] of Object.entries({
       name: from,
       firstSeen: (prev && prev.firstSeen) || new Date().toISOString(),
       lastSeen: new Date().toISOString(),
       sessionId: (context && context.sessionID) || (prev && prev.sessionId) || undefined,
       lastDir: context.worktree || context.directory || undefined,
-      token: (prev && prev.token) || undefined,
-      tokenHash: (prev && prev.tokenHash) || undefined,
-      salt: (prev && prev.salt) || undefined,
-    });
+    })) {
+      if (v === undefined) delete merged[k];
+      else merged[k] = v;
+    }
+    for (const k of Object.keys(merged)) {
+      if (merged[k] === undefined) delete merged[k];
+    }
+    writeJsonAtomic(ap, merged);
     const isAll = recipients.length === 1 && recipients[0] === "@all";
     const mirrorChannels = (batch) => {
       if (args.also_channel !== true) return "";
