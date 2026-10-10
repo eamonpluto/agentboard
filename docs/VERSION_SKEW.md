@@ -1,6 +1,6 @@
 # Version skew (mixed-relay operation)
 
-How crewbus versions interoperate. Evidence: `package.json:2` (`10.0.2`),
+How crewbus versions interoperate. Evidence: `package.json:2` (`10.0.3`),
 `CHANGELOG.md` (10.0.0 2026-10-08; 7.0.0 2026-10-05; 6.4.0–6.0.0; 4.1.0/4.0.0 baseline).
 Capabilities: `RELAY_CAPS` + `launch` per `packages/contracts/board-caps.json:6-8`.
 Cell behavior is the NEW side's verified behavior (`bin/lib/sync.js` refs);

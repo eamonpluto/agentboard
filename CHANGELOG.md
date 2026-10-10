@@ -4,6 +4,27 @@
 
 - Package is now published as unscoped `crewbus` (v10.0.2): `npm i -g crewbus`.
 
+## 10.0.3 (2026-10-10)
+
+PATCH RELEASE: Worker-record integrity, truthful presence, and multi-group collaboration in spawn briefs. No board-schema change (`board.json` stays v2); all prompt additions are backward-compatible (absent unless the spawn carries group/compute context).
+
+- **Spawn briefs carry a Crew: roster block**:
+  - Every `spawn` brief now names the worker's group(s) + members + lane, the other groups + members, and their group channels (`grp-<group>`).
+  - Ships the peer-DM norm with an explicit trigger (ask the group that owns a thing before asking the lead; lead stays for approvals/scope only), the read-channels/write-DMs distinction (channel-post is lead|admin-only), and a `crewbus agents` + `crewbus group list` boot habit.
+  - Documented as cross-group collaboration norms in `docs/GROUPS.md`.
+- **Agent-doc merge canonicalization**:
+  - New `mergeAgentDoc(prev, patch)` in `bin/lib/identity.js`; `touchAgent`, CLI `heartbeat`, and `register`'s mint path route through it.
+  - The `dm-send` tool and `dm-watch` plugin upserts merge over prev instead of enumerating — fixes spawned workers losing `spawnedPid`/`spawnedBy`/`briefId`/`role` (and with it: vanishing from `spawn-status`, unkillable workers, and silent role promotion) the moment they report.
+  - `syncWorkerSession` preserves binding fields (`promptPath`, model, cwd, cmd, respawn counts), which `respawn` needs.
+- **Truthful presence + session hygiene**:
+  - `boardSnapshot` gates pid-bearing agents on verified process liveness; pid-less agents keep lastSeen freshness.
+  - The watcher TTL-expires session mappings (30m without a confirmed delivery or re-registration) instead of heartbeating dead sessions forever.
+- **Observability**:
+  - Boot-metadata first line in every worker log; `workerStatus` surfaces `logSize`/`logMtimeMs`/`logIdleMs`.
+  - `doctor` gains a read-only dead-man scan (exited without reply, past deadline, alive-but-quiet) — informational, never FAIL.
+  - Dashboard shows data age + STALE banner, relative timestamps, alive-gated kill buttons; `spawn-status --all` lists pid-wiped workers as "no pid recorded" instead of dropping them.
+- **Windows ergonomics**: group lists split on whitespace too (unquoted `--add a,b,c` arriving space-rejoined now parses as several members); PowerShell quoting note in `docs/TROUBLESHOOTING.md`.
+
 ## 10.0.2 (2026-10-09)
 
 PATCH RELEASE: Target workspace CWD selector & persistence in Launch Studio, popover clarity, eliminated upload prompt, and Desktop v0.1.16 companion release.

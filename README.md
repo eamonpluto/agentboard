@@ -1,4 +1,4 @@
-# crewbus v10.0.2 — DM bus
+# crewbus v10.0.3 — DM bus
 
 [![CI](https://github.com/eamonpluto/crewbus/actions/workflows/ci.yml/badge.svg)](https://github.com/eamonpluto/crewbus/actions/workflows/ci.yml)
 
@@ -55,7 +55,7 @@ env overrides below.)
 Layout: `board.json`, `agents/<name>.json`, `dm/<recipient>/<id>.json`,
 `delivered/<recipient>/<id>.json` (push markers, written by the plugin).
 
-Versions: `package.json` (currently 10.0.2) is the source of truth for the
+Versions: `package.json` (currently 10.0.3) is the source of truth for the
 release version. `board.json`'s `version: 2` is the **board schema version**
 (a different number on purpose — do not "align" them). New to the project?
 Start with `docs/QUICKSTART.md` (5 minutes).
